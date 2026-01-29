@@ -1,0 +1,119 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:kfm_kiosk/presentation/bloc/cart/cart_bloc.dart';
+import 'package:kfm_kiosk/presentation/bloc/cart/cart_state.dart';
+import 'package:kfm_kiosk/presentation/bloc/cart/cart_event.dart';
+import 'package:kfm_kiosk/presentation/screens/mobile/payment_screen_mobile.dart';
+
+class CartScreenMobile extends StatelessWidget {
+  final String language;
+
+  const CartScreenMobile({super.key, required this.language});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppStrings.get('your_cart', language)),
+        backgroundColor: const Color(AppColors.primaryBlue),
+        foregroundColor: Colors.white,
+      ),
+      body: BlocBuilder<CartBloc, CartState>(
+        builder: (context, state) {
+          if (state is CartLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (state is CartEmpty || (state is CartLoaded && state.isEmpty)) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    AppStrings.get('cart_empty', language),
+                    style: TextStyle(fontSize: 20, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          if (state is CartLoaded) {
+            return Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: state.items.length,
+                    itemBuilder: (context, index) {
+                      final item = state.items[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item.product.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                    Text('${item.product.brand} • ${item.product.size}', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                                    const SizedBox(height: 4),
+                                    Text('KSh ${item.product.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, color: Color(AppColors.primaryBlue))),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => context.read<CartBloc>().add(DecrementQuantity(item.product.id))),
+                                  Text('${item.quantity}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                  IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => context.read<CartBloc>().add(IncrementQuantity(item.product.id))),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.1), blurRadius: 10, offset: const Offset(0, -5))]),
+                  child: SafeArea(
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(AppStrings.get('total', language), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                            Text('KSh ${state.total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(AppColors.primaryBlue))),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentScreenMobile(language: language, cartItems: state.items, total: state.total))),
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(AppColors.primaryBlue), padding: const EdgeInsets.symmetric(vertical: 16)),
+                            child: Text(AppStrings.get('proceed_to_payment', language), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return const Center(child: Text('Error loading cart'));
+        },
+      ),
+    );
+  }
+}
