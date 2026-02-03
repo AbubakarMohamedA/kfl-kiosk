@@ -8,13 +8,13 @@ class LocalCartDataSource {
   Future<void> addItem(CartItemModel item) async {
     await Future.delayed(const Duration(milliseconds: 100)); // Simulate async
     
-    final productId = item.product.id;
+    final productId = item.productModel.id;
     
     if (_cart.containsKey(productId)) {
       // Item already in cart, increment quantity
       final existingItem = _cart[productId]!;
       _cart[productId] = CartItemModel(
-        product: existingItem.product,
+        productModel: existingItem.productModel,
         quantity: existingItem.quantity + item.quantity,
       );
     } else {
@@ -37,11 +37,11 @@ class LocalCartDataSource {
       _cart.remove(productId);
       return;
     }
-    
+
     if (_cart.containsKey(productId)) {
       final item = _cart[productId]!;
       _cart[productId] = CartItemModel(
-        product: item.product,
+        productModel: item.productModel,
         quantity: quantity,
       );
     }
@@ -80,7 +80,7 @@ class LocalCartDataSource {
     await Future.delayed(const Duration(milliseconds: 50));
     double total = 0.0;
     for (var item in _cart.values) {
-      total += item.total;
+      total += item.subtotal;
     }
     return total;
   }

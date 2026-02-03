@@ -2,20 +2,21 @@
 
 part of 'cart_item_model.dart';
 
-// **************************************************************************
+// ****
 // JsonSerializableGenerator
-// **************************************************************************
+// ****
 
 CartItemModel _$CartItemModelFromJson(Map<String, dynamic> json) =>
     CartItemModel(
-      product: CartItemModel._productFromJson(
-        json['product'] as Map<String, dynamic>,
-      ),
-      quantity: (json['quantity'] as num).toInt(),
+      productModel:
+          ProductModel.fromJson(json['product'] as Map<String, dynamic>),
+      quantity: json['quantity'] as int,
+      status: json['status'] as String? ?? 'PAID',
     );
 
 Map<String, dynamic> _$CartItemModelToJson(CartItemModel instance) =>
     <String, dynamic>{
+      'product': instance.productModel.toJson(),
       'quantity': instance.quantity,
-      'product': CartItemModel._productToJson(instance.product),
+      'status': instance.status,
     };

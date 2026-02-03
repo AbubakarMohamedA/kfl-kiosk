@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kfm_kiosk/core/configuration/app_configuration.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:kfm_kiosk/domain/entities/order.dart';
+import 'package:kfm_kiosk/domain/entities/cart_item.dart';
 import 'package:kfm_kiosk/presentation/bloc/order/order_bloc.dart';
 import 'package:kfm_kiosk/presentation/bloc/order/order_state.dart';
 import 'package:kfm_kiosk/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/presentation/widgets/desktop/staff_order_card.dart';
+import 'package:kfm_kiosk/presentation/screens/desktop/analytics_screen.dart';
+import 'package:kfm_kiosk/presentation/screens/desktop/inventory_screen.dart';
+import 'package:kfm_kiosk/presentation/screens/desktop/staff_management_screen.dart';
+import 'package:kfm_kiosk/presentation/screens/desktop/settings_screen.dart';
+import 'package:kfm_kiosk/presentation/screens/desktop/warehouse_selector_screen.dart';
 import 'package:kfm_kiosk/presentation/screens/desktop/home_screen_desktop.dart';
+import 'package:kfm_kiosk/presentation/screens/desktop/staff_panel_warehouse.dart';
+import 'package:kfm_kiosk/presentation/widgets/desktop/staff_order_card.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -17,19 +26,35 @@ class StaffPanelDesktop extends StatefulWidget {
   State<StaffPanelDesktop> createState() => _StaffPanelDesktopState();
 }
 
-class _StaffPanelDesktopState extends State<StaffPanelDesktop> 
+enum ScreenType {
+  dashboard,
+  orderHistory,
+  analytics,
+  inventory,
+  staffManagement,
+  settings,
+  warehouseSelector,
+  warehouseView,
+}
+
+class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   late TabController _tabController;
   late Timer _autoRefreshTimer;
   late Timer _clockTimer;
-  
   String _selectedFilter = 'all';
   bool _showHistory = false;
+  ScreenType _currentScreen = ScreenType.dashboard;
+  Warehouse? _selectedWarehouse;
   bool _isDarkMode = false;
   DateTime _currentTime = DateTime.now();
-  int _paidOrdersCount = 0; // Track paid orders count
+  int _paidOrdersCount = 0;
   
+  // ✅ NEW: Configuration tracking for mode awareness
+  AppConfiguration _currentConfig = AppConfiguration();
+  bool _isConfigLoading = true;
+
   // Analytics data
   int _peakHourOrders = 0;
   double _averagePrepTime = 0.0;
@@ -40,11 +65,14 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     
+    // ✅ NEW: Load configuration on startup
+    _loadConfiguration();
+    
     // Silent auto-refresh every 30 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted && !_showHistory) {
-        // Silent refresh - no setState, just reload data in background
-        context.read<OrderBloc>().add(const LoadOrders());
+        context.read<OrderBloc>();
+        _loadConfiguration(); // Refresh config periodically
       }
     });
     
@@ -60,9 +88,32 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     _generateMockAnalytics();
   }
 
+  // ✅ NEW: Load current configuration from repository
+  Future<void> _loadConfiguration() async {
+    try {
+      final config = await context
+          .read<OrderBloc>()
+          .configurationRepository
+          .getConfiguration();
+      
+      if (mounted && config != _currentConfig) {
+        setState(() {
+          _currentConfig = config;
+          _isConfigLoading = false;
+        });
+      }
+    } catch (e) {
+      // Fallback to default config on error
+      if (mounted && _isConfigLoading) {
+        setState(() {
+          _currentConfig = AppConfiguration();
+          _isConfigLoading = false;
+        });
+      }
+    }
+  }
+
   void _generateMockAnalytics() {
-    // Generate hourly data for the day
-    final _ = DateTime.now();
     _hourlyData = List.generate(24, (index) {
       return {
         'hour': index,
@@ -70,8 +121,10 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         'revenue': (math.Random().nextDouble() * 5000) + 1000,
       };
     });
-    
-    _peakHourOrders = _hourlyData.map((e) => e['orders'] as int).reduce(math.max);
+    _peakHourOrders = _hourlyData.map((e) => e['orders'] as int).fold(
+      0,
+      (prev, current) => math.max(prev, current),
+    );
     _averagePrepTime = 8.5 + (math.Random().nextDouble() * 6);
   }
 
@@ -84,17 +137,212 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     super.dispose();
   }
 
+  // ─── MODE-AWARE ORDER HELPERS ────────────────────────────────────────────
+  
+  // ⚠️ CRITICAL FULFILLMENT PERSISTENCE LOGIC ⚠️
+  //
+  // These helper methods implement a key business rule:
+  // "Once an order reaches 100% completion (all items fulfilled), it MUST 
+  // remain completed regardless of tracking mode switches."
+  //
+  // WHY THIS MATTERS:
+  // 1. Order ORD0001 is completed in Item-Level mode (all items picked up)
+  // 2. Admin switches system to Order-Level tracking mode
+  // 3. Without this logic, ORD0001 might show as "active" again because
+  //    the order-level status field might not be "fulfilled"
+  // 4. This would confuse staff and create duplicate work
+  //
+  // SOLUTION:
+  // - Check if ALL items have status = "fulfilled"
+  // - If yes, treat order as permanently complete regardless of:
+  //   * Current tracking mode
+  //   * Order-level status field value
+  //   * Any other configuration
+  // - This ensures orders stay completed once customers have picked them up
+  
+  // ✅ FIXED: Use configuration-aware active check with fulfillment persistence
+  bool _isOrderActive(Order order) {
+    // CRITICAL: If ALL items are fulfilled, the order is permanently complete
+    // regardless of current tracking mode. This prevents fulfilled orders
+    // from reappearing when switching between tracking modes.
+    if (order.items.isNotEmpty) {
+      final allItemsFulfilled = order.items.every(
+        (item) => item.status == AppConstants.statusFulfilled
+      );
+      if (allItemsFulfilled) {
+        return false; // Order was 100% complete - stays inactive forever
+      }
+    }
+    
+    // If not all items are fulfilled, use mode-specific active check
+    return order.isActive(_currentConfig);
+  }
+
+  // ✅ FIXED: Get completion percent based on mode
+  double _getOrderCompletionPercent(Order order) {
+    // CRITICAL: If all items are fulfilled, always return 100%
+    // regardless of tracking mode
+    if (order.items.isNotEmpty) {
+      final allItemsFulfilled = order.items.every(
+        (item) => item.status == AppConstants.statusFulfilled
+      );
+      if (allItemsFulfilled) {
+        return 100.0;
+      }
+    }
+    
+    if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
+      // Order-level: 0% if not fulfilled, 100% if fulfilled
+      return order.status == AppConstants.statusFulfilled ? 100.0 : 0.0;
+    }
+    
+    // Item-level: Calculate based on fulfilled items
+    if (order.items.isEmpty) return 0.0;
+    final fulfilled = order.items
+        .where((i) => i.status == AppConstants.statusFulfilled)
+        .length;
+    return (fulfilled / order.items.length) * 100.0;
+  }
+
+  // ✅ FIXED: Get warehouse categories only in item-level mode
+  List<String> _getOrderWarehouseCategories(Order order) {
+    if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
+      return []; // No warehouse breakdown in order-level mode
+    }
+    return order.items.map((i) => i.product.category).toSet().toList();
+  }
+
+  // ✅ FIXED: Get warehouse-specific completion only in item-level mode
+  double _getWarehouseCompletionPercent(Order order, String category) {
+    if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
+      return _getOrderCompletionPercent(order); // Use order-level percent
+    }
+    
+    final items = order.items
+        .where((i) => i.product.category == category)
+        .toList();
+    if (items.isEmpty) return 0.0;
+    final fulfilled = items
+        .where((i) => i.status == AppConstants.statusFulfilled)
+        .length;
+    return (fulfilled / items.length) * 100.0;
+  }
+
+  // ✅ FIXED: Get effective status based on configuration mode
+  String _getEffectiveOrderStatus(Order order) {
+    // CRITICAL: If all items are fulfilled, always return FULFILLED status
+    // regardless of what the order-level status says or current tracking mode
+    if (order.items.isNotEmpty) {
+      final allItemsFulfilled = order.items.every(
+        (item) => item.status == AppConstants.statusFulfilled
+      );
+      if (allItemsFulfilled) {
+        return AppConstants.statusFulfilled;
+      }
+    }
+    
+    return order.getEffectiveStatus(_currentConfig);
+  }
+
+  // Warehouse helpers (only used in item-level mode)
+  String _getWarehouseStatus(Order order, String category) {
+    final items = order.items
+        .where((i) => i.product.category == category)
+        .toList();
+    if (items.isEmpty) return AppConstants.statusFulfilled;
+    final statuses = items.map((i) => i.status).toSet();
+    if (statuses.contains(AppConstants.statusPaid)) {
+      return AppConstants.statusPaid;
+    }
+    if (statuses.contains(AppConstants.statusPreparing)) {
+      return AppConstants.statusPreparing;
+    }
+    if (statuses.contains(AppConstants.statusReadyForPickup)) {
+      return AppConstants.statusReadyForPickup;
+    }
+    return AppConstants.statusFulfilled;
+  }
+
+  Color _warehouseColor(String category) {
+    switch (category) {
+      case 'Flour': return Colors.brown;
+      case 'Premium Flour': return Colors.amber;
+      case 'Bakers Flour': return Colors.orange;
+      case 'Cooking Oil': return Colors.yellow.shade700;
+      default: return Colors.blueGrey;
+    }
+  }
+
+  IconData _warehouseIcon(String category) {
+    switch (category) {
+      case 'Flour': return Icons.grain;
+      case 'Premium Flour': return Icons.grade;
+      case 'Bakers Flour': return Icons.bakery_dining;
+      case 'Cooking Oil': return Icons.water_drop;
+      default: return Icons.inventory_2;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case AppConstants.statusPaid: return Colors.blue;
+      case AppConstants.statusPreparing: return Colors.orange;
+      case AppConstants.statusReadyForPickup: return Colors.purple;
+      case AppConstants.statusFulfilled: return Colors.green;
+      default: return Colors.grey;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case AppConstants.statusPaid: return Icons.payment;
+      case AppConstants.statusPreparing: return Icons.autorenew;
+      case AppConstants.statusReadyForPickup: return Icons.inventory_2;
+      case AppConstants.statusFulfilled: return Icons.check_circle;
+      default: return Icons.circle;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case AppConstants.statusPaid: return 'PAID';
+      case AppConstants.statusPreparing: return 'PREPARING';
+      case AppConstants.statusReadyForPickup: return 'READY';
+      case AppConstants.statusFulfilled: return 'PICKED UP';
+      default: return status.toUpperCase();
+    }
+  }
+
+  // ✅ NEW: Get appropriate status update event based on mode
+  void _updateOrderStatus(Order order, String newStatus) {
+    final bloc = context.read<OrderBloc>();
+    
+    if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
+      // Order-level mode: Update entire order status
+      bloc.add(UpdateOrderStatus(
+        orderId: order.id,
+        status: newStatus,
+      ));
+    } else {
+      // Item-level mode: Update all items to new status
+      bloc.add(UpdateOrderStatus(
+        orderId: order.id,
+        status: newStatus,
+      ));
+      // Note: In item-level mode, warehouse stations handle per-category updates
+      // The main dashboard provides order-level actions as fallback
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _isDarkMode ? const Color(0xFF0F1419) : Colors.grey[50],
       body: BlocListener<OrderBloc, OrderState>(
         listener: (context, state) {
-          // Update paid orders count silently without triggering full rebuild
           if (state is OrdersLoaded) {
             final newPaidCount = state.paidCount;
             if (_paidOrdersCount != newPaidCount) {
-              // Only update if count changed
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) {
                   setState(() {
@@ -113,23 +361,32 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 children: [
                   _buildSidebar(),
                   Expanded(
-                    child: Column(
-                      children: [
-                        if (!_showHistory) ...[
-                          _buildDashboardTitle(),
-                          _buildSearchAndFilterBar(),
-                        ] else ...[
-                          _buildHistoryHeader(),
-                        ],
-                        Expanded(
-                          child: _showHistory 
-                              ? _buildEnhancedHistoryView() 
-                              : _buildEnhancedOrdersView(),
-                        ),
-                      ],
-                    ),
+                    child: _currentScreen == ScreenType.dashboard
+                        ? _buildDashboardContent()
+                        : _currentScreen == ScreenType.analytics
+                            ? const AnalyticsScreen()
+                            : _currentScreen == ScreenType.inventory
+                                ? const InventoryScreen()
+                                : _currentScreen == ScreenType.warehouseSelector
+                                    ? WarehouseSelectorScreen(
+                                        onWarehouseSelected: (warehouse) {
+                                          setState(() {
+                                            _selectedWarehouse = warehouse;
+                                            _currentScreen = ScreenType.warehouseView;
+                                          });
+                                        },
+                                      )
+                                    : _currentScreen == ScreenType.warehouseView &&
+                                            _selectedWarehouse != null
+                                        ? StaffPanelWarehouse(warehouse: _selectedWarehouse!)
+                                        : _currentScreen == ScreenType.staffManagement
+                                            ? const StaffManagementScreen()
+                                            : const SettingsScreen(),
                   ),
-                  _buildRightPanel(),
+                  // ✅ FIXED: Only show right panel in dashboard view AND item-level mode
+                  if (_currentScreen == ScreenType.dashboard &&
+                      _currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
+                    _buildRightPanel(),
                 ],
               ),
             ),
@@ -145,15 +402,15 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: _isDarkMode 
-              ? [const Color(0xFF1a237e), const Color(0xFF083E22)]
+          colors: _isDarkMode
+              ? [const Color(0xFF083E22), const Color(0xFF083E22)]
               : [const Color(AppColors.primaryBlue), const Color(0xFF0A6F38)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -161,18 +418,17 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       ),
       child: Row(
         children: [
-          // Logo and Title
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha:0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha:0.2)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
             child: const Icon(
-              Icons.dashboard_customize_rounded, 
-              size: 32, 
-              color: Colors.white
+              Icons.dashboard_customize_rounded,
+              size: 32,
+              color: Colors.white,
             ),
           ),
           const SizedBox(width: 16),
@@ -193,25 +449,24 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 DateFormat('EEEE, MMMM d, yyyy').format(_currentTime),
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.white.withValues(alpha:0.85),
+                  color: Colors.white.withValues(alpha: 0.85),
                   fontWeight: FontWeight.w400,
                 ),
               ),
             ],
           ),
           const Spacer(),
-          
-          // Live Clock
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha:0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha:0.2)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
-                Icon(Icons.access_time_rounded, color: Colors.white.withValues(alpha:0.9), size: 20),
+                Icon(Icons.access_time_rounded,
+                    color: Colors.white.withValues(alpha: 0.9), size: 20),
                 const SizedBox(width: 8),
                 Text(
                   DateFormat('HH:mm:ss').format(_currentTime),
@@ -225,24 +480,21 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             ),
           ),
           const SizedBox(width: 16),
-          
-          // Theme Toggle
           _buildHeaderIconButton(
             icon: _isDarkMode ? Icons.light_mode : Icons.dark_mode,
             tooltip: _isDarkMode ? 'Light Mode' : 'Dark Mode',
             onPressed: () => setState(() => _isDarkMode = !_isDarkMode),
           ),
           const SizedBox(width: 12),
-          
-          // Manual Refresh Button (optional - for user-triggered refresh)
           _buildHeaderIconButton(
             icon: Icons.refresh_rounded,
             tooltip: 'Refresh Data',
-            onPressed: () => context.read<OrderBloc>().add(const LoadOrders()),
+            onPressed: () {
+              _loadConfiguration(); // Refresh config too
+              context.read<OrderBloc>().add(const LoadOrders());
+            },
           ),
           const SizedBox(width: 12),
-          
-          // Notifications - Show count of paid orders
           _buildHeaderIconButton(
             icon: Icons.notifications_outlined,
             tooltip: 'New Orders (Paid)',
@@ -250,12 +502,10 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             onPressed: () => _showNotificationsDialog(),
           ),
           const SizedBox(width: 12),
-          
-          // Settings
           _buildHeaderIconButton(
             icon: Icons.settings_outlined,
             tooltip: 'Settings',
-            onPressed: () => _showSettingsDialog(),
+            onPressed: () => setState(() => _currentScreen = ScreenType.settings),
           ),
         ],
       ),
@@ -273,7 +523,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       child: Stack(
         children: [
           Material(
-            color: Colors.white.withValues(alpha:0.15),
+            color: Colors.white.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
             child: InkWell(
               onTap: onPressed,
@@ -323,41 +573,82 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           right: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
           ),
         ),
       ),
       child: Column(
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           _buildSidebarItem(
             icon: Icons.dashboard_rounded,
             label: 'Dashboard',
-            isSelected: !_showHistory,
-            onTap: () => setState(() => _showHistory = false),
+            isSelected: _currentScreen == ScreenType.dashboard && !_showHistory,
+            onTap: () {
+              setState(() {
+                _currentScreen = ScreenType.dashboard;
+                _showHistory = false;
+              });
+            },
           ),
           _buildSidebarItem(
             icon: Icons.history_rounded,
             label: 'Order History',
-            isSelected: _showHistory,
-            onTap: () => setState(() => _showHistory = true),
+            isSelected: _currentScreen == ScreenType.dashboard && _showHistory,
+            onTap: () {
+              setState(() {
+                _currentScreen = ScreenType.dashboard;
+                _showHistory = true;
+              });
+            },
           ),
+          // ✅ FIXED: Only show warehouse stations in item-level mode
+          if (_currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
+            _buildSidebarItem(
+              icon: Icons.warehouse,
+              label: 'Warehouse Stations',
+              isSelected: _currentScreen == ScreenType.warehouseSelector,
+              onTap: () {
+                setState(() {
+                  _currentScreen = ScreenType.warehouseSelector;
+                  _showHistory = false;
+                });
+              },
+            ),
           _buildSidebarItem(
             icon: Icons.analytics_outlined,
             label: 'Analytics',
-            onTap: () => _showAnalyticsDialog(),
+            isSelected: _currentScreen == ScreenType.analytics,
+            onTap: () {
+              setState(() {
+                _currentScreen = ScreenType.analytics;
+                _showHistory = false;
+              });
+            },
           ),
           _buildSidebarItem(
             icon: Icons.inventory_2_outlined,
             label: 'Inventory',
-            onTap: () {},
+            isSelected: _currentScreen == ScreenType.inventory,
+            onTap: () {
+              setState(() {
+                _currentScreen = ScreenType.inventory;
+                _showHistory = false;
+              });
+            },
           ),
           _buildSidebarItem(
             icon: Icons.people_outline,
             label: 'Staff Management',
-            onTap: () {},
+            isSelected: _currentScreen == ScreenType.staffManagement,
+            onTap: () {
+              setState(() {
+                _currentScreen = ScreenType.staffManagement;
+                _showHistory = false;
+              });
+            },
           ),
-          const Divider(height: 32),
+          const Divider(height: 20),
           _buildSidebarItem(
             icon: Icons.storefront_rounded,
             label: 'Customer Kiosk',
@@ -370,21 +661,19 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             },
           ),
           const Spacer(),
-          
-          // Quick Stats in Sidebar
           Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(AppColors.primaryBlue).withValues(alpha:0.1),
-                  const Color(AppColors.primaryBlue).withValues(alpha:0.05),
+                  const Color(AppColors.primaryBlue).withValues(alpha: 0.1),
+                  const Color(AppColors.primaryBlue).withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: const Color(AppColors.primaryBlue).withValues(alpha:0.2),
+                color: const Color(AppColors.primaryBlue).withValues(alpha: 0.2),
               ),
             ),
             child: BlocBuilder<OrderBloc, OrderState>(
@@ -401,10 +690,12 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           color: _isDarkMode ? Colors.white70 : Colors.grey[700],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       _buildSidebarStat('Orders', '${state.todaysOrderCount}'),
-                      _buildSidebarStat('Revenue', 'KSh ${state.todaysSales.toStringAsFixed(0)}'),
-                      _buildSidebarStat('Active', '${state.paidCount + state.preparingCount + state.readyCount}'),
+                      _buildSidebarStat(
+                          'Revenue', 'KSh ${state.todaysSales.toStringAsFixed(0)}'),
+                      _buildSidebarStat(
+                          'Active', '${state.paidCount + state.preparingCount + state.readyCount}'),
                     ],
                   );
                 }
@@ -426,8 +717,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Material(
-        color: isSelected 
-            ? const Color(AppColors.primaryBlue).withValues(alpha:0.1)
+        color: isSelected
+            ? const Color(AppColors.primaryBlue).withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
@@ -440,7 +731,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 Icon(
                   icon,
                   size: 22,
-                  color: isSelected 
+                  color: isSelected
                       ? const Color(AppColors.primaryBlue)
                       : (_isDarkMode ? Colors.white70 : Colors.grey[600]),
                 ),
@@ -450,7 +741,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isSelected 
+                    color: isSelected
                         ? const Color(AppColors.primaryBlue)
                         : (_isDarkMode ? Colors.white70 : Colors.grey[700]),
                   ),
@@ -489,6 +780,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
+  // ✅ FIXED: Right panel only shown in item-level mode
   Widget _buildRightPanel() {
     return Container(
       width: 320,
@@ -496,7 +788,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           left: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
           ),
         ),
       ),
@@ -507,7 +799,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
                 ),
               ),
             ),
@@ -533,11 +825,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             child: BlocBuilder<OrderBloc, OrderState>(
               builder: (context, state) {
                 if (state is OrdersLoaded) {
-                  final completedToday = state.orders.where((o) => 
-                    o.status == AppConstants.statusFulfilled && 
-                    _isToday(o.timestamp)
-                  ).length;
-
+                  final completedToday = state.orders.where((o) =>
+                      o.status == AppConstants.statusFulfilled && _isToday(o.timestamp))
+                      .length;
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -561,12 +851,15 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           Icons.speed,
                           Colors.green,
                           [
-                            _buildInsightRow('Completion Rate', 
-                              state.todaysOrderCount > 0 
+                            _buildInsightRow(
+                              'Completion Rate',
+                              state.todaysOrderCount > 0
                                   ? '${((completedToday / state.todaysOrderCount) * 100).toStringAsFixed(0)}%'
-                                  : '0%', 
-                              Colors.green),
-                            _buildInsightRow('Avg Prep Time', '${_averagePrepTime.toStringAsFixed(1)} min', Colors.teal),
+                                  : '0%',
+                              Colors.green,
+                            ),
+                            _buildInsightRow(
+                                'Avg Prep Time', '${_averagePrepTime.toStringAsFixed(1)} min', Colors.teal),
                             _buildInsightRow('Peak Hour', '$_peakHourOrders orders', Colors.indigo),
                           ],
                         ),
@@ -577,12 +870,15 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           Icons.attach_money,
                           Colors.green,
                           [
-                            _buildInsightRow('Today', 'KSh ${state.todaysSales.toStringAsFixed(0)}', Colors.green),
-                            _buildInsightRow('Avg Order', 
-                              state.todaysOrderCount > 0 
+                            _buildInsightRow(
+                                'Today', 'KSh ${state.todaysSales.toStringAsFixed(0)}', Colors.green),
+                            _buildInsightRow(
+                              'Avg Order',
+                              state.todaysOrderCount > 0
                                   ? 'KSh ${(state.todaysSales / state.todaysOrderCount).toStringAsFixed(0)}'
-                                  : 'KSh 0', 
-                              Colors.blue),
+                                  : 'KSh 0',
+                              Colors.blue,
+                            ),
                             _buildInsightRow('Orders', '${state.todaysOrderCount}', Colors.purple),
                           ],
                         ),
@@ -614,7 +910,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+          color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
         ),
       ),
       child: Column(
@@ -625,7 +921,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha:0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: color, size: 20),
@@ -678,7 +974,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: color.withValues(alpha:0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
@@ -702,7 +998,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+          color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
         ),
       ),
       child: Column(
@@ -749,7 +1045,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
           ),
         ),
       ),
@@ -762,13 +1058,57 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           ),
           const SizedBox(width: 12),
           Text(
-            'Active Orders',
+            _showHistory ? 'Order History' : 'Active Orders',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: _isDarkMode ? Colors.white : Colors.grey[800],
             ),
           ),
+          // ✅ NEW: Show current mode indicator
+          const Spacer(),
+          if (!_showHistory)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                    ? Colors.blue[50]
+                    : Colors.green[50],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                      ? Colors.blue[300]!
+                      : Colors.green[300]!,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                        ? Icons.list_alt
+                        : Icons.view_module,
+                    size: 16,
+                    color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                        ? Colors.blue
+                        : Colors.green,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                        ? 'Order-Level Tracking'
+                        : 'Item-Level Tracking',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                          ? Colors.blue[900]
+                          : Colors.green[900],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -781,13 +1121,12 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
           ),
         ),
       ),
       child: Row(
         children: [
-          // Search Bar
           Expanded(
             flex: 3,
             child: Container(
@@ -795,9 +1134,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _isDarkMode 
-                      ? Colors.white.withValues(alpha:0.1)
-                      : Colors.grey[300]!,
+                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
                 ),
               ),
               child: TextField(
@@ -833,8 +1170,6 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             ),
           ),
           const SizedBox(width: 12),
-          
-          // Filter Dropdown
           Expanded(
             flex: 1,
             child: Container(
@@ -843,9 +1178,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _isDarkMode 
-                      ? Colors.white.withValues(alpha:0.1)
-                      : Colors.grey[300]!,
+                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
                 ),
               ),
               child: DropdownButton<String>(
@@ -863,13 +1196,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 ),
                 dropdownColor: _isDarkMode ? const Color(0xFF252b3b) : Colors.white,
                 items: [
-                  DropdownMenuItem(
+                  const DropdownMenuItem(
                     value: 'all',
                     child: Row(
                       children: [
-                        Icon(Icons.grid_view_rounded, size: 18, color: _isDarkMode ? Colors.white70 : Colors.grey[600]),
-                        const SizedBox(width: 12),
-                        const Text('All Orders'),
+                        Icon(Icons.grid_view_rounded, size: 18),
+                        SizedBox(width: 12),
+                        Text('All Orders'),
                       ],
                     ),
                   ),
@@ -904,7 +1237,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     ),
                   ),
                 ],
-                onChanged: (value) {
+                onChanged: (String? value) {
                   if (value != null) {
                     setState(() => _selectedFilter = value);
                     context.read<OrderBloc>().add(FilterOrders(value));
@@ -918,62 +1251,588 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
+  // ─── MODE-AWARE ACTIVE ORDERS VIEW ────────────────────────────────────────
   Widget _buildEnhancedOrdersView() {
     return BlocBuilder<OrderBloc, OrderState>(
       builder: (context, state) {
         if (state is OrdersLoaded) {
-          final activeOrders = state.filteredActiveOrders;
-
+          final activeOrders = state.orders.where((o) => _isOrderActive(o)).toList();
           if (activeOrders.isEmpty) {
             return _buildEmptyState(
               icon: Icons.check_circle_outline,
               title: 'No Active Orders',
-              subtitle: _selectedFilter != 'all' 
+              subtitle: _selectedFilter != 'all'
                   ? 'No orders match the selected filter'
                   : 'All orders have been completed!',
             );
           }
-
-          // List view only - removed grid view
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
             itemCount: activeOrders.length,
             itemBuilder: (context, index) {
               final order = activeOrders[activeOrders.length - 1 - index];
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: StaffOrderCard(
-                  order: order,
-                  onStartPreparing: () {
-                    context.read<OrderBloc>().add(UpdateOrderStatus(
-                      orderId: order.id,
-                      status: AppConstants.statusPreparing,
-                    ));
-                  },
-                  onMarkReady: () {
-                    context.read<OrderBloc>().add(UpdateOrderStatus(
-                      orderId: order.id,
-                      status: AppConstants.statusReadyForPickup,
-                    ));
-                  },
-                  onMarkFulfilled: () {
-                    context.read<OrderBloc>().add(UpdateOrderStatus(
-                      orderId: order.id,
-                      status: AppConstants.statusFulfilled,
-                    ));
-                    _showSuccessSnackBar(order.id);
-                  },
-                ),
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildActiveOrderCard(order),
               );
             },
           );
         }
-
         return const Center(child: CircularProgressIndicator());
       },
     );
   }
 
+  // ✅ UPDATED: Use StaffOrderCard for order-level, custom card for item-level
+  Widget _buildActiveOrderCard(Order order) {
+    // ✅ For order-level tracking: Use simple StaffOrderCard
+    if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
+      final effectiveStatus = _getEffectiveOrderStatus(order);
+      
+      return StaffOrderCard(
+        order: order,
+        config: _currentConfig, // ✅ Pass config for proper status detection
+        onStartPreparing: effectiveStatus == AppConstants.statusPaid
+            ? () => _updateOrderStatus(order, AppConstants.statusPreparing)
+            : null,
+        onMarkReady: effectiveStatus == AppConstants.statusPreparing
+            ? () => _updateOrderStatus(order, AppConstants.statusReadyForPickup)
+            : null,
+        onMarkFulfilled: effectiveStatus == AppConstants.statusReadyForPickup
+            ? () => _updateOrderStatus(order, AppConstants.statusFulfilled)
+            : null,
+      );
+    }
+    
+    // ✅ For item-level tracking: Use detailed warehouse card
+    final percent = _getOrderCompletionPercent(order);
+    final categories = _getOrderWarehouseCategories(order);
+    final _ = _getEffectiveOrderStatus(order);
+    
+    return GestureDetector(
+      onTap: () => _showOrderDetailBottomSheet(order),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(AppColors.primaryBlue).withValues(alpha: _isDarkMode ? 0.3 : 0.18),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (_isDarkMode ? Colors.black : Colors.black).withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(AppColors.primaryBlue)
+                              .withValues(alpha: _isDarkMode ? 0.2 : 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.receipt_long,
+                          color: Color(AppColors.primaryBlue),
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order #${order.id}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: _isDarkMode ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          Text(
+                            'Phone: ${order.phone}  •  ${DateFormat('dd MMM, HH:mm').format(order.timestamp)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  _buildCompletionRing(percent, 48),
+                ],
+              ),
+              const SizedBox(height: 14),
+              
+              if (categories.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  children: categories.map((cat) {
+                    final whPercent = _getWarehouseCompletionPercent(order, cat);
+                    final whColor = _warehouseColor(cat);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: whColor.withValues(alpha: _isDarkMode ? 0.25 : 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: whColor.withValues(alpha: _isDarkMode ? 0.4 : 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_warehouseIcon(cat), size: 14, color: whColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            cat,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _isDarkMode ? whColor : whColor,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${whPercent.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: _isDarkMode ? whColor : whColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              
+              if (categories.isNotEmpty) const SizedBox(height: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: percent / 100.0,
+                  minHeight: 8,
+                  backgroundColor: _isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    percent >= 100 ? Colors.green : const Color(AppColors.primaryBlue),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${percent.toStringAsFixed(0)}% picked up  •  KSh ${order.total.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tap for details',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _isDarkMode ? Colors.white60 : Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✅ FIXED: Mode-aware order detail bottom sheet
+  void _showOrderDetailBottomSheet(Order order) {
+    final categories = _getOrderWarehouseCategories(order);
+    final totalPercent = _getOrderCompletionPercent(order);
+    final effectiveStatus = _getEffectiveOrderStatus(order);
+    
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(24),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: _isDarkMode ? Colors.white24 : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Order #${order.id}',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: _isDarkMode ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      Text(
+                        'Phone: ${order.phone}  •  KSh ${order.total.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Ordered: ${DateFormat('EEEE, MMMM d, yyyy HH:mm').format(order.timestamp)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isDarkMode ? Colors.white60 : Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // ✅ FIXED: Mode-aware header display
+                  if (_currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
+                    _buildCompletionRing(totalPercent, 56)
+                  else
+                    _buildStatusBadge(effectiveStatus),
+                ],
+              ),
+              const SizedBox(height: 24),
+              
+              // ✅ FIXED: Mode-aware content rendering
+              if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel)
+                _buildOrderLevelDetail(order, effectiveStatus)
+              else
+                Column(
+                  children: categories.map((category) {
+                    final whStatus = _getWarehouseStatus(order, category);
+                    final whPercent = _getWarehouseCompletionPercent(order, category);
+                    final whItems = order.items
+                        .where((i) => i.product.category == category)
+                        .toList();
+                    final whTotal = whItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+                    final color = _warehouseColor(category);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: _isDarkMode ? 0.15 : 0.04),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: color.withValues(alpha: _isDarkMode ? 0.4 : 0.22),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: _isDarkMode ? 0.25 : 0.15),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(_warehouseIcon(category), color: color, size: 22),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          category,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: _isDarkMode ? color : color,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${whItems.length} item${whItems.length > 1 ? 's' : ''}  •  KSh ${whTotal.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  _buildStatusBadge(whStatus),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: whPercent / 100.0,
+                                      minHeight: 6,
+                                      backgroundColor: _isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        whPercent >= 100 ? Colors.green : color,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${whPercent.toStringAsFixed(0)}% picked up',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: _isDarkMode ? color : color,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ...whItems.map((item) => _buildItemRow(item)),
+                            const SizedBox(height: 4),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Order-level detail view (simplified)
+  Widget _buildOrderLevelDetail(Order order, String effectiveStatus) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _statusColor(effectiveStatus).withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _statusColor(effectiveStatus).withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(_statusIcon(effectiveStatus), color: _statusColor(effectiveStatus), size: 24),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Order Status: ${_statusLabel(effectiveStatus)}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _statusColor(effectiveStatus),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Action buttons based on status
+              if (effectiveStatus == AppConstants.statusPaid)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _updateOrderStatus(order, AppConstants.statusPreparing),
+                    icon: const Icon(Icons.autorenew),
+                    label: const Text('Start Preparing Order'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              if (effectiveStatus == AppConstants.statusPreparing)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _updateOrderStatus(order, AppConstants.statusReadyForPickup),
+                    icon: const Icon(Icons.inventory_2),
+                    label: const Text('Mark as Ready for Pickup'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              if (effectiveStatus == AppConstants.statusReadyForPickup)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _updateOrderStatus(order, AppConstants.statusFulfilled),
+                    icon: const Icon(Icons.check_circle),
+                    label: const Text('Mark as Fulfilled (Picked Up)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Items in this order:',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        ...order.items.map((item) => _buildSimpleItemRow(item)),
+      ],
+    );
+  }
+
+  Widget _buildSimpleItemRow(CartItem item) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.product.name,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: _isDarkMode ? Colors.white : Colors.black,
+                  ),
+                ),
+                Text(
+                  '${item.product.size} × ${item.quantity}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: _isDarkMode ? Colors.white60 : Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            'KSh ${item.subtotal.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(AppColors.primaryBlue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemRow(CartItem item) {
+    final sColor = _statusColor(item.status);
+    final sIcon = _statusIcon(item.status);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      child: Row(
+        children: [
+          Icon(sIcon, size: 18, color: sColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.product.name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _isDarkMode ? Colors.white : Colors.black,
+                  ),
+                ),
+                Text(
+                  item.product.size,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isDarkMode ? Colors.white60 : Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            'x${item.quantity}',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: _isDarkMode ? Colors.white : Colors.black,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Text(
+            'KSh ${item.subtotal.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: _isDarkMode ? Colors.white : Colors.black,
+            ),
+          ),
+          const SizedBox(width: 12),
+          _buildStatusBadge(item.status),
+        ],
+      ),
+    );
+  }
+
+  // ─── MODE-AWARE ORDER HISTORY VIEW ────────────────────────────────────────
   Widget _buildHistoryHeader() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -981,7 +1840,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha:0.1) : Colors.grey[200]!,
+            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
           ),
         ),
       ),
@@ -1005,71 +1864,6 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _isDarkMode 
-                          ? Colors.white.withValues(alpha:0.1)
-                          : Colors.grey[300]!,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) => context.read<OrderBloc>().add(SearchOrders(value)),
-                    style: TextStyle(
-                      color: _isDarkMode ? Colors.white : Colors.black,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search completed orders...',
-                      hintStyle: TextStyle(
-                        color: _isDarkMode ? Colors.white60 : Colors.grey[500],
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search_rounded,
-                        color: const Color(AppColors.primaryBlue),
-                      ),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded),
-                              onPressed: () {
-                                _searchController.clear();
-                                context.read<OrderBloc>().add(const SearchOrders(''));
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.primaryBlue),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(AppColors.primaryBlue).withValues(alpha:0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.tune_rounded, color: Colors.white),
-                  onPressed: () => _showAdvancedFilters(),
-                  tooltip: 'Advanced Filters',
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -1079,98 +1873,392 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     return BlocBuilder<OrderBloc, OrderState>(
       builder: (context, state) {
         if (state is OrdersLoaded) {
-          final completedOrders = state.orders
-              .where((order) => order.status == AppConstants.statusFulfilled)
-              .toList();
-
-          if (completedOrders.isEmpty) {
+          final historyOrders = state.orders.where((o) => !_isOrderActive(o)).toList();
+          if (historyOrders.isEmpty) {
             return _buildEmptyState(
               icon: Icons.history,
               title: 'No Order History',
               subtitle: 'Completed orders will appear here',
             );
           }
-
-          final groupedOrders = <String, List<dynamic>>{};
-          for (var order in completedOrders) {
-            final dateKey = DateFormat('yyyy-MM-dd').format(order.timestamp);
-            groupedOrders.putIfAbsent(dateKey, () => []).add(order);
+          final grouped = <String, List<Order>>{};
+          for (var order in historyOrders) {
+            final key = DateFormat('yyyy-MM-dd').format(order.timestamp);
+            grouped.putIfAbsent(key, () => []).add(order);
           }
-
           return ListView.builder(
             padding: const EdgeInsets.all(24),
-            itemCount: groupedOrders.length,
+            itemCount: grouped.length,
             itemBuilder: (context, index) {
-              final dateKey = groupedOrders.keys.toList()[groupedOrders.length - 1 - index];
-              final ordersForDate = groupedOrders[dateKey]!;
+              final dateKey = grouped.keys.toList()[grouped.length - 1 - index];
+              final ordersForDate = grouped[dateKey]!;
               final date = DateTime.parse(dateKey);
-              
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildDateHeader(date, ordersForDate.length),
-                  const SizedBox(height: 16),
-                  ...ordersForDate.map((order) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildHistoryCard(order),
-                  )),
-                  const SizedBox(height: 24),
+                  _buildDateDivider(date, ordersForDate.length),
+                  const SizedBox(height: 12),
+                  ...ordersForDate.map((order) => _buildHistoryOrderCard(order)),
+                  const SizedBox(height: 20),
                 ],
               );
             },
           );
         }
-
         return const Center(child: CircularProgressIndicator());
       },
     );
   }
 
-  Widget _buildDateHeader(DateTime date, int orderCount) {
+  Widget _buildDateDivider(DateTime date, int count) {
+    final now = DateTime.now();
+    final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+    final yesterday = now.subtract(const Duration(days: 1));
+    final isYesterday = date.year == yesterday.year &&
+        date.month == yesterday.month &&
+        date.day == yesterday.day;
+    final label = isToday
+        ? 'Today'
+        : isYesterday
+            ? 'Yesterday'
+            : DateFormat('EEEE, MMMM d, yyyy').format(date);
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: _isDarkMode ? Colors.white70 : Colors.grey,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Divider(
+            color: _isDarkMode ? Colors.white24 : Colors.grey[300],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: _isDarkMode ? Colors.white24 : Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            '$count order${count > 1 ? 's' : ''}',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ FIXED: Mode-aware history order card
+  Widget _buildHistoryOrderCard(Order order) {
+    final categories = _getOrderWarehouseCategories(order);
+    final effectiveStatus = _getEffectiveOrderStatus(order);
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(AppColors.primaryBlue).withValues(alpha:0.1),
-            const Color(AppColors.primaryBlue).withValues(alpha:0.05),
+        color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.green.withValues(alpha: _isDarkMode ? 0.3 : 0.25),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (_isDarkMode ? Colors.black : Colors.grey).withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: _isDarkMode ? 0.2 : 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Order #${order.id}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: _isDarkMode ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: _isDarkMode ? 0.2 : 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: Colors.green.withValues(alpha: _isDarkMode ? 0.4 : 0.3),
+                              ),
+                            ),
+                            child: const Text(
+                              'COMPLETED',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Phone: ${order.phone}  •  ${DateFormat('dd MMM yyyy, HH:mm').format(order.timestamp)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'KSh ${order.total.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: _isDarkMode ? Colors.white : const Color(AppColors.primaryBlue),
+                      ),
+                    ),
+                    Text(
+                      '${order.items.length} item${order.items.length > 1 ? 's' : ''}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _isDarkMode ? Colors.white60 : Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            
+            // ✅ FIXED: Mode-aware history content
+            if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel)
+              _buildOrderLevelHistoryDetail(order, effectiveStatus)
+            else
+              Column(
+                children: categories.map((category) {
+                  final whItems = order.items
+                      .where((i) => i.product.category == category)
+                      .toList();
+                  final whTotal = whItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+                  final color = _warehouseColor(category);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(_warehouseIcon(category), size: 18, color: color),
+                                const SizedBox(width: 8),
+                                Text(
+                                  category,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: _isDarkMode ? color : color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'All picked up',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'KSh ${whTotal.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _isDarkMode ? color : color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ...whItems.map((item) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 5),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      '${item.product.name} (${item.product.size})',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: _isDarkMode ? Colors.white : Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    'x${item.quantity}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: _isDarkMode ? Colors.white : Colors.black,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Text(
+                                    'KSh ${item.subtotal.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: _isDarkMode ? Colors.white : Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+    );
+  }
+
+  // ✅ NEW: Order-level history detail
+  Widget _buildOrderLevelHistoryDetail(Order order, String effectiveStatus) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Order Status: ${_statusLabel(effectiveStatus)}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Items:',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...order.items.map((item) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${item.product.name} (${item.product.size}) × ${item.quantity}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _isDarkMode ? Colors.white : Colors.black,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'KSh ${item.subtotal.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(AppColors.primaryBlue),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+      ],
+    );
+  }
+
+  // ─── SHARED UI COMPONENTS ──────────────────────────────────────────────────
+  Widget _buildCompletionRing(double percent, double size) {
+    final color = percent >= 100
+        ? Colors.green
+        : percent >= 50
+            ? Colors.orange
+            : const Color(AppColors.primaryBlue);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Icon(
-            Icons.calendar_today_rounded,
-            size: 20,
-            color: const Color(AppColors.primaryBlue),
+          CircularProgressIndicator(
+            value: percent / 100.0,
+            strokeWidth: 5,
+            backgroundColor: _isDarkMode ? Colors.grey[800] : Colors.grey[200],
+            valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
-          const SizedBox(width: 12),
-          Text(
-            _isToday(date) 
-                ? 'Today' 
-                : _isYesterday(date)
-                    ? 'Yesterday'
-                    : DateFormat('EEEE, MMMM d, yyyy').format(date),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Color(AppColors.primaryBlue),
-            ),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(AppColors.primaryBlue).withValues(alpha:0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
+          Center(
             child: Text(
-              '$orderCount orders',
-              style: const TextStyle(
-                color: Color(AppColors.primaryBlue),
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
+              '${percent.toStringAsFixed(0)}%',
+              style: TextStyle(
+                fontSize: size > 50 ? 14 : 11,
+                fontWeight: FontWeight.bold,
+                color: color,
               ),
             ),
           ),
@@ -1179,141 +2267,24 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
-  Widget _buildHistoryCard(dynamic order) {
+  Widget _buildStatusBadge(String status) {
+    final color = _statusColor(status);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        color: color.withValues(alpha: _isDarkMode ? 0.25 : 0.1),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: Colors.green.withValues(alpha:0.2),
+          color: color.withValues(alpha: _isDarkMode ? 0.4 : 0.3),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: _isDarkMode 
-                ? Colors.black.withValues(alpha:0.3)
-                : Colors.grey.withValues(alpha:0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha:0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.check_circle_rounded,
-              color: Colors.green,
-              size: 32,
-            ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Order #${order.id}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: _isDarkMode ? Colors.white : Colors.black,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha:0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.green.withValues(alpha:0.3)),
-                      ),
-                      child: const Text(
-                        'FULFILLED',
-                        style: TextStyle(
-                          color: Colors.green,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.receipt_rounded,
-                      size: 14,
-                      color: _isDarkMode ? Colors.white60 : Colors.grey[600],
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${order.items.length} items',
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white70 : Colors.grey[600],
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(
-                      Icons.phone_rounded,
-                      size: 14,
-                      color: _isDarkMode ? Colors.white60 : Colors.grey[600],
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      order.phone,
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white70 : Colors.grey[600],
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  DateFormat('HH:mm:ss').format(order.timestamp),
-                  style: TextStyle(
-                    color: _isDarkMode ? Colors.white60 : Colors.grey[500],
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'KSh ${order.total.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(height: 4),
-              TextButton.icon(
-                onPressed: () => _showOrderDetails(order),
-                icon: const Icon(Icons.visibility_rounded, size: 16),
-                label: const Text('View Details'),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(AppColors.primaryBlue),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: Text(
+        _statusLabel(status),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: _isDarkMode ? color : color,
+        ),
       ),
     );
   }
@@ -1330,9 +2301,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: _isDarkMode 
-                  ? Colors.white.withValues(alpha:0.05)
-                  : Colors.grey[100],
+              color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey[100],
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1359,24 +2328,6 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String orderId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white),
-            const SizedBox(width: 12),
-            Text('Order $orderId marked as fulfilled'),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -1408,6 +2359,44 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     'These orders are in "Paid" status and ready for preparation.',
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
+                  // ✅ NEW: Mode indicator in notifications
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                          ? Colors.blue[50]
+                          : Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                              ? Icons.list_alt
+                              : Icons.view_module,
+                          size: 18,
+                          color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                              ? Colors.blue
+                              : Colors.green,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                                ? 'Using Order-Level Tracking: Entire order moves through status stages together'
+                                : 'Using Item-Level Tracking: Items can be processed independently by warehouse stations',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                                  ? Colors.blue[900]
+                                  : Colors.green[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               );
             }
@@ -1424,94 +2413,29 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Settings'),
-        content: const Text('Settings coming soon...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAnalyticsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Detailed Analytics'),
-        content: const Text('Advanced analytics coming soon...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAdvancedFilters() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Advanced Filters'),
-        content: const Text('Advanced filtering options coming soon...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showOrderDetails(dynamic order) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Order #${order.id} Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Phone: ${order.phone}'),
-            Text('Items: ${order.items.length}'),
-            Text('Total: KSh ${order.total.toStringAsFixed(2)}'),
-            Text('Status: ${order.status}'),
-            Text('Time: ${DateFormat('HH:mm:ss').format(order.timestamp)}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   bool _isToday(DateTime date) {
     final now = DateTime.now();
     return date.year == now.year && date.month == now.month && date.day == now.day;
   }
 
-  bool _isYesterday(DateTime date) {
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    return date.year == yesterday.year && 
-           date.month == yesterday.month && 
-           date.day == yesterday.day;
+  Widget _buildDashboardContent() {
+    return Column(
+      children: [
+        if (!_showHistory) ...[
+          _buildDashboardTitle(),
+          _buildSearchAndFilterBar(),
+        ] else ...[
+          _buildHistoryHeader(),
+        ],
+        Expanded(
+          child: _showHistory ? _buildEnhancedHistoryView() : _buildEnhancedOrdersView(),
+        ),
+      ],
+    );
   }
 }
 
-// Custom painter for simple trend chart
+// Custom painter for simple trend chart (unchanged)
 class SimpleTrendChartPainter extends CustomPainter {
   final List<Map<String, dynamic>> data;
   final bool isDarkMode;
@@ -1521,33 +2445,42 @@ class SimpleTrendChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
-
-    final paint = Paint()
-      ..color = Colors.blue
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
+    final maxValue = data.map((e) => e['orders'] as int).fold(
+      0,
+      (prev, current) => math.max(prev, current),
+    ).toDouble();
+    // Draw grid lines
+    final gridPaint = Paint()
+      ..color = (isDarkMode ? Colors.white : Colors.grey[300]!).withValues(alpha: 0.3)
+      ..strokeWidth = 1;
+    for (int i = 1; i <= 4; i++) {
+      final y = size.height * (i / 4);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    // Draw area fill
     final fillPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Colors.blue.withValues(alpha:0.3),
-          Colors.blue.withValues(alpha:0.0),
+          Colors.blue.withValues(alpha: isDarkMode ? 0.2 : 0.3),
+          Colors.blue.withValues(alpha: 0.0),
         ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final maxValue = data.map((e) => e['orders'] as int).reduce(math.max).toDouble();
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+    // Draw line
+    final linePaint = Paint()
+      ..color = Colors.blue
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
     final path = Path();
     final fillPath = Path();
-
     fillPath.moveTo(0, size.height);
-
     for (int i = 0; i < data.length; i++) {
       final x = (i / (data.length - 1)) * size.width;
       final value = (data[i]['orders'] as int).toDouble();
-      final y = size.height - (value / maxValue * size.height);
-
+      final y = size.height - (value / maxValue * size.height * 0.9);
       if (i == 0) {
         path.moveTo(x, y);
         fillPath.lineTo(x, y);
@@ -1555,13 +2488,13 @@ class SimpleTrendChartPainter extends CustomPainter {
         path.lineTo(x, y);
         fillPath.lineTo(x, y);
       }
+      // Draw data point
+      canvas.drawCircle(Offset(x, y), 3, Paint()..color = Colors.blue);
     }
-
     fillPath.lineTo(size.width, size.height);
     fillPath.close();
-
     canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, paint);
+    canvas.drawPath(path, linePaint);
   }
 
   @override

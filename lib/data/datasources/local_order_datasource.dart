@@ -15,11 +15,11 @@ class LocalOrderDataSource {
 
   // Create/Save order
   Future<String> saveOrder(OrderModel order) async {
-    await Future.delayed(const Duration(milliseconds: 200)); // Simulate async
-    
+    await Future.delayed(const Duration(milliseconds: 200));
+
     _orders.add(order);
     _ordersStreamController.add(List.from(_orders));
-    
+
     return order.id;
   }
 
@@ -32,7 +32,7 @@ class LocalOrderDataSource {
   // Get order by ID
   Future<OrderModel?> getOrderById(String id) async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     try {
       return _orders.firstWhere((order) => order.id == id);
     } catch (e) {
@@ -40,23 +40,35 @@ class LocalOrderDataSource {
     }
   }
 
-  // Update order status
+  // Update order status (top-level status only)
   Future<void> updateOrderStatus(String orderId, String status) async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     final index = _orders.indexWhere((order) => order.id == orderId);
-    
+
     if (index != -1) {
       final order = _orders[index];
       _orders[index] = OrderModel(
         id: order.id,
-        items: order.items,
+        cartItems: order.cartItems,
         total: order.total,
         phone: order.phone,
         timestamp: order.timestamp,
         status: status,
       );
-      
+
+      _ordersStreamController.add(List.from(_orders));
+    }
+  }
+
+  // ✅ NEW: Replaces the full order including per-item statuses
+  Future<void> saveFullOrder(OrderModel orderModel) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    final index = _orders.indexWhere((order) => order.id == orderModel.id);
+
+    if (index != -1) {
+      _orders[index] = orderModel;
       _ordersStreamController.add(List.from(_orders));
     }
   }
@@ -70,7 +82,7 @@ class LocalOrderDataSource {
   // Get orders by date
   Future<List<OrderModel>> getOrdersByDate(DateTime date) async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     return _orders.where((order) {
       return order.timestamp.year == date.year &&
           order.timestamp.month == date.month &&
@@ -105,22 +117,22 @@ class LocalOrderDataSource {
   // Delete order (for testing/admin purposes)
   Future<void> deleteOrder(String orderId) async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     _orders.removeWhere((order) => order.id == orderId);
     _ordersStreamController.add(List.from(_orders));
   }
 
-  // Get total sales for today getTodaysSales todaysOrders
+  // Get total sales for today
   Future<double> getTodaysSales() async {
-  final todaysOrders = await getTodaysOrders();
-  double total = 0.0;
-  
-  for (var order in todaysOrders) {
-    total += order.total;
+    final todaysOrders = await getTodaysOrders();
+    double total = 0.0;
+
+    for (var order in todaysOrders) {
+      total += order.total;
+    }
+
+    return total;
   }
-  
-  return total;
-}
 
   // Get order count by status
   Future<int> getOrderCountByStatus(String status) async {
@@ -131,14 +143,14 @@ class LocalOrderDataSource {
   // Search orders by phone number
   Future<List<OrderModel>> searchByPhone(String phone) async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     return _orders.where((order) => order.phone.contains(phone)).toList();
   }
 
   // Search orders by order ID
   Future<List<OrderModel>> searchByOrderId(String query) async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     return _orders
         .where((order) => order.id.toLowerCase().contains(query.toLowerCase()))
         .toList();
@@ -147,7 +159,7 @@ class LocalOrderDataSource {
   // Clear all orders (for testing)
   Future<void> clearAllOrders() async {
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     _orders.clear();
     _ordersStreamController.add(List.from(_orders));
   }

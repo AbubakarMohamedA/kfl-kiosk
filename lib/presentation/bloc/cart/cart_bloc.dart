@@ -115,16 +115,30 @@ class CartBloc extends Bloc<CartEvent, CartState> {
 
       if (items.isEmpty) {
         emit(const CartEmpty());
+        // Emit the removed state even when cart is empty
+        if (productName != null) {
+          emit(CartItemRemoved(productName));
+        }
+        // Return to empty state
+        emit(const CartEmpty());
       } else {
         emit(CartLoaded(
           items: items,
           total: total,
           itemCount: itemCount,
         ));
-      }
 
-      if (productName != null) {
-        emit(CartItemRemoved(productName));
+        // Emit temporary feedback state
+        if (productName != null) {
+          emit(CartItemRemoved(productName));
+        }
+
+        // CRITICAL FIX: Return to loaded state after feedback
+        emit(CartLoaded(
+          items: items,
+          total: total,
+          itemCount: itemCount,
+        ));
       }
     } catch (e) {
       emit(CartError(e.toString()));

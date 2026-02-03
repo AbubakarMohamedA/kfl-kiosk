@@ -64,7 +64,7 @@ class CartItemWidget extends StatelessWidget {
                       ),
                       const Text(' = '),
                       Text(
-                        'KSh ${item.total.toStringAsFixed(2)}',
+                        'KSh ${item.subtotal.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: isCompact ? 14 : 16,
                           fontWeight: FontWeight.bold,

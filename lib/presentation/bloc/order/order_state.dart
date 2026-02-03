@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:kfm_kiosk/core/constants/app_constants.dart';
 import 'package:kfm_kiosk/domain/entities/order.dart';
 
 abstract class OrderState extends Equatable {
@@ -73,12 +74,20 @@ class OrdersLoaded extends OrderState {
     );
   }
 
-  // Basic counts
+  // Basic counts — now derived from item-level statuses via overallStatus
   int get totalOrders => orders.length;
-  int get paidCount => orders.where((o) => o.status == 'PAID').length;
-  int get preparingCount => orders.where((o) => o.status == 'PREPARING').length;
-  int get readyCount => orders.where((o) => o.status == 'READY FOR PICKUP').length;
-  int get fulfilledCount => orders.where((o) => o.status == 'FULFILLED').length;
+
+  int get paidCount =>
+      orders.where((o) => o.overallStatus == AppConstants.statusPaid).length;
+
+  int get preparingCount =>
+      orders.where((o) => o.overallStatus == AppConstants.statusPreparing).length;
+
+  int get readyCount =>
+      orders.where((o) => o.overallStatus == AppConstants.statusReadyForPickup).length;
+
+  int get fulfilledCount =>
+      orders.where((o) => o.overallStatus == AppConstants.statusFulfilled).length;
 
   // Today's metrics
   double get todaysSales {
@@ -106,7 +115,7 @@ class OrdersLoaded extends OrderState {
     final today = DateTime.now();
     return orders
         .where((o) =>
-            o.status == 'FULFILLED' &&
+            o.overallStatus == AppConstants.statusFulfilled &&
             o.timestamp.day == today.day &&
             o.timestamp.month == today.month &&
             o.timestamp.year == today.year)
@@ -123,21 +132,22 @@ class OrdersLoaded extends OrderState {
     return todaysSales / todaysOrderCount;
   }
 
-  // Active orders (non-fulfilled)
+  // ✅ FIXED: Use overallStatus instead of the stale top-level status field
   List<Order> get activeOrders =>
-      orders.where((o) => o.status != 'FULFILLED').toList();
+      orders.where((o) => o.overallStatus != AppConstants.statusFulfilled).toList();
 
-  // Completed orders
   List<Order> get completedOrders =>
-      orders.where((o) => o.status == 'FULFILLED').toList();
+      orders.where((o) => o.overallStatus == AppConstants.statusFulfilled).toList();
 
-  // Filtered active orders
-  List<Order> get filteredActiveOrders =>
-      filteredOrders.where((o) => (o as Order).status != 'FULFILLED').cast<Order>().toList();
+  List<Order> get filteredActiveOrders => filteredOrders
+      .where((o) => (o as Order).overallStatus != AppConstants.statusFulfilled)
+      .cast<Order>()
+      .toList();
 
-  // Filtered completed orders
-  List<Order> get filteredCompletedOrders =>
-      filteredOrders.where((o) => (o as Order).status == 'FULFILLED').cast<Order>().toList();
+  List<Order> get filteredCompletedOrders => filteredOrders
+      .where((o) => (o as Order).overallStatus == AppConstants.statusFulfilled)
+      .cast<Order>()
+      .toList();
 
   // Weekly sales
   double get weeklySales {
@@ -157,7 +167,7 @@ class OrdersLoaded extends OrderState {
         .fold(0.0, (sum, order) => sum + order.total);
   }
 
-  // Peak hour detection (hour with most orders today)
+  // Peak hour detection
   int get peakHour {
     final today = DateTime.now();
     final todayOrders = orders.where((o) =>
@@ -178,12 +188,97 @@ class OrdersLoaded extends OrderState {
         .key;
   }
 
-  // Average preparation time estimate (in minutes)
-  // This is a placeholder - you should track actual timestamps
   double get averagePrepTime {
-    // Implement based on your actual timestamp tracking
-    // For now, return a default estimate
     return 12.0;
+  }
+
+  // ✅ FIXED: Filter directly off `orders`, not `activeOrders`.
+  // An order is "active" for a warehouse if it has at least one
+  // non-FULFILLED item in that category.
+  List<Order> getWarehouseActiveOrders(String warehouseCategory) {
+    return orders.where((order) {
+      final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+      if (warehouseItems.isEmpty) return false;
+
+      // Active = at least one item is NOT fulfilled
+      return warehouseItems
+          .any((item) => item.status != AppConstants.statusFulfilled);
+    }).toList();
+  }
+
+  // ✅ FIXED: An order is "fulfilled" for a warehouse if ALL of its
+  // items in that category are FULFILLED (and it has items).
+  List<Order> getWarehouseFulfilledOrders(String warehouseCategory) {
+    return orders.where((order) {
+      final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+      if (warehouseItems.isEmpty) return false;
+
+      return warehouseItems
+          .every((item) => item.status == AppConstants.statusFulfilled);
+    }).toList();
+  }
+
+  // ✅ FIXED: Count item.quantity, not just number of CartItem entries
+  int getWarehouseItemCountByStatus(String warehouseCategory, String status) {
+    int count = 0;
+    for (var order in orders) {
+      final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+      for (var item in warehouseItems) {
+        if (item.status == status) {
+          count += item.quantity;
+        }
+      }
+    }
+    return count;
+  }
+
+  // Today's warehouse order count
+  int getTodaysWarehouseOrderCount(String warehouseCategory) {
+    final today = DateTime.now();
+    return orders.where((order) {
+      if (order.timestamp.year != today.year ||
+          order.timestamp.month != today.month ||
+          order.timestamp.day != today.day) {
+        return false;
+      }
+      return order.getItemsForWarehouse(warehouseCategory).isNotEmpty;
+    }).length;
+  }
+
+  // ✅ FIXED: Count item.quantity, not just number of CartItem entries
+  int getTodaysWarehouseItemCount(String warehouseCategory) {
+    final today = DateTime.now();
+    int count = 0;
+    for (var order in orders) {
+      if (order.timestamp.year == today.year &&
+          order.timestamp.month == today.month &&
+          order.timestamp.day == today.day) {
+        final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+        for (var item in warehouseItems) {
+          count += item.quantity;
+        }
+      }
+    }
+    return count;
+  }
+
+  // ✅ FIXED: Count item.quantity for fulfilled items
+  int getTodaysFulfilledWarehouseItemCount(String warehouseCategory) {
+    final today = DateTime.now();
+    int count = 0;
+    for (var order in orders) {
+      if (order.timestamp.year == today.year &&
+          order.timestamp.month == today.month &&
+          order.timestamp.day == today.day) {
+        final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+        for (var item in warehouseItems) {
+          if (item.status == AppConstants.statusFulfilled) {
+            count += item.quantity;
+          }
+        }
+      }
+    }
+    return count;
   }
 }
 

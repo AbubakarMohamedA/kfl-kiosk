@@ -4,7 +4,6 @@ import 'package:kfm_kiosk/domain/repositories/repositories.dart';
 
 class CreateOrder extends UseCase<String, Order> {
   final OrderRepository repository;
-
   CreateOrder(this.repository);
 
   @override
@@ -15,7 +14,6 @@ class CreateOrder extends UseCase<String, Order> {
 
 class GetAllOrders extends UseCaseNoParams<List<Order>> {
   final OrderRepository repository;
-
   GetAllOrders(this.repository);
 
   @override
@@ -26,7 +24,6 @@ class GetAllOrders extends UseCaseNoParams<List<Order>> {
 
 class GetOrderById extends UseCase<Order?, String> {
   final OrderRepository repository;
-
   GetOrderById(this.repository);
 
   @override
@@ -37,7 +34,6 @@ class GetOrderById extends UseCase<Order?, String> {
 
 class UpdateOrderStatus extends UseCase<void, UpdateOrderStatusParams> {
   final OrderRepository repository;
-
   UpdateOrderStatus(this.repository);
 
   @override
@@ -46,9 +42,19 @@ class UpdateOrderStatus extends UseCase<void, UpdateOrderStatusParams> {
   }
 }
 
+// ✅ NEW: Persists the full order including per-item statuses
+class SaveFullOrder extends UseCase<void, Order> {
+  final OrderRepository repository;
+  SaveFullOrder(this.repository);
+
+  @override
+  Future<void> call(Order order) {
+    return repository.saveFullOrder(order);
+  }
+}
+
 class WatchOrders extends StreamUseCaseNoParams<List<Order>> {
   final OrderRepository repository;
-
   WatchOrders(this.repository);
 
   @override
@@ -59,7 +65,6 @@ class WatchOrders extends StreamUseCaseNoParams<List<Order>> {
 
 class GenerateOrderId extends UseCaseNoParams<String> {
   final OrderRepository repository;
-
   GenerateOrderId(this.repository);
 
   @override

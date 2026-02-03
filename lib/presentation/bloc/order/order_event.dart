@@ -34,6 +34,22 @@ class UpdateOrderStatus extends OrderEvent {
   List<Object?> get props => [orderId, status];
 }
 
+// ✅ NEW: Update status for warehouse items only
+class UpdateWarehouseItemsStatus extends OrderEvent {
+  final String orderId;
+  final String warehouseCategory;
+  final String newStatus;
+
+  const UpdateWarehouseItemsStatus({
+    required this.orderId,
+    required this.warehouseCategory,
+    required this.newStatus,
+  });
+
+  @override
+  List<Object?> get props => [orderId, warehouseCategory, newStatus];
+}
+
 class SearchOrders extends OrderEvent {
   final String query;
 
@@ -52,7 +68,7 @@ class FilterOrdersByStatus extends OrderEvent {
   List<Object?> get props => [status];
 }
 
-// New event for the enhanced staff panel
+// Event for the enhanced staff panel
 class FilterOrders extends OrderEvent {
   final String filter;
 
@@ -62,7 +78,7 @@ class FilterOrders extends OrderEvent {
   List<Object?> get props => [filter];
 }
 
-// New event for sorting orders
+// Event for sorting orders
 class SortOrders extends OrderEvent {
   final String sortType;
 

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:kfm_kiosk/core/configuration/app_configuration.dart';
 import 'package:kfm_kiosk/domain/entities/order.dart';
+import 'package:kfm_kiosk/presentation/bloc/order/order_bloc.dart';
+import 'package:kfm_kiosk/presentation/bloc/order/order_event.dart';
 import 'package:kfm_kiosk/presentation/widgets/common/order_status_badge.dart';
 
 class StaffOrderCard extends StatelessWidget {
@@ -8,6 +12,7 @@ class StaffOrderCard extends StatelessWidget {
   final VoidCallback? onStartPreparing;
   final VoidCallback? onMarkReady;
   final VoidCallback? onMarkFulfilled;
+  final AppConfiguration? config;
 
   const StaffOrderCard({
     super.key,
@@ -15,10 +20,26 @@ class StaffOrderCard extends StatelessWidget {
     this.onStartPreparing,
     this.onMarkReady,
     this.onMarkFulfilled,
+    this.config,
   });
+
+  String get _effectiveStatus {
+    if (config != null) {
+      return order.getEffectiveStatus(config!);
+    }
+    if (order.items.isNotEmpty) {
+      final itemStatuses = order.items.map((item) => item.status).toSet();
+      if (itemStatuses.length == 1) {
+        return itemStatuses.first;
+      }
+    }
+    return order.status;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final displayStatus = _effectiveStatus;
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 4,
@@ -27,7 +48,6 @@ class StaffOrderCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -72,7 +92,7 @@ class StaffOrderCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    OrderStatusBadge(status: order.status, isLarge: true),
+                    OrderStatusBadge(status: displayStatus, isLarge: true),
                   ],
                 ),
               ],
@@ -82,7 +102,6 @@ class StaffOrderCard extends StatelessWidget {
             const Divider(),
             const SizedBox(height: 12),
 
-            // Order Items
             ...order.items.map((item) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -96,7 +115,7 @@ class StaffOrderCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'KSh ${item.total.toStringAsFixed(2)}',
+                      'KSh ${item.subtotal.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -109,20 +128,22 @@ class StaffOrderCard extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Action Buttons
-            _buildActionButtons(),
+            _buildActionButtons(context, displayStatus),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionButtons() {
-    if (order.status == AppConstants.statusPaid) {
+  Widget _buildActionButtons(BuildContext context, String displayStatus) {
+    if (displayStatus == AppConstants.statusPaid) {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: onStartPreparing,
+          onPressed: () {
+            onStartPreparing?.call();
+            context.read<OrderBloc>().add(const LoadOrders());
+          },
           icon: const Icon(Icons.autorenew),
           label: const Text(
             'Start Preparing Order',
@@ -138,11 +159,14 @@ class StaffOrderCard extends StatelessWidget {
           ),
         ),
       );
-    } else if (order.status == AppConstants.statusPreparing) {
+    } else if (displayStatus == AppConstants.statusPreparing) {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: onMarkReady,
+          onPressed: () {
+            onMarkReady?.call();
+            context.read<OrderBloc>().add(const LoadOrders());
+          },
           icon: const Icon(Icons.inventory_2),
           label: const Text(
             'Mark as Ready for Pickup',
@@ -158,7 +182,7 @@ class StaffOrderCard extends StatelessWidget {
           ),
         ),
       );
-    } else if (order.status == AppConstants.statusReadyForPickup) {
+    } else if (displayStatus == AppConstants.statusReadyForPickup) {
       return Column(
         children: [
           Container(
@@ -185,7 +209,10 @@ class StaffOrderCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: onMarkFulfilled,
+              onPressed: () {
+                onMarkFulfilled?.call();
+                context.read<OrderBloc>().add(const LoadOrders());
+              },
               icon: const Icon(Icons.check_circle),
               label: const Text(
                 'Mark as Fulfilled (Customer Picked Up)',

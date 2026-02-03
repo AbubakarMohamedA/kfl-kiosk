@@ -34,4 +34,40 @@ class ProductRepositoryImpl implements ProductRepository {
     }
     return products.where((p) => p.category == category).toList();
   }
+
+  @override
+  Future<List<Product>> searchProducts(String query) async {
+    final products = await getAllProducts();
+    final lowercaseQuery = query.toLowerCase();
+    
+    return products.where((product) {
+      return product.name.toLowerCase().contains(lowercaseQuery) ||
+          product.brand.toLowerCase().contains(lowercaseQuery) ||
+          product.category.toLowerCase().contains(lowercaseQuery) ||
+          product.description.toLowerCase().contains(lowercaseQuery);
+    }).toList();
+  }
+
+  @override
+  Future<List<Product>> getProductsByBrand(String brand) async {
+    final products = await getAllProducts();
+    return products.where((p) => p.brand == brand).toList();
+  }
+
+  @override
+  Future<List<String>> getBrands() async {
+    final products = await getAllProducts();
+    final brands = products.map((p) => p.brand).toSet().toList();
+    brands.sort(); // Sort alphabetically
+    return brands;
+  }
+
+  @override
+  Future<List<Product>> getProductsByPriceRange(
+      double minPrice, double maxPrice) async {
+    final products = await getAllProducts();
+    return products
+        .where((p) => p.price >= minPrice && p.price <= maxPrice)
+        .toList();
+  }
 }

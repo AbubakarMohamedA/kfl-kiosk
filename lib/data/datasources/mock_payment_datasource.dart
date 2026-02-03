@@ -36,7 +36,6 @@ class MockPaymentDataSource {
 
     if (isSuccess) {
       final transactionId = _generateTransactionId();
-      
       return PaymentResult(
         success: true,
         transactionId: transactionId,
@@ -56,7 +55,6 @@ class MockPaymentDataSource {
   // Check payment status (for polling)
   Future<String> getPaymentStatus(String transactionId) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    
     // Simulate status check
     // In real implementation, this would call M-Pesa API
     return 'COMPLETED';
@@ -65,15 +63,15 @@ class MockPaymentDataSource {
   // Verify transaction
   Future<bool> verifyTransaction(String transactionId) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    
     // In real implementation, verify with M-Pesa
     return transactionId.isNotEmpty;
   }
 
   // Get transaction details
-  Future<Map<String, dynamic>> getTransactionDetails(String transactionId) async {
+  Future<Map<String, dynamic>> getTransactionDetails(
+      String transactionId) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     return {
       'transactionId': transactionId,
       'status': 'COMPLETED',
@@ -93,7 +91,7 @@ class MockPaymentDataSource {
     required double amount,
   }) async {
     await Future.delayed(const Duration(seconds: 2));
-    
+
     return RefundResult(
       success: true,
       refundId: 'REF${DateTime.now().millisecondsSinceEpoch}',
@@ -104,7 +102,6 @@ class MockPaymentDataSource {
   // Check balance (mock - for demo)
   Future<double> checkBalance(String phoneNumber) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    
     // Return mock balance
     return 10000.0; // KSh 10,000
   }
@@ -112,7 +109,6 @@ class MockPaymentDataSource {
   // Validate phone number format before payment
   Future<bool> validatePhoneNumber(String phoneNumber) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    
     return Validators.isValidPhoneNumber(phoneNumber);
   }
 }

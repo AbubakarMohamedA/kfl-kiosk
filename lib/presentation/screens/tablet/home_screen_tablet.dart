@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:kfm_kiosk/presentation/bloc/language/language_cubit.dart';
 import 'package:kfm_kiosk/presentation/bloc/language/language_state.dart';
-import 'package:kfm_kiosk/presentation/widgets/common/language_selector.dart';
 import 'package:kfm_kiosk/presentation/screens/tablet/catalog_screen_tablet.dart';
 
 class HomeScreenTablet extends StatelessWidget {
@@ -11,125 +10,166 @@ class HomeScreenTablet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(AppColors.primaryBlue),
-              Color(AppColors.lightBlue),
-            ],
-          ),
+          color: Color(0xFF1B7A43), // Base green color
         ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(48.0),
-              child: BlocBuilder<LanguageCubit, LanguageState>(
-                builder: (context, languageState) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Logo
-                      Container(
-                        width: 160,
-                        height: 160,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
+        child: Stack(
+          children: [
+            // Pattern background
+            Positioned.fill(
+              child: SvgPicture.asset(
+                'assets/images/Pattern.svg',
+                fit: BoxFit.cover,
+              ),
+            ),
+            
+            // Main content
+            SafeArea(
+              child: Center(
+                child: BlocBuilder<LanguageCubit, LanguageState>(
+                  builder: (context, languageState) {
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Logo at center above welcome text
+                        SizedBox(
+                          width: size.width * 0.15,
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        SizedBox(height: size.height * 0.04),
+
+                        // WELCOME TEXT (without "TO")
+                        Text(
+                          'WELCOME',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: size.width * 0.05,
+                            fontStyle: FontStyle.italic,
+                            fontFamily: 'Lato',
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        SizedBox(height: size.height * 0.05),
+
+                        // START ORDER BUTTON
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CatalogScreenTablet(
+                                  language: languageState.languageCode,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: size.width * 0.08,
+                              vertical: size.height * 0.025,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8562A),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              languageState.translate('start_order'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: size.width * 0.03,
+                                fontStyle: FontStyle.italic,
+                                fontFamily: 'Lato',
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: size.height * 0.03),
+
+                        // LANGUAGE BUTTONS (Custom implementation to match design)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildLanguageButton(
+                              context,
+                              'English',
+                              languageState.languageCode == 'en',
+                              () {
+                                context.read<LanguageCubit>().changeLanguage('en');
+                              },
+                            ),
+                            const SizedBox(width: 16),
+                            _buildLanguageButton(
+                              context,
+                              'Swahili',
+                              languageState.languageCode == 'sw',
+                              () {
+                                context.read<LanguageCubit>().changeLanguage('sw');
+                              },
                             ),
                           ],
                         ),
-                        child: const Center(
-                          child: Text(
-                            'KFM',
-                            style: TextStyle(
-                              fontSize: 64,
-                              fontWeight: FontWeight.bold,
-                              color: Color(AppColors.primaryBlue),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-
-                      // Welcome Text
-                      Text(
-                        languageState.translate('welcome'),
-                        style: const TextStyle(
-                          fontSize: 38,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        languageState.translate('company_name'),
-                        style: const TextStyle(
-                          fontSize: 52,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        languageState.translate('self_service'),
-                        style: const TextStyle(
-                          fontSize: 26,
-                          color: Colors.white70,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 56),
-
-                      // Start Order Button
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CatalogScreenTablet(
-                                language: languageState.languageCode,
-                              ),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(AppColors.primaryBlue),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 64,
-                            vertical: 28,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          elevation: 8,
-                        ),
-                        child: Text(
-                          languageState.translate('start_order'),
-                          style: const TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-
-                      // Language Selector
-                      const LanguageSelector(isCompact: false),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageButton(
+    BuildContext context,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    final size = MediaQuery.sizeOf(context);
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: size.width * 0.045,
+          vertical: size.height * 0.018,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFE8562A) : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: size.width * 0.018,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Lato',
           ),
         ),
       ),

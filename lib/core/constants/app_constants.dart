@@ -6,12 +6,12 @@ class AppConstants {
   // Timing
   static const Duration idleTimeout = Duration(minutes: 2);
   static const Duration paymentProcessingDuration = Duration(seconds: 3);
-  static const Duration receiptDisplayDuration = Duration(seconds: 15);
+  static const Duration receiptDisplayDuration = Duration(seconds: 5);
   
   // Order Status
   static const String statusPaid = 'PAID';
   static const String statusPreparing = 'PREPARING';
-  static const String statusReadyForPickup = 'READY FOR PICKUP';
+  static const String statusReadyForPickup = 'PICKUP';
   static const String statusFulfilled = 'FULFILLED';
   
   // Language

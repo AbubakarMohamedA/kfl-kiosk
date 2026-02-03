@@ -31,6 +31,13 @@ class OrderRepositoryImpl implements OrderRepository {
     await dataSource.updateOrderStatus(orderId, status);
   }
 
+  // ✅ NEW: Saves the full order including per-item statuses
+  @override
+  Future<void> saveFullOrder(Order order) async {
+    final orderModel = OrderModel.fromEntity(order);
+    await dataSource.saveFullOrder(orderModel);
+  }
+
   @override
   Future<int> getOrderCounter() async {
     return await dataSource.getOrderCounter();

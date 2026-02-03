@@ -5,38 +5,36 @@ import 'package:kfm_kiosk/domain/entities/order.dart';
 part 'order_model.g.dart';
 
 @JsonSerializable()
-class OrderModel extends Order {
-  @JsonKey(fromJson: _itemsFromJson, toJson: _itemsToJson)
-  final List<CartItemModel> _items;
-
-  @override
-  List<CartItemModel> get items => _items;
+class OrderModel {
+  final String id;
+  
+  @JsonKey(name: 'items')
+  final List<CartItemModel> cartItems;
+  
+  final double total;
+  final String phone;
+  final DateTime timestamp;
+  final String status;
 
   const OrderModel({
-    required super.id,
-    required List<CartItemModel> items,
-    required super.total,
-    required super.phone,
-    required super.timestamp,
-    required super.status,
-  }) : _items = items,
-       super(items: items);
+    required this.id,
+    required this.cartItems,
+    required this.total,
+    required this.phone,
+    required this.timestamp,
+    required this.status,
+  });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) =>
       _$OrderModelFromJson(json);
 
   Map<String, dynamic> toJson() => _$OrderModelToJson(this);
 
-  static List<CartItemModel> _itemsFromJson(List<dynamic> json) =>
-      json.map((e) => CartItemModel.fromJson(e as Map<String, dynamic>)).toList();
-
-  static List<Map<String, dynamic>> _itemsToJson(List<CartItemModel> items) =>
-      items.map((e) => e.toJson()).toList();
-
+  // Create OrderModel from Order entity
   factory OrderModel.fromEntity(Order order) {
     return OrderModel(
       id: order.id,
-      items: order.items.map((e) => CartItemModel.fromEntity(e)).toList(),
+      cartItems: order.items.map((e) => CartItemModel.fromEntity(e)).toList(),
       total: order.total,
       phone: order.phone,
       timestamp: order.timestamp,
@@ -44,14 +42,59 @@ class OrderModel extends Order {
     );
   }
 
+  // Convert OrderModel to Order entity
   Order toEntity() {
     return Order(
       id: id,
-      items: items.map((e) => e.toEntity()).toList(),
+      items: cartItems.map((e) => e.toEntity()).toList(),
       total: total,
       phone: phone,
       timestamp: timestamp,
       status: status,
     );
+  }
+
+  // CopyWith method
+  OrderModel copyWith({
+    String? id,
+    List<CartItemModel>? cartItems,
+    double? total,
+    String? phone,
+    DateTime? timestamp,
+    String? status,
+  }) {
+    return OrderModel(
+      id: id ?? this.id,
+      cartItems: cartItems ?? this.cartItems,
+      total: total ?? this.total,
+      phone: phone ?? this.phone,
+      timestamp: timestamp ?? this.timestamp,
+      status: status ?? this.status,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'OrderModel(id: $id, items: ${cartItems.length}, total: $total, phone: $phone, status: $status)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is OrderModel &&
+        other.id == id &&
+        other.total == total &&
+        other.phone == phone &&
+        other.status == status;
+  }
+
+  @override
+  int get hashCode {
+    return id.hashCode ^
+        total.hashCode ^
+        phone.hashCode ^
+        timestamp.hashCode ^
+        status.hashCode;
   }
 }

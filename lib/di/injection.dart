@@ -1,8 +1,10 @@
 import 'package:get_it/get_it.dart';
+import 'package:kfm_kiosk/data/datasources/local_configuration_datasource.dart';
 import 'package:kfm_kiosk/data/datasources/local_product_datasource.dart';
 import 'package:kfm_kiosk/data/datasources/local_cart_datasource.dart';
 import 'package:kfm_kiosk/data/datasources/local_order_datasource.dart';
 import 'package:kfm_kiosk/data/datasources/mock_payment_datasource.dart';
+import 'package:kfm_kiosk/data/repositories/configuration_repository_impl.dart';
 import 'package:kfm_kiosk/data/repositories/product_repository_impl.dart';
 import 'package:kfm_kiosk/data/repositories/cart_repository_impl.dart';
 import 'package:kfm_kiosk/data/repositories/order_repository_impl.dart';
@@ -33,6 +35,9 @@ Future<void> setupDependencies() async {
   getIt.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(getIt<LocalOrderDataSource>()));
   getIt.registerLazySingleton<PaymentRepository>(() => PaymentRepositoryImpl(getIt<MockPaymentDataSource>()));
 
+getIt.registerLazySingleton<LocalConfigurationDataSource>(() => LocalConfigurationDataSource());
+getIt.registerLazySingleton<ConfigurationRepository>(() => ConfigurationRepositoryImpl(getIt<LocalConfigurationDataSource>()));
+
   // Use Cases - Products
   getIt.registerLazySingleton(() => GetAllProducts(getIt<ProductRepository>()));
   getIt.registerLazySingleton(() => GetCategories(getIt<ProductRepository>()));
@@ -54,6 +59,7 @@ Future<void> setupDependencies() async {
   getIt.registerLazySingleton(() => UpdateOrderStatus(getIt<OrderRepository>()));
   getIt.registerLazySingleton(() => GenerateOrderId(getIt<OrderRepository>()));
   getIt.registerLazySingleton(() => WatchOrders(getIt<OrderRepository>()));
+  getIt.registerLazySingleton<SaveFullOrder>(() => SaveFullOrder(getIt<OrderRepository>()),);
 
   // Use Cases - Payment
   getIt.registerLazySingleton(() => ProcessPayment(getIt<PaymentRepository>()));
@@ -75,13 +81,18 @@ Future<void> setupDependencies() async {
     getCartTotalUseCase: getIt<GetCartTotal>(),
   ));
 
-  getIt.registerFactory(() => OrderBloc(
-    createOrderUseCase: getIt<CreateOrder>(),
-    getAllOrdersUseCase: getIt<GetAllOrders>(),
-    updateOrderStatusUseCase: getIt<UpdateOrderStatus>(),
-    generateOrderIdUseCase: getIt<GenerateOrderId>(),
-    watchOrdersUseCase: getIt<WatchOrders>(),
-  ));
+
+
+// Updated OrderBloc registration with saveFullOrderUseCase
+getIt.registerFactory(() => OrderBloc(
+  configurationRepository: getIt<ConfigurationRepository>(), 
+  createOrderUseCase: getIt<CreateOrder>(),
+  getAllOrdersUseCase: getIt<GetAllOrders>(),
+  updateOrderStatusUseCase: getIt<UpdateOrderStatus>(),
+  generateOrderIdUseCase: getIt<GenerateOrderId>(),
+  watchOrdersUseCase: getIt<WatchOrders>(),
+  saveFullOrderUseCase: getIt<SaveFullOrder>(), // ✅ NEW
+));
 
   getIt.registerFactory(() => PaymentBloc(
     processPaymentUseCase: getIt<ProcessPayment>(),

@@ -8,6 +8,7 @@ class Product extends Equatable {
   final String size;
   final String category;
   final String description;
+  final String imageUrl;
 
   const Product({
     required this.id,
@@ -17,10 +18,8 @@ class Product extends Equatable {
     required this.size,
     required this.category,
     required this.description,
+    required this.imageUrl,
   });
-
-  @override
-  List<Object?> get props => [id, name, brand, price, size, category, description];
 
   Product copyWith({
     String? id,
@@ -30,6 +29,7 @@ class Product extends Equatable {
     String? size,
     String? category,
     String? description,
+    String? imageUrl,
   }) {
     return Product(
       id: id ?? this.id,
@@ -39,6 +39,52 @@ class Product extends Equatable {
       size: size ?? this.size,
       category: category ?? this.category,
       description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
+  }
+
+  // Convert to map for Firestore
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'brand': brand,
+      'price': price,
+      'size': size,
+      'category': category,
+      'description': description,
+      'imageUrl': imageUrl,
+    };
+  }
+
+  // Create from Firestore map
+  factory Product.fromMap(Map<String, dynamic> map) {
+    return Product(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      brand: map['brand'] as String,
+      price: (map['price'] as num).toDouble(),
+      size: map['size'] as String,
+      category: map['category'] as String,
+      description: map['description'] as String,
+      imageUrl: map['imageUrl'] as String,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+    id,
+    name,
+    brand,
+    price,
+    size,
+    category,
+    description,
+    imageUrl,
+  ];
+
+  @override
+  String toString() {
+    return 'Product(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl)';
   }
 }

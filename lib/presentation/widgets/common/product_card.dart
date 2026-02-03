@@ -45,8 +45,8 @@ class ProductCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(AppColors.secondaryGold)
-                                .withValues(alpha:0.2),
+                            color: const Color.fromARGB(255, 24, 43, 33)
+                                .withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -77,7 +77,7 @@ class ProductCard extends StatelessWidget {
                         child: Text(
                           product.size,
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: Color(AppColors.primaryBlue),
                           ),
@@ -85,7 +85,7 @@ class ProductCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 12), 
 
                   // Product name
                   Expanded(
@@ -101,17 +101,62 @@ class ProductCard extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          product.description,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        // const SizedBox(height: 6),
+                        // Text(
+                        //   product.description,
+                        //   style: TextStyle(
+                        //     fontSize: 11,
+                        //     color: Colors.grey[600],
+                        //   ),
+                        //   maxLines: 2,
+                        //   overflow: TextOverflow.ellipsis,
+                        // ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Product Image
+                  Center(
+                    child: Container(
+                      height: 160,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.asset(
+                          product.imageUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            // Fallback widget when image fails to load
+                            return Container(
+                              color: Colors.grey[100],
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.image_not_supported,
+                                    size: 40,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Image not available',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
 
