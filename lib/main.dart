@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
 import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/presentation/bloc/product/product_bloc.dart';
-import 'package:kfm_kiosk/presentation/bloc/product/product_event.dart';
-import 'package:kfm_kiosk/presentation/bloc/cart/cart_bloc.dart';
-import 'package:kfm_kiosk/presentation/bloc/cart/cart_event.dart';
-import 'package:kfm_kiosk/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/presentation/bloc/payment/payment_bloc.dart';
-import 'package:kfm_kiosk/presentation/bloc/language/language_cubit.dart';
-import 'package:kfm_kiosk/presentation/screens/home_screen.dart';
+import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_bloc.dart';
+import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_event.dart';
+import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
+import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_event.dart';
+import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:kfm_kiosk/features/payment/presentation/bloc/payment/payment_bloc.dart';
+import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
+import 'package:kfm_kiosk/features/home/presentation/screens/home_screen.dart';
+import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,9 @@ class KFMKioskApp extends StatelessWidget {
         ),
         BlocProvider(
           create: (context) => getIt<LanguageCubit>(),
+        ),
+        BlocProvider(
+          create: (context) => getIt<AuthBloc>(),
         ),
       ],
       child: MaterialApp(
