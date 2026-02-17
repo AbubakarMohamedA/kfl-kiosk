@@ -12,6 +12,8 @@ class AppConfiguration {
   // Tenant configuration fields
   final bool isConfigured;           // Whether initial setup has been completed
   final String? tenantId;            // Unique tenant identifier
+  final String? branchId;            // Selected branch identifier (for Enterprise)
+  final String? tierId;              // Tenant's subscription tier ID
   final String? businessName;        // Business/company name
   final String? contactEmail;        // Contact email
   final String? contactPhone;        // Contact phone
@@ -28,6 +30,8 @@ class AppConfiguration {
     // Tenant configuration defaults
     this.isConfigured = false,
     this.tenantId,
+    this.branchId,
+    this.tierId,
     this.businessName,
     this.contactEmail,
     this.contactPhone,
@@ -44,6 +48,8 @@ class AppConfiguration {
     String? language,
     bool? isConfigured,
     String? tenantId,
+    String? branchId,
+    String? tierId,
     String? businessName,
     String? contactEmail,
     String? contactPhone,
@@ -59,6 +65,8 @@ class AppConfiguration {
       language: language ?? this.language,
       isConfigured: isConfigured ?? this.isConfigured,
       tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
+      tierId: tierId ?? this.tierId,
       businessName: businessName ?? this.businessName,
       contactEmail: contactEmail ?? this.contactEmail,
       contactPhone: contactPhone ?? this.contactPhone,
@@ -76,6 +84,8 @@ class AppConfiguration {
     'language': language,
     'isConfigured': isConfigured,
     'tenantId': tenantId,
+    'branchId': branchId,
+    'tierId': tierId,
     'businessName': businessName,
     'contactEmail': contactEmail,
     'contactPhone': contactPhone,
@@ -94,6 +104,8 @@ class AppConfiguration {
       language: json['language'] ?? 'en',
       isConfigured: json['isConfigured'] ?? false,
       tenantId: json['tenantId'],
+      branchId: json['branchId'],
+      tierId: json['tierId'],
       businessName: json['businessName'],
       contactEmail: json['contactEmail'],
       contactPhone: json['contactPhone'],

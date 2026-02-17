@@ -23,6 +23,7 @@ import 'package:kfm_kiosk/features/auth/presentation/screens/account_disabled_sc
 import 'package:kfm_kiosk/features/settings/presentation/screens/premium_upgrade_screen.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen_desktop.dart';
 import 'package:kfm_kiosk/core/widgets/desktop/staff_order_card.dart';
+import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart'; // Added import
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -82,8 +83,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     // Silent auto-refresh every 30 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted && !_showHistory) {
-        context.read<OrderBloc>();
+        context.read<OrderBloc>().add(const LoadOrders());
         _loadConfiguration(); // Refresh config periodically
+        setState(() {}); // Force check for maintenance updates
       }
     });
     
@@ -392,13 +394,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
     if (confirmed == true && mounted) {
       // Clear configuration (Logout)
-      final repo = context.read<OrderBloc>().configurationRepository;
-      await repo.saveConfiguration(AppConfiguration()); // Reset to default
+      // final repo = context.read<OrderBloc>().configurationRepository;
+      // await repo.saveConfiguration(AppConfiguration()); // Reset to default
 
       // ✅ NEW: Clear orders from state to prevent data bleeding
-      if (mounted) {
-        context.read<OrderBloc>().add(const ClearOrders());
-      }
+      // if (mounted) {
+      //   context.read<OrderBloc>().add(const ClearOrders());
+      // }
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -430,8 +432,16 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       isTenantMaintenance = tenant.isMaintenanceMode;
     } catch (_) {}
     
+    // Check immunity
+    final isImmune = tenantService.isTenantImmune(
+      tenantId,
+      fallbackTierId: _currentConfig.tierId,
+    );
+    
+
+
     if ((tenantService.isMaintenanceMode || isTenantMaintenance) &&
-        !isSuperAdmin && 
+        !isSuperAdmin && !isImmune &&
         _currentScreen != ScreenType.superAdmin) {
       return MaintenanceScreen(
         onAdminAccess: () {
@@ -499,10 +509,18 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           moduleName = 'Business Insights';
                         }
                         
-                        if (maintenanceKey != null && 
-                            TenantService().isModuleUnderMaintenance(maintenanceKey) && 
-                            !isSuperAdmin) {
-                          return _buildMaintenancePlaceholder(moduleName);
+                        final isImmune = TenantService().isTenantImmune(
+                          tenantId,
+                          fallbackTierId: _currentConfig.tierId,
+                        );
+                        
+                        if (maintenanceKey != null) {
+                           final isMaintenance = TenantService().isModuleUnderMaintenance(maintenanceKey);
+
+                           
+                           if (isMaintenance && !isSuperAdmin && !isImmune) {
+                             return _buildMaintenancePlaceholder(moduleName);
+                           }
                         }
 
                         return _currentScreen == ScreenType.dashboard
@@ -724,6 +742,18 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   }
 
   Widget _buildSidebar() {
+    final tenantId = _currentConfig.tenantId ?? '';
+    final tenantService = TenantService();
+    // Super admins always see everything
+    final isSuperAdmin = tenantService.isSuperAdmin(tenantId);
+    
+    // Feature checks
+    final canViewOrders = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'orders');
+    final canViewHistory = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'history');
+    // final canViewWarehouse = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'warehouse'); // Config based check used instead in build
+    final canViewInsights = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'insights'); 
+
+
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -737,30 +767,41 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       child: Column(
         children: [
           const SizedBox(height: 20),
-          _buildSidebarItem(
-            icon: Icons.dashboard_rounded,
-            label: 'Dashboard',
-            maintenanceKey: 'orders',
-            isSelected: _currentScreen == ScreenType.dashboard && !_showHistory,
-            onTap: () {
-              setState(() {
-                _currentScreen = ScreenType.dashboard;
-                _showHistory = false;
-              });
-            },
-          ),
-          _buildSidebarItem(
-            icon: Icons.history_rounded,
-            label: 'Order History',
-            maintenanceKey: 'history',
-            isSelected: _currentScreen == ScreenType.dashboard && _showHistory,
-            onTap: () {
-              setState(() {
-                _currentScreen = ScreenType.dashboard;
-                _showHistory = true;
-              });
-            },
-          ),
+          // ✅ NEW: Branch Indicator (Only for Enterprise Tier or Branch Managers)
+          // Since Branch Managers inherit the Enterprise Tier ID configuration, 
+          // checking for 'enterprise' tier and presence of branchId covers both.
+          if (_currentConfig.branchId != null && _currentConfig.tierId == 'enterprise')
+            _buildBranchIndicator(),
+            
+          if (_currentConfig.branchId != null && _currentConfig.tierId == 'enterprise')
+             const SizedBox(height: 20),
+             
+          if (canViewOrders)
+            _buildSidebarItem(
+              icon: Icons.dashboard_rounded,
+              label: 'Dashboard',
+              maintenanceKey: 'orders',
+              isSelected: _currentScreen == ScreenType.dashboard && !_showHistory,
+              onTap: () {
+                setState(() {
+                  _currentScreen = ScreenType.dashboard;
+                  _showHistory = false;
+                });
+              },
+            ),
+          if (canViewHistory)
+            _buildSidebarItem(
+              icon: Icons.history_rounded,
+              label: 'Order History',
+              maintenanceKey: 'history',
+              isSelected: _currentScreen == ScreenType.dashboard && _showHistory,
+              onTap: () {
+                setState(() {
+                  _currentScreen = ScreenType.dashboard;
+                  _showHistory = true;
+                });
+              },
+            ),
           // ✅ FIXED: Only show warehouse stations in item-level mode
           if (_currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
             _buildSidebarItem(
@@ -775,7 +816,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 });
               },
             ),
-          // Always show Business Insights (Gated by Paywall)
+          // Always show Business Insights (Gated by Paywall) - BUT hide if disabled in features
+          if (canViewInsights)
             _buildSidebarItem(
               icon: Icons.insights,
               label: 'Business Insights',
@@ -864,6 +906,87 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
+  Widget _buildBranchIndicator() {
+    final branchId = _currentConfig.branchId;
+    if (branchId == null) return const SizedBox.shrink();
+
+    // final isDarkMode = Theme.of(context).brightness == Brightness.dark; // Unused
+    final branches = TenantService().getBranchesForTenant(_currentConfig.tenantId ?? '');
+    
+    // Find branch safely
+    Branch? branch;
+    try {
+      branch = branches.firstWhere((b) => b.id == branchId);
+    } catch (_) {
+      branch = const Branch(
+        id: '', 
+        tenantId: '', 
+        name: 'Unknown Branch', 
+        location: '', 
+        contactPhone: '', 
+        managerName: '',
+        loginUsername: '',
+        loginPassword: '',
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1a237e).withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1a237e).withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.store_rounded, color: Color(0xFF1a237e), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'CURRENT BRANCH',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  branch.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Color(0xFF1a237e),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSidebarItem({
     required IconData icon,
@@ -871,12 +994,22 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     bool isSelected = false,
     required VoidCallback onTap,
     String? maintenanceKey,
+    // bool isSelected = false,  <-- Duplicate removed
   }) {
     final tenantId = _currentConfig.tenantId ?? '';
     final isSuperAdmin = TenantService().isSuperAdmin(tenantId);
+    
+    // Check immunity
+    final isImmune = TenantService().isTenantImmune(
+      tenantId,
+      fallbackTierId: _currentConfig.tierId,
+    );
+
     final isUnderMaintenance = maintenanceKey != null &&
         TenantService().isModuleUnderMaintenance(maintenanceKey);
-    final isLocked = isUnderMaintenance && !isSuperAdmin;
+        
+    // Locked if under maintenance AND not super admin AND not immune
+    final isLocked = isUnderMaintenance && !isSuperAdmin && !isImmune;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

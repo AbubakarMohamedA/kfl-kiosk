@@ -11,6 +11,7 @@ class Order extends Equatable {
   final DateTime timestamp;
   final String status; // Keep for backward compatibility
   final String? tenantId; // Nullable for legacy orders
+  final String? branchId; // Nullable for non-enterprise or legacy
 
   const Order({
     required this.id,
@@ -20,10 +21,11 @@ class Order extends Equatable {
     required this.timestamp,
     required this.status,
     this.tenantId,
+    this.branchId,
   });
 
   @override
-  List<Object?> get props => [id, items, total, phone, timestamp, status, tenantId];
+  List<Object?> get props => [id, items, total, phone, timestamp, status, tenantId, branchId];
 
   Order copyWith({
     String? id,
@@ -33,6 +35,7 @@ class Order extends Equatable {
     DateTime? timestamp,
     String? status,
     String? tenantId,
+    String? branchId,
   }) {
     return Order(
       id: id ?? this.id,
@@ -42,6 +45,7 @@ class Order extends Equatable {
       timestamp: timestamp ?? this.timestamp,
       status: status ?? this.status,
       tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
     );
   }
 
@@ -156,6 +160,7 @@ class Order extends Equatable {
       'timestamp': timestamp.toIso8601String(),
       'status': status,
       'tenantId': tenantId,
+      'branchId': branchId,
     };
   }
 
@@ -172,6 +177,7 @@ class Order extends Equatable {
       timestamp: DateTime.parse(map['timestamp']),
       status: map['status'] ?? AppConstants.statusPaid,
       tenantId: map['tenantId'],
+      branchId: map['branchId'],
     );
   }
 }

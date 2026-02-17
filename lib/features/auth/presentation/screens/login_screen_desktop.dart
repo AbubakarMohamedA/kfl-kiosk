@@ -8,6 +8,8 @@ import 'package:kfm_kiosk/features/admin/presentation/screens/tenant_setup_scree
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
+import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
+import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
 
 class LoginScreenDesktop extends StatefulWidget {
   const LoginScreenDesktop({super.key});
@@ -23,18 +25,74 @@ class _LoginScreenDesktopState extends State<LoginScreenDesktop> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  void _handleLogin() {
+  void _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     
+    // Check if it's a Branch Manager Login (username/password)
+    // We do a quick check against our TenantService for any matching branch credentials
+    // ideally this should be in the Bloc, but for now we put it here or helper
+    final tenantService = TenantService();
+    Branch? matchedBranch;
+    Tenant? branchTenant;
+    
+    // Iterate all tenants to find a matching branch credential
+    // In production this would be a backend query
+    for (var t in tenantService.getTenants()) {
+       final branches = tenantService.getBranchesForTenant(t.id);
+       try {
+         final branch = branches.firstWhere((b) => 
+           b.loginUsername.toLowerCase() == email.toLowerCase() && 
+           b.loginPassword == password
+         );
+         matchedBranch = branch;
+         branchTenant = t;
+         break;
+       } catch (_) {}
+    }
+    
+    if (matchedBranch != null && branchTenant != null) {
+      // Branch Manager Login Success
+      _onBranchAuthSuccess(branchTenant, matchedBranch);
+      return;
+    }
+    
+    // Standard Tenant/Admin Login
     context.read<AuthBloc>().add(LoginRequested(email, password));
   }
 
+  Future<void> _onBranchAuthSuccess(Tenant tenant, Branch branch) async {
+      // Branch Manager Login Flow
+      final repo = context.read<OrderBloc>().configurationRepository;
+      var config = await repo.getConfiguration();
+      
+      config = config.copyWith(
+        tenantId: tenant.id,
+        branchId: branch.id,
+        tierId: tenant.tierId,
+        businessName: tenant.businessName,
+        contactEmail: tenant.email,
+        contactPhone: tenant.phone,
+        isConfigured: true, 
+      );
+      
+      await repo.saveConfiguration(config);
+      
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+        );
+      }
+  }
+
   Future<void> _onAuthSuccess(Tenant tenant) async {
-    final tenantService = TenantService(); // Still used for helper methods if needed, or move logic to Bloc/Repo
+    final tenantService = TenantService(); 
     final isFirstLogin = tenant.lastLogin == null; 
+    
+    // Check for Enterprise Tier
+    final isEnterprise = tenant.tierId == 'enterprise';
     
     // Update Configuration
     final repo = context.read<OrderBloc>().configurationRepository;
@@ -43,6 +101,9 @@ class _LoginScreenDesktopState extends State<LoginScreenDesktop> {
     // Update tenant details in config
     config = config.copyWith(
       tenantId: tenant.id,
+      // For Enterprise, we do NOT set branchId initially - we go to dashboard
+      branchId: isEnterprise ? null : config.branchId, 
+      tierId: tenant.tierId, // Save tier ID for persistence
       businessName: tenant.businessName,
       contactEmail: tenant.email,
       contactPhone: tenant.phone,
@@ -57,14 +118,40 @@ class _LoginScreenDesktopState extends State<LoginScreenDesktop> {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
         );
+      } else if (isEnterprise) {
+         // Enterprise Login -> Enterprise Dashboard
+         // Remove previous routes to prevent back button from logging out
+         Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const EnterpriseDashboard()),
+          (route) => false,
+        );
       } else if (isFirstLogin) {
          Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const TenantSetupScreen()),
         );
       } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
-        );
+        // Standard flow (Single Branch / Legacy / Alone)
+        
+        // If they have branches but aren't 'Enterprise' (Legacy support), 
+        // we might still want to show selection, but user said: 
+        // "THIS TENANT WITH ENTERPRISE TIER ON HIS DEDICATED DASHBOARD SHOLD BE ABLE SEE ALL..."
+        // implying standard tenants might just be single branch or legacy.
+        // We will keep the selection dialog for non-enterprise multi-branch if any exist (safety fallback)
+        
+        final branches = tenantService.getBranchesForTenant(tenant.id);
+        if (branches.isNotEmpty && !isEnterprise) {
+            // ... (Previous logic for Branch Selection if needed, or we just default them)
+            // For now, let's assume if not enterprise, they just go to main dashboard. 
+            // If they have branches, they might be prompted.
+            // But per request "ENTERPRISE ... DEDICATED DASHBOARD", others go to StaffPanel.
+             Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+            );
+        } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+            );
+        }
       }
     }
   }

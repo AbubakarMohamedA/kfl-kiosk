@@ -67,13 +67,21 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     }
     try {
       final orders = await getAllOrdersUseCase();
+      final config = await configurationRepository.getConfiguration();
+      final branchId = config.branchId;
+
+      List<Order> scopedOrders = orders;
+      if (branchId != null && branchId.isNotEmpty) {
+        scopedOrders = orders.where((o) => o.branchId == branchId).toList();
+      }
+      
       // ✅ If we already have a loaded state, preserve filters/sort
       if (state is OrdersLoaded) {
         final currentState = state as OrdersLoaded;
-        List<dynamic> filtered = orders;
+        List<dynamic> filtered = scopedOrders;
         if (currentState.currentFilter != null &&
             currentState.currentFilter != 'all') {
-          filtered = orders
+          filtered = scopedOrders
               .where((order) =>
                   order.overallStatus == currentState.currentFilter)
               .toList();
@@ -82,13 +90,13 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
           filtered = _applySorting(filtered, currentState.currentSort!);
         }
         emit(currentState.copyWith(
-          orders: orders,
+          orders: scopedOrders,
           filteredOrders: filtered,
         ));
       } else {
         emit(OrdersLoaded(
-          orders: orders,
-          filteredOrders: orders,
+          orders: scopedOrders,
+          filteredOrders: scopedOrders,
         ));
       }
     } catch (e) {

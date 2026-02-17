@@ -1,7 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-enum TenantTier { standard, premium }
-
 class Tenant extends Equatable {
   final String id;
   final String name;
@@ -9,13 +7,15 @@ class Tenant extends Equatable {
   final String email;
   final String phone;
   final String status; // 'Active', 'Inactive', 'Pending'
-  final TenantTier tier; // 'Standard', 'Premium'
+  final String tierId; // ID of the Tier entity
   final DateTime createdDate;
   final DateTime? lastLogin;
   final int ordersCount;
   final double revenue;
-  final bool isMaintenanceMode;
-  final List<String> enabledFeatures;
+  final bool isMaintenanceMode; // Was missing
+  final List<String> enabledFeatures; // Was missing
+  final bool? allowUpdate; // Null = inherit from Tier
+  final bool? immuneToBlocking; // Null = inherit from Tier
 
   const Tenant({
     required this.id,
@@ -24,13 +24,15 @@ class Tenant extends Equatable {
     required this.email,
     required this.phone,
     required this.status,
-    this.tier = TenantTier.standard,
+    this.tierId = 'standard',
     required this.createdDate,
     this.lastLogin,
     this.ordersCount = 0,
     this.revenue = 0.0,
     this.isMaintenanceMode = false,
     this.enabledFeatures = const [],
+    this.allowUpdate,
+    this.immuneToBlocking,
   });
 
   Tenant copyWith({
@@ -40,13 +42,15 @@ class Tenant extends Equatable {
     String? email,
     String? phone,
     String? status,
-    TenantTier? tier,
+    String? tierId,
     DateTime? createdDate,
     DateTime? lastLogin,
     int? ordersCount,
     double? revenue,
     bool? isMaintenanceMode,
     List<String>? enabledFeatures,
+    bool? allowUpdate, // Nullable to unset
+    bool? immuneToBlocking, // Nullable to unset
   }) {
     return Tenant(
       id: id ?? this.id,
@@ -55,13 +59,15 @@ class Tenant extends Equatable {
       email: email ?? this.email,
       phone: phone ?? this.phone,
       status: status ?? this.status,
-      tier: tier ?? this.tier,
+      tierId: tierId ?? this.tierId,
       createdDate: createdDate ?? this.createdDate,
       lastLogin: lastLogin ?? this.lastLogin,
       ordersCount: ordersCount ?? this.ordersCount,
       revenue: revenue ?? this.revenue,
       isMaintenanceMode: isMaintenanceMode ?? this.isMaintenanceMode,
       enabledFeatures: enabledFeatures ?? this.enabledFeatures,
+      allowUpdate: allowUpdate ?? this.allowUpdate,
+      immuneToBlocking: immuneToBlocking ?? this.immuneToBlocking,
     );
   }
 
@@ -73,12 +79,14 @@ class Tenant extends Equatable {
         email,
         phone,
         status,
-        tier,
+        tierId,
         createdDate,
         lastLogin,
         ordersCount,
         revenue,
         isMaintenanceMode,
         enabledFeatures,
+        allowUpdate,
+        immuneToBlocking,
       ];
 }

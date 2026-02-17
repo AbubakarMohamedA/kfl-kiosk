@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
+import 'package:kfm_kiosk/features/auth/domain/entities/tier.dart';
+import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
 
 class SuperAdminScreen extends StatefulWidget {
@@ -21,7 +23,9 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+    _loadTenants();
     _loadTenants();
   }
 
@@ -66,6 +70,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                     controller: _tabController,
                     children: [
                       _buildTenantListTab(),
+                      _buildTierListTab(), // New Tab
                       _buildAnalyticsTab(),
                       _buildSettingsTab(),
                     ],
@@ -186,37 +191,38 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
       child: Column(
         children: [
           _buildSidebarItem(0, Icons.people_outline, 'Tenants'),
-          _buildSidebarItem(1, Icons.analytics_outlined, 'Analytics'),
-          _buildSidebarItem(2, Icons.settings_outlined, 'Settings'),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const Divider(),
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 16),
-                _buildQuickStat(
-                    'Active',
-                    '${_tenants.where((t) => t.status == 'Active').length}',
-                    Icons.check_circle,
-                    Colors.green),
-                const SizedBox(height: 12),
-                _buildQuickStat(
-                    'Pending',
-                    '${_tenants.where((t) => t.status == 'Pending').length}',
-                    Icons.pending,
-                    Colors.orange),
-                const SizedBox(height: 12),
-                _buildQuickStat(
-                    'Inactive',
-                    '${_tenants.where((t) => t.status == 'Inactive').length}',
-                    Icons.cancel,
-                    Colors.red),
-              ],
-            ),
-          ),
+          _buildSidebarItem(1, Icons.layers_outlined, 'Tiers'), // New Sidebar Item
+          _buildSidebarItem(2, Icons.analytics_outlined, 'Analytics'),
+          _buildSidebarItem(3, Icons.settings_outlined, 'Settings'),
+          // const Spacer(),
+          // Padding(
+          //   padding: const EdgeInsets.all(16),
+          //   child: Column(
+          //     children: [
+          //       const Divider(),
+          //       const SizedBox(height: 16),
+          //       const Divider(),
+          //       const SizedBox(height: 16),
+          //       _buildQuickStat(
+          //           'Active',
+          //           '${_tenants.where((t) => t.status == 'Active').length}',
+          //           Icons.check_circle,
+          //           Colors.green),
+          //       const SizedBox(height: 12),
+          //       _buildQuickStat(
+          //           'Pending',
+          //           '${_tenants.where((t) => t.status == 'Pending').length}',
+          //           Icons.pending,
+          //           Colors.orange),
+          //       const SizedBox(height: 12),
+          //       _buildQuickStat(
+          //           'Inactive',
+          //           '${_tenants.where((t) => t.status == 'Inactive').length}',
+          //           Icons.cancel,
+          //           Colors.red),
+          //     ],
+          //   ),
+          // ),
         ],
       ),
     );
@@ -368,6 +374,343 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
     );
   }
 
+  Widget _buildTierListTab() {
+    final tiers = _tenantService.getTiers();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Manage Tiers',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              ElevatedButton.icon(
+                onPressed: () => _showAddTierDialog(),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Tier'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1a237e),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...tiers.map((tier) => _buildTierCard(tier)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTierCard(Tier tier) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(tier.name,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(tier.id,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                            fontFamily: 'monospace')),
+                  ),
+                ],
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    _showEditTierDialog(tier);
+                  } else if (value == 'delete') {
+                    _tenantService.deleteTier(tier.id);
+                    setState(() {});
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete', style: TextStyle(color: Colors.red))),
+                ],
+              ),
+            ],
+          ),
+          if (tier.description.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(tier.description,
+                style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ...tier.enabledFeatures.map((f) => Chip(
+                    label: Text(f),
+                    backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                    labelStyle: const TextStyle(color: Colors.blue, fontSize: 11),
+                    padding: EdgeInsets.zero,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  )),
+              if (!tier.allowUpdates)
+                Chip(
+                  label: const Text('No Updates'),
+                  backgroundColor: Colors.orange.withValues(alpha: 0.1),
+                  labelStyle: const TextStyle(color: Colors.orange, fontSize: 11),
+                  padding: EdgeInsets.zero,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              if (tier.immuneToBlocking)
+                Chip(
+                  label: const Text('Immune to Blocking'),
+                  backgroundColor: Colors.teal.withValues(alpha: 0.1),
+                  labelStyle: const TextStyle(color: Colors.teal, fontSize: 11),
+                  padding: EdgeInsets.zero,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddTierDialog() {
+    final idController = TextEditingController();
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    List<String> enabledFeatures = ['orders', 'history'];
+    bool allowUpdates = true;
+    bool immuneToBlocking = false;
+    final List<String> availableFeatures = ['orders', 'history', 'insights', 'warehouse'];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add New Tier'),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: idController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tier ID (unique)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tier Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  SwitchListTile(
+                    title: const Text('Allow Updates'),
+                    value: allowUpdates,
+                    onChanged: (val) => setDialogState(() => allowUpdates = val),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Immune to Blocking'),
+                    value: immuneToBlocking,
+                    onChanged: (val) => setDialogState(() => immuneToBlocking = val),
+                  ),
+                  const Divider(),
+                   const Text('Enabled Features', style: TextStyle(fontWeight: FontWeight.bold)),
+                   const SizedBox(height: 8),
+                   ...availableFeatures.map((feature) {
+                    final isEnabled = enabledFeatures.contains(feature);
+                    return CheckboxListTile(
+                      title: Text(feature),
+                      value: isEnabled,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (value) {
+                         setDialogState(() {
+                          if (value == true) {
+                            enabledFeatures.add(feature);
+                          } else {
+                            enabledFeatures.remove(feature);
+                          }
+                         });
+                      },
+                    );
+                   }),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (idController.text.isNotEmpty && nameController.text.isNotEmpty) {
+                  final newTier = Tier(
+                    id: idController.text.toLowerCase().replaceAll(' ', '_'),
+                    name: nameController.text,
+                    description: descController.text,
+                    enabledFeatures: enabledFeatures,
+                    allowUpdates: allowUpdates,
+                    immuneToBlocking: immuneToBlocking,
+                  );
+                  _tenantService.addTier(newTier);
+                  setState(() {}); // Refresh Tier List
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Add Tier'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _showEditTierDialog(Tier tier) {
+     final nameController = TextEditingController(text: tier.name);
+     final descController = TextEditingController(text: tier.description);
+     List<String> enabledFeatures = List.from(tier.enabledFeatures);
+     bool allowUpdates = tier.allowUpdates;
+     bool immuneToBlocking = tier.immuneToBlocking;
+     final List<String> availableFeatures = ['orders', 'history', 'insights', 'warehouse'];
+
+     showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Tier'),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   Text('Tier ID: ${tier.id}', style: const TextStyle(color: Colors.grey)),
+                   const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tier Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  SwitchListTile(
+                    title: const Text('Allow Updates'),
+                    value: allowUpdates,
+                    onChanged: (val) => setDialogState(() => allowUpdates = val),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Immune to Blocking'),
+                    value: immuneToBlocking,
+                    onChanged: (val) => setDialogState(() => immuneToBlocking = val),
+                  ),
+                  const Divider(),
+                   const Text('Enabled Features', style: TextStyle(fontWeight: FontWeight.bold)),
+                   const SizedBox(height: 8),
+                   ...availableFeatures.map((feature) {
+                    final isEnabled = enabledFeatures.contains(feature);
+                    return CheckboxListTile(
+                      title: Text(feature),
+                      value: isEnabled,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (value) {
+                         setDialogState(() {
+                          if (value == true) {
+                            enabledFeatures.add(feature);
+                          } else {
+                            enabledFeatures.remove(feature);
+                          }
+                         });
+                      },
+                    );
+                   }),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final updatedTier = tier.copyWith(
+                  name: nameController.text,
+                  description: descController.text,
+                  enabledFeatures: enabledFeatures,
+                  allowUpdates: allowUpdates,
+                  immuneToBlocking: immuneToBlocking,
+                );
+                _tenantService.updateTier(updatedTier);
+                setState(() {}); // Refresh Tier List
+                Navigator.of(context).pop();
+              },
+              child: const Text('Save Changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTenantCard(Tenant tenant) {
     final statusColor = tenant.status == 'Active'
         ? Colors.green
@@ -434,7 +777,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                               fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 8),
-                    if (tenant.tier == TenantTier.premium)
+                    if (tenant.tierId == 'premium')
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 4),
@@ -452,8 +795,82 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold)),
                           ],
+                      ),
+                    ),
+                    if (tenant.tierId == 'alone')
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        
+                      ),
+                    // Override Indicators
+                    if (tenant.immuneToBlocking == true)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.shield, size: 12, color: Colors.blue),
+                            SizedBox(width: 4),
+                            Text('IMMUNE',
+                                style: TextStyle(
+                                    color: Colors.blue,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
+                          ],
                         ),
                       ),
+                      
+                    if (tenant.allowUpdate == false)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                         padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.system_update_alt, size: 12, color: Colors.orange),
+                            SizedBox(width: 4),
+                            Text('NO UPDATES',
+                                style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+
+                    if (tenant.tierId == 'alone')
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.shield, size: 12, color: Colors.teal),
+                            SizedBox(width: 4),
+                            Text('ALONE',
+                                style: TextStyle(
+                                    color: Colors.teal,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+
                     if (tenant.isMaintenanceMode)
                       Container(
                         margin: const EdgeInsets.only(left: 8),
@@ -528,6 +945,9 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                 case 'view':
                   _showTenantDetailsDialog(tenant);
                   break;
+                case 'branches':
+                  _showManageBranchesDialog(tenant);
+                  break;
                 case 'delete':
                   _showDeleteConfirmDialog(tenant);
                   break;
@@ -536,6 +956,8 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'view', child: Text('View Details')),
               const PopupMenuItem(value: 'edit', child: Text('Edit Tenant')),
+              if (tenant.tierId == 'enterprise')
+                const PopupMenuItem(value: 'branches', child: Text('Manage Branches')),
               const PopupMenuItem(
                   value: 'delete',
                   child:
@@ -750,6 +1172,11 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
               _tenantService.isModuleUnderMaintenance('warehouse'),
               onChanged: (val) => setState(() => _tenantService.setModuleMaintenance('warehouse', val)),
             ),
+            _buildSettingsTile(
+              'Enterprise Dashboard',
+              _tenantService.isModuleUnderMaintenance('enterprise_dashboard'),
+              onChanged: (val) => setState(() => _tenantService.setModuleMaintenance('enterprise_dashboard', val)),
+            ),
           ]),
         ],
       ),
@@ -806,9 +1233,19 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
     final businessController = TextEditingController();
     final emailController = TextEditingController();
     final phoneController = TextEditingController();
-    TenantTier selectedTier = TenantTier.standard;
+    String selectedTierId = 'standard';
     List<String> enabledFeatures = ['orders', 'history', 'insights', 'warehouse'];
     final List<String> availableFeatures = ['orders', 'history', 'insights', 'warehouse'];
+    
+    // Get available tiers
+    final tiers = _tenantService.getTiers();
+    if (tiers.isNotEmpty) {
+      selectedTierId = tiers.first.id;
+    }
+    
+    // Override flags (null = inherit)
+    bool? allowUpdate; 
+    bool? immuneToBlocking;
 
     showDialog(
       context: context,
@@ -861,22 +1298,56 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<TenantTier>(
-                    value: selectedTier,
+                  DropdownButtonFormField<String>(
+                    value: selectedTierId,
                     decoration: const InputDecoration(
                       labelText: 'Subscription Tier',
                       border: OutlineInputBorder(),
                     ),
-                    items: TenantTier.values
+                    items: tiers
                         .map((t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(t.toString().split('.').last.toUpperCase())))
+                            value: t.id,
+                            child:
+                                Text(t.name)))
                         .toList(),
                     onChanged: (value) {
                       if (value != null) {
-                        setDialogState(() => selectedTier = value);
+                        setDialogState(() => selectedTierId = value);
                       }
                     },
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                   const Text('Overrides (Default: Inherit from Tier)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                   const SizedBox(height: 8),
+                   DropdownButtonFormField<bool?>(
+                    value: allowUpdate,
+                    decoration: const InputDecoration(
+                      labelText: 'Allow Updates',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                       DropdownMenuItem(value: null, child: Text('Inherit (Default)')),
+                       DropdownMenuItem(value: true, child: Text('Yes (Force Allow)')),
+                       DropdownMenuItem(value: false, child: Text('No (Force Block)')),
+                    ],
+                    onChanged: (value) => setDialogState(() => allowUpdate = value),
+                  ),
+                  const SizedBox(height: 12),
+                   DropdownButtonFormField<bool?>(
+                    value: immuneToBlocking,
+                    decoration: const InputDecoration(
+                      labelText: 'Immune to Blocking',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                       DropdownMenuItem(value: null, child: Text('Inherit (Default)')),
+                       DropdownMenuItem(value: true, child: Text('Yes (Immune)')),
+                       DropdownMenuItem(value: false, child: Text('No (Not Immune)')),
+                    ],
+                    onChanged: (value) => setDialogState(() => immuneToBlocking = value),
                   ),
                   const SizedBox(height: 16),
                   const Divider(),
@@ -944,14 +1415,16 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                     email: emailController.text,
                     phone: phoneController.text,
                     status: 'Pending',
-                    tier: selectedTier,
+                    tierId: selectedTierId,
                     createdDate: DateTime.now(),
                     enabledFeatures: enabledFeatures,
+                    allowUpdate: allowUpdate,
+                    immuneToBlocking: immuneToBlocking,
                   );
 
                 _tenantService.addTenant(newTenant);
                 _loadTenants(); // Refresh UI
-
+                
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -979,10 +1452,18 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
     final emailController = TextEditingController(text: tenant.email);
     final phoneController = TextEditingController(text: tenant.phone);
     String status = tenant.status;
-    TenantTier tier = tenant.tier;
+    String tierId = tenant.tierId; // Changed to String
     bool isMaintenanceMode = tenant.isMaintenanceMode;
     List<String> enabledFeatures = List.from(tenant.enabledFeatures);
+    
+    // Override flags
+    bool? allowUpdate = tenant.allowUpdate;
+    bool? immuneToBlocking = tenant.immuneToBlocking;
+    
     final List<String> availableFeatures = ['orders', 'history', 'insights', 'warehouse'];
+
+    // Get Tiers
+    final tiers = _tenantService.getTiers();
 
     showDialog(
       context: context,
@@ -1051,20 +1532,20 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                     },
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<TenantTier>(
-                    value: tier,
+                  DropdownButtonFormField<String>(
+                    value: tierId,
                     decoration: const InputDecoration(
                       labelText: 'Subscription Tier',
                       border: OutlineInputBorder(),
                     ),
-                    items: TenantTier.values
+                    items: tiers
                         .map((t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(t.toString().split('.').last.toUpperCase())))
+                            value: t.id,
+                            child: Text(t.name)))
                         .toList(),
                     onChanged: (value) {
                       if (value != null) {
-                        setDialogState(() => tier = value);
+                        setDialogState(() => tierId = value);
                       }
                     },
                   ),
@@ -1076,6 +1557,39 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                     activeColor: Colors.red,
                     onChanged: (value) =>
                         setDialogState(() => isMaintenanceMode = value),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                   const Text('Overrides (Default: Inherit from Tier)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                   const SizedBox(height: 8),
+                   DropdownButtonFormField<bool?>(
+                    value: allowUpdate,
+                    decoration: const InputDecoration(
+                      labelText: 'Allow Updates',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                       DropdownMenuItem(value: null, child: Text('Inherit (Default)')),
+                       DropdownMenuItem(value: true, child: Text('Yes (Force Allow)')),
+                       DropdownMenuItem(value: false, child: Text('No (Force Block)')),
+                    ],
+                    onChanged: (value) => setDialogState(() => allowUpdate = value),
+                  ),
+                  const SizedBox(height: 12),
+                   DropdownButtonFormField<bool?>(
+                    value: immuneToBlocking,
+                    decoration: const InputDecoration(
+                      labelText: 'Immune to Blocking',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                       DropdownMenuItem(value: null, child: Text('Inherit (Default)')),
+                       DropdownMenuItem(value: true, child: Text('Yes (Immune)')),
+                       DropdownMenuItem(value: false, child: Text('No (Not Immune)')),
+                    ],
+                    onChanged: (value) => setDialogState(() => immuneToBlocking = value),
                   ),
                   const SizedBox(height: 16),
                   const Divider(),
@@ -1139,9 +1653,11 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
                   email: emailController.text,
                   phone: phoneController.text,
                   status: status,
-                  tier: tier,
+                  tierId: tierId,
                   isMaintenanceMode: isMaintenanceMode,
                   enabledFeatures: enabledFeatures,
+                  allowUpdate: allowUpdate,
+                  immuneToBlocking: immuneToBlocking,
                 );
 
                 _tenantService.updateTenant(updatedTenant);
@@ -1217,7 +1733,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
               _buildDetailRow('Email', tenant.email),
               _buildDetailRow('Phone', tenant.phone),
               _buildDetailRow('Status', tenant.status),
-              _buildDetailRow('Tier', tenant.tier.toString().split('.').last.toUpperCase()),
+              _buildDetailRow('Tier', _tenantService.getTierById(tenant.tierId)?.name ?? tenant.tierId),
               _buildDetailRow('Created',
                   DateFormat('MMM d, yyyy').format(tenant.createdDate)),
               _buildDetailRow(
@@ -1292,6 +1808,214 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
             child: const Text('Delete'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showManageBranchesDialog(Tenant tenant) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final branches = _tenantService.getBranchesForTenant(tenant.id);
+
+          return AlertDialog(
+            title: Text('Manage Branches - ${tenant.businessName}'),
+            content: SizedBox(
+              width: 500,
+              height: 400,
+              child: Column(
+                children: [
+                   Row(
+                     mainAxisAlignment: MainAxisAlignment.end,
+                     children: [
+                       ElevatedButton.icon(
+                         onPressed: () {
+                           _showAddEditBranchDialog(context, tenant, setDialogState);
+                         },
+                         icon: const Icon(Icons.add),
+                         label: const Text('Add Branch'),
+                         style: ElevatedButton.styleFrom(
+                           backgroundColor: const Color(0xFF1a237e),
+                           foregroundColor: Colors.white,
+                         ),
+                       ),
+                     ],
+                   ),
+                   const SizedBox(height: 16),
+                   Expanded(
+                     child: branches.isEmpty
+                         ? const Center(child: Text('No branches found.'))
+                         : ListView.builder(
+                             itemCount: branches.length,
+                             itemBuilder: (context, index) {
+                               final branch = branches[index];
+                               return Card(
+                                 margin: const EdgeInsets.only(bottom: 8),
+                                 child: ListTile(
+                                   leading: CircleAvatar(
+                                     backgroundColor: branch.isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                     child: Icon(Icons.store, color: branch.isActive ? Colors.green : Colors.red, size: 20),
+                                   ),
+                                   title: Text(branch.name),
+                                   subtitle: Text('${branch.location} • ${branch.managerName}'),
+                                   trailing: Row(
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                       IconButton(
+                                         icon: const Icon(Icons.edit, color: Colors.blue),
+                                         onPressed: () {
+                                            _showAddEditBranchDialog(context, tenant, setDialogState, branch: branch);
+                                         },
+                                       ),
+                                       IconButton(
+                                         icon: const Icon(Icons.delete, color: Colors.red),
+                                         onPressed: () {
+                                            // Confirm delete
+                                            showDialog(context: context, builder: (ctx) => AlertDialog(
+                                              title: const Text('Delete Branch?'),
+                                              content: Text('Are you sure you want to delete ${branch.name}?'),
+                                              actions: [
+                                                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                                                ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                                                  onPressed: () {
+                                                    _tenantService.deleteBranch(branch.id);
+                                                    setDialogState(() {});
+                                                    Navigator.pop(ctx);
+                                                  },
+                                                  child: const Text('Delete'),
+                                                )
+                                              ],
+                                            ));
+                                         },
+                                       ),
+                                     ],
+                                   ),
+                                 ),
+                               );
+                             },
+                           ),
+                   ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAddEditBranchDialog(BuildContext parentContext, Tenant tenant, StateSetter parentSetState, {Branch? branch}) {
+    final isEditing = branch != null;
+    final nameController = TextEditingController(text: branch?.name);
+    final locationController = TextEditingController(text: branch?.location);
+    final phoneController = TextEditingController(text: branch?.contactPhone);
+    final managerController = TextEditingController(text: branch?.managerName);
+    final usernameController = TextEditingController(text: branch?.loginUsername);
+    final passwordController = TextEditingController(text: branch?.loginPassword);
+    bool isActive = branch?.isActive ?? true;
+
+    showDialog(
+      context: parentContext,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(isEditing ? 'Edit Branch' : 'Add Branch'),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Branch Name', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: locationController,
+                    decoration: const InputDecoration(labelText: 'Location / Address', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(labelText: 'Contact Phone', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: managerController,
+                    decoration: const InputDecoration(labelText: 'Manager Name', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const Text('Manager Credentials', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: usernameController,
+                    decoration: const InputDecoration(labelText: 'Login Username', border: OutlineInputBorder(), helperText: 'Unique username for manager login'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(labelText: 'Login Password (ID)', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('Active Status'),
+                    value: isActive,
+                    onChanged: (val) => setDialogState(() => isActive = val),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isEmpty) return;
+                if (usernameController.text.isEmpty || passwordController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username and Password are required')));
+                  return;
+                }
+
+                final newBranch = Branch(
+                  id: isEditing ? branch.id : 'BR${DateTime.now().millisecondsSinceEpoch}',
+                  tenantId: tenant.id,
+                  name: nameController.text,
+                  location: locationController.text,
+                  contactPhone: phoneController.text,
+                  managerName: managerController.text,
+                  loginUsername: usernameController.text,
+                  loginPassword: passwordController.text,
+                  isActive: isActive,
+                  totalOrders: branch?.totalOrders ?? 0,
+                  revenue: branch?.revenue ?? 0.0,
+                );
+
+                if (isEditing) {
+                  _tenantService.updateBranch(newBranch);
+                } else {
+                  _tenantService.addBranch(newBranch);
+                }
+                
+                // Refresh parent dialog
+                parentSetState(() {});
+                Navigator.pop(context);
+              },
+              child: Text(isEditing ? 'Update' : 'Add'),
+            ),
+          ],
+        ),
       ),
     );
   }

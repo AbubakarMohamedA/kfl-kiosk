@@ -47,7 +47,11 @@ class HomeScreen extends StatelessWidget {
         final isSuperAdmin = tenantService.isSuperAdmin(tenantId);
         
         // Check if system access is allowed
-        if (!tenantService.canAccessSystem(tenantId, isSuperAdmin: isSuperAdmin)) {
+        if (!tenantService.canAccessSystem(
+          tenantId, 
+          isSuperAdmin: isSuperAdmin,
+          fallbackTierId: config.tierId,
+        )) {
           return const MaintenanceScreen();
         }
 

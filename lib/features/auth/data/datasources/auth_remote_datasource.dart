@@ -28,7 +28,7 @@ class AuthRemoteDataSource {
         email: data['email'],
         phone: data['phone'],
         status: data['status'] ?? 'Active',
-        tier: _parseTier(data['tier']),
+        tierId: data['tier'] ?? 'standard',
         createdDate: DateTime.parse(data['createdDate']),
         lastLogin: data['lastLogin'] != null ? DateTime.parse(data['lastLogin']) : null,
         ordersCount: data['ordersCount'] ?? 0,
@@ -42,10 +42,5 @@ class AuthRemoteDataSource {
 
   Future<void> logout() async {
     await client.post(Uri.parse('${ApiConfig.baseUrl}/auth/logout'));
-  }
-
-  TenantTier _parseTier(String? tier) {
-    if (tier?.toLowerCase() == 'premium') return TenantTier.premium;
-    return TenantTier.standard;
   }
 }
