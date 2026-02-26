@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/di/injection.dart';
 import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:uuid/uuid.dart';
+import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:kfm_kiosk/core/services/license_service.dart';
+import 'package:kfm_kiosk/di/injection.dart';
+import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
+import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
+import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel_desktop.dart'; // Ensure this import is correct based on your project structure. If StaffPanelDesktop is in orders, keeping it.
 
 class TenantSetupScreen extends StatefulWidget {
-  const TenantSetupScreen({super.key});
+  final Tenant tenant;
+
+  const TenantSetupScreen({super.key, required this.tenant});
 
   @override
   State<TenantSetupScreen> createState() => _TenantSetupScreenState();
@@ -22,12 +30,14 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
   // Form keys for validation
   final _businessFormKey = GlobalKey<FormState>();
   final _settingsFormKey = GlobalKey<FormState>();
+  final _licenseFormKey = GlobalKey<FormState>();
 
   // Form controllers
   final _businessNameController = TextEditingController();
   final _contactEmailController = TextEditingController();
   final _contactPhoneController = TextEditingController();
   final _businessAddressController = TextEditingController();
+  final _licenseKeyController = TextEditingController();
 
   // Settings
   String _selectedCurrency = 'KSH';
@@ -49,6 +59,18 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
+    
+    // Pre-fill data from Tenant object
+    _businessNameController.text = widget.tenant.businessName;
+    _contactEmailController.text = widget.tenant.email;
+    _contactPhoneController.text = widget.tenant.phone;
+    
+    // Auto-set tracking mode based on Tier
+    if (widget.tenant.tierId == 'enterprise') {
+      _statusTrackingMode = StatusTrackingMode.itemLevel;
+    } else {
+      _statusTrackingMode = StatusTrackingMode.orderLevel;
+    }
   }
 
   @override
@@ -58,41 +80,73 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
     _contactEmailController.dispose();
     _contactPhoneController.dispose();
     _businessAddressController.dispose();
+    _licenseKeyController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveConfiguration() async {
+  Future<void> _processSetupAndSave() async {
+    if (!_licenseFormKey.currentState!.validate()) return;
+    
     setState(() => _isSaving = true);
 
     try {
+      // 1. Verify License Key
+      final licenseService = getIt<LicenseService>();
+      final key = _licenseKeyController.text.trim();
+      final isValid = await licenseService.verifyLicense(key);
+
+      if (!isValid) {
+        throw Exception("Invalid or expired license key.");
+      }
+
+      // 2. Prepare Configuration
       final configRepo = getIt<ConfigurationRepository>();
       final currentConfig = await configRepo.getConfiguration();
 
       final newConfig = currentConfig.copyWith(
         isConfigured: true,
-        tenantId: const Uuid().v4(),
+        tenantId: widget.tenant.id, // Use actual tenant ID
+        tierId: widget.tenant.tierId,
         businessName: _businessNameController.text.trim(),
         contactEmail: _contactEmailController.text.trim(),
         contactPhone: _contactPhoneController.text.trim(),
         businessAddress: _businessAddressController.text.trim(),
-        defaultWarehouse: _selectedWarehouse,
+        defaultWarehouse: widget.tenant.tierId == 'enterprise' ? _selectedWarehouse : null,
         currency: _selectedCurrency,
         enableNotifications: _enableNotifications,
         statusTrackingMode: _statusTrackingMode,
       );
 
+      // 3. Save Configuration
       await configRepo.saveConfiguration(newConfig);
+      
+      // 4. Reload Orders to reflect new config
+      if (mounted) {
+         context.read<OrderBloc>().add(const LoadOrders());
+      }
 
       if (mounted) {
-        // Navigate to main app
-        Navigator.of(context).pushReplacementNamed('/');
+        // 5. Navigate
+        final isEnterprise = widget.tenant.tierId == 'enterprise';
+        if (isEnterprise) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const EnterpriseDashboard()),
+              (route) => false,
+            );
+        } else {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+              (route) => false,
+            );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving configuration: $e'),
+            content: Text('Setup Failed: ${e.toString().replaceAll("Exception: ", "")}'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -109,7 +163,9 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
         setState(() => _currentStep = 1);
       }
     } else if (_currentStep == 1) {
-      setState(() => _currentStep = 2);
+      if (_settingsFormKey.currentState?.validate() ?? false) {
+        setState(() => _currentStep = 2);
+      }
     }
   }
 
@@ -129,7 +185,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
             end: Alignment.bottomRight,
             colors: [
               const Color(AppColors.primaryBlue),
-              const Color(AppColors.primaryBlue).withOpacity(0.8),
+              const Color(AppColors.primaryBlue).withValues(alpha: 0.8),
               const Color(0xFF0A6F38),
             ],
           ),
@@ -140,14 +196,14 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
             child: Center(
               child: SingleChildScrollView(
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 800),
+                  constraints: const BoxConstraints(maxWidth: 900),
                   margin: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 30,
                         offset: const Offset(0, 10),
                       ),
@@ -189,35 +245,43 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
           topRight: Radius.circular(24),
         ),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Container(
+           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Icons.store_rounded,
-              size: 48,
+              Icons.rocket_launch,
+              size: 40,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Welcome to SSS Kiosk',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Let's set up your business in a few quick steps",
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white.withOpacity(0.9),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Welcome to SSS Kiosk',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Setting up for ${widget.tenant.businessName} (${widget.tenant.tierId.toUpperCase()} Tier)",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
@@ -232,14 +296,14 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
         children: [
           _buildStepIndicator(0, 'Business Info', Icons.business),
           _buildStepLine(0),
-          _buildStepIndicator(1, 'Settings', Icons.settings),
+          _buildStepIndicator(1, 'Configuration', Icons.settings_suggest),
           _buildStepLine(1),
-          _buildStepIndicator(2, 'Review', Icons.check_circle),
+          _buildStepIndicator(2, 'License & Review', Icons.verified_user),
         ],
       ),
     );
   }
-
+  
   Widget _buildStepIndicator(int step, String label, IconData icon) {
     final isActive = _currentStep >= step;
     final isCurrent = _currentStep == step;
@@ -259,7 +323,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
               boxShadow: isCurrent
                   ? [
                       BoxShadow(
-                        color: const Color(AppColors.primaryBlue).withOpacity(0.3),
+                        color: const Color(AppColors.primaryBlue).withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -275,6 +339,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
           const SizedBox(height: 8),
           Text(
             label,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
               fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
@@ -307,7 +372,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
       case 1:
         return _buildSettingsStep();
       case 2:
-        return _buildReviewStep();
+        return _buildReviewAndLicenseStep();
       default:
         return const SizedBox.shrink();
     }
@@ -324,32 +389,17 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
           children: [
             const Text(
               'Business Information',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1a1a2e),
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1a1a2e)),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Tell us about your business',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
+            Text('Confirm your business details from your account', style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 24),
             _buildTextField(
               controller: _businessNameController,
               label: 'Business Name',
               hint: 'Enter your business name',
               icon: Icons.business,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Business name is required';
-                }
-                return null;
-              },
+              readOnly: true, // Pre-filled from Account
             ),
             const SizedBox(height: 16),
             _buildTextField(
@@ -357,16 +407,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
               label: 'Contact Email',
               hint: 'email@example.com',
               icon: Icons.email,
-              keyboardType: TextInputType.emailAddress,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Email is required';
-                }
-                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                  return 'Please enter a valid email';
-                }
-                return null;
-              },
+              readOnly: true,
             ),
             const SizedBox(height: 16),
             _buildTextField(
@@ -374,13 +415,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
               label: 'Contact Phone',
               hint: '+254 700 000 000',
               icon: Icons.phone,
-              keyboardType: TextInputType.phone,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Phone number is required';
-                }
-                return null;
-              },
+              readOnly: true,
             ),
             const SizedBox(height: 16),
             _buildTextField(
@@ -389,6 +424,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
               hint: 'Enter your business address',
               icon: Icons.location_on,
               maxLines: 2,
+              validator: (v) => v!.isEmpty ? 'Address is required' : null,
             ),
           ],
         ),
@@ -397,6 +433,8 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
   }
 
   Widget _buildSettingsStep() {
+    final isEnterprise = widget.tenant.tierId == 'enterprise';
+    
     return Padding(
       key: const ValueKey('settings'),
       padding: const EdgeInsets.all(32),
@@ -406,22 +444,16 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Kiosk Settings',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1a1a2e),
-              ),
+              'System Configuration',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1a1a2e)),
             ),
             const SizedBox(height: 8),
             Text(
-              'Configure your kiosk preferences',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              isEnterprise ? 'Configure Enterprise features' : 'Configure Standard features',
+              style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
+            
             _buildDropdownField(
               label: 'Currency',
               icon: Icons.attach_money,
@@ -429,16 +461,39 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
               items: _currencies,
               onChanged: (value) => setState(() => _selectedCurrency = value!),
             ),
-            const SizedBox(height: 16),
-            _buildDropdownField(
-              label: 'Default Warehouse',
-              icon: Icons.warehouse,
-              value: _selectedWarehouse,
-              items: _warehouses,
-              hint: 'Select a warehouse',
-              onChanged: (value) => setState(() => _selectedWarehouse = value),
-            ),
-            const SizedBox(height: 16),
+            
+            if (isEnterprise) ...[
+              const SizedBox(height: 16),
+              _buildDropdownField(
+                label: 'Default Warehouse',
+                icon: Icons.warehouse,
+                value: _selectedWarehouse,
+                items: _warehouses,
+                hint: 'Select a warehouse',
+                onChanged: (value) => setState(() => _selectedWarehouse = value),
+              ),
+              const SizedBox(height: 16),
+               Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[100]!),
+                ),
+                child: Row(
+                  children: [
+                     const Icon(Icons.info_outline, color: Colors.blue),
+                     const SizedBox(width: 12),
+                     const Expanded(child: Text("Enterprise Tier includes Advanced Warehouse Management.", style: TextStyle(color: Colors.blue))),
+                  ],
+                ),
+               )
+            ],
+
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 24),
+
             _buildDropdownField(
               label: 'Order Tracking Mode',
               icon: Icons.track_changes,
@@ -464,53 +519,52 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
     );
   }
 
-  Widget _buildReviewStep() {
+  Widget _buildReviewAndLicenseStep() {
     return Padding(
       key: const ValueKey('review'),
       padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Review & Complete',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1a1a2e),
+      child: Form(
+        key: _licenseFormKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Final Verification',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1a1a2e)),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Please review your configuration before completing setup',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+            const SizedBox(height: 8),
+            Text('Enter your license key to activate the terminal', style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 24),
+            
+            // License Input
+            TextFormField(
+              controller: _licenseKeyController,
+              decoration: InputDecoration(
+                labelText: 'License Key',
+                hintText: 'KFL-XXXX-XXXX',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(Icons.vpn_key, color: Color(AppColors.primaryBlue)),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              validator: (v) => v!.trim().isEmpty ? 'License key is required' : null,
             ),
-          ),
-          const SizedBox(height: 24),
-          _buildReviewSection(
-            'Business Information',
-            Icons.business,
-            [
-              _buildReviewItem('Business Name', _businessNameController.text),
-              _buildReviewItem('Email', _contactEmailController.text),
-              _buildReviewItem('Phone', _contactPhoneController.text),
-              if (_businessAddressController.text.isNotEmpty)
-                _buildReviewItem('Address', _businessAddressController.text),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildReviewSection(
-            'Settings',
-            Icons.settings,
-            [
-              _buildReviewItem('Currency', _selectedCurrency),
-              _buildReviewItem('Default Warehouse', _selectedWarehouse ?? 'Not selected'),
-              _buildReviewItem('Tracking Mode', _statusTrackingMode == StatusTrackingMode.orderLevel ? 'Order Level' : 'Item Level'),
-              _buildReviewItem('Notifications', _enableNotifications ? 'Enabled' : 'Disabled'),
-            ],
-          ),
-        ],
+
+            const SizedBox(height: 32),
+            _buildReviewSection(
+              'Configuration Summary',
+              Icons.list_alt,
+              [
+                _buildReviewItem('Business Name', _businessNameController.text),
+                _buildReviewItem('Tier', widget.tenant.tierId.toUpperCase()),
+                _buildReviewItem('Currency', _selectedCurrency),
+                if (_selectedWarehouse != null)
+                   _buildReviewItem('Warehouse', _selectedWarehouse!),
+                _buildReviewItem('Tracking', _statusTrackingMode == StatusTrackingMode.orderLevel ? 'Order Level' : 'Item Level'),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -528,23 +582,9 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(AppColors.primaryBlue).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: const Color(AppColors.primaryBlue), size: 20),
-              ),
+              Icon(icon, color: const Color(AppColors.primaryBlue), size: 20),
               const SizedBox(width: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1a1a2e),
-                ),
-              ),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           const Divider(height: 24),
@@ -558,26 +598,15 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
+          Text(label, style: TextStyle(color: Colors.grey[600])),
+          const SizedBox(width: 16),
           Expanded(
             child: Text(
-              value.isEmpty ? '—' : value,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF1a1a2e),
-              ),
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -593,49 +622,22 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
     TextInputType? keyboardType,
     int maxLines = 1,
     String? Function(String?)? validator,
+    bool readOnly = false,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1a1a2e),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          validator: validator,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: Colors.grey[400]),
-            prefixIcon: Icon(icon, color: const Color(AppColors.primaryBlue)),
-            filled: true,
-            fillColor: Colors.grey[50],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(AppColors.primaryBlue), width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red),
-            ),
-          ),
-        ),
-      ],
+    return TextFormField(
+      controller: controller,
+      readOnly: readOnly,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon, color: Colors.grey[600]),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: readOnly,
+        fillColor: readOnly ? Colors.grey[200] : null,
+      ),
     );
   }
 
@@ -647,45 +649,16 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
     String? hint,
     required void Function(String?) onChanged,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1a1a2e),
-          ),
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: value,
-          hint: hint != null ? Text(hint, style: TextStyle(color: Colors.grey[400])) : null,
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: const Color(AppColors.primaryBlue)),
-            filled: true,
-            fillColor: Colors.grey[50],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(AppColors.primaryBlue), width: 2),
-            ),
-          ),
-          items: items.map((item) => DropdownMenuItem(
-            value: item,
-            child: Text(item),
-          )).toList(),
-          onChanged: onChanged,
-        ),
-      ],
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      hint: hint != null ? Text(hint) : null,
+      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.grey[600]),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 
@@ -696,53 +669,13 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
     required bool value,
     required void Function(bool) onChanged,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(AppColors.primaryBlue).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: const Color(AppColors.primaryBlue)),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1a1a2e),
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: const Color(AppColors.primaryBlue),
-          ),
-        ],
-      ),
+    return SwitchListTile(
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle),
+      secondary: Icon(icon, color: const Color(AppColors.primaryBlue)),
+      value: value,
+      onChanged: onChanged,
+      contentPadding: EdgeInsets.zero,
     );
   }
 
@@ -759,54 +692,29 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
       child: Row(
         children: [
           if (_currentStep > 0)
-            OutlinedButton.icon(
-              onPressed: _previousStep,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Previous'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+            OutlinedButton(onPressed: _previousStep, child: const Text('Back')),
           const Spacer(),
           if (_currentStep < 2)
-            ElevatedButton.icon(
-              onPressed: _nextStep,
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text('Next'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(AppColors.primaryBlue),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+            ElevatedButton(
+               onPressed: _nextStep, 
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: const Color(AppColors.primaryBlue),
+                 foregroundColor: Colors.white,
+               ),
+               child: const Text('Next'),
             )
           else
             ElevatedButton.icon(
-              onPressed: _isSaving ? null : _saveConfiguration,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.check_circle),
-              label: Text(_isSaving ? 'Setting up...' : 'Complete Setup'),
+              onPressed: _isSaving ? null : _processSetupAndSave,
+              icon: _isSaving 
+                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                 : const Icon(Icons.check_circle),
+              label: Text(_isSaving ? 'Activating...' : 'Complete & Launch'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0A6F38),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+                 backgroundColor: const Color(AppColors.primaryBlue),
+                 foregroundColor: Colors.white,
+                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+               ),
             ),
         ],
       ),

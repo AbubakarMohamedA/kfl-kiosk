@@ -75,27 +75,32 @@ class _BusinessInsightsScreenState extends State<BusinessInsightsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Business Intelligence',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(AppColors.primaryBlue),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Business Intelligence',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Color(AppColors.primaryBlue),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Real-time data-driven insights for smarter decisions',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
+                    const SizedBox(height: 4),
+                    Text(
+                      'Real-time data-driven insights for smarter decisions',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 16),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -422,7 +427,7 @@ class _BusinessInsightsScreenState extends State<BusinessInsightsScreen>
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: topProducts.length,
-                    separatorBuilder: (_, __) => const Divider(),
+                    separatorBuilder: (context, index) => const Divider(),
                     itemBuilder: (context, index) {
                       final p = topProducts[index];
                       return ListTile(
@@ -514,6 +519,7 @@ class _BusinessInsightsScreenState extends State<BusinessInsightsScreen>
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1F2937),
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -522,18 +528,22 @@ class _BusinessInsightsScreenState extends State<BusinessInsightsScreen>
                         fontSize: 14,
                         color: Colors.grey[600],
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         const Icon(Icons.lightbulb, size: 16, color: Color(AppColors.primaryBlue)),
                         const SizedBox(width: 8),
-                        Text(
-                          'Recommendation: ${alert['action']}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(AppColors.primaryBlue),
+                        Expanded(
+                          child: Text(
+                            'Recommendation: ${alert['action']}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(AppColors.primaryBlue),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -585,15 +595,21 @@ class _BusinessInsightsScreenState extends State<BusinessInsightsScreen>
                 ),
                 child: Icon(icon, color: color, size: 20),
               ),
-              if (subtitle != null)
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: subtitle.contains('+') ? Colors.green : (subtitle.contains('-') ? Colors.red : Colors.grey),
-                    fontWeight: FontWeight.w600,
+              if (subtitle != null) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subtitle.contains('+') ? Colors.green : (subtitle.contains('-') ? Colors.red : Colors.grey),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+              ]
             ],
           ),
           const SizedBox(height: 16),
@@ -604,6 +620,7 @@ class _BusinessInsightsScreenState extends State<BusinessInsightsScreen>
               fontWeight: FontWeight.bold,
               color: Color(0xFF1F2937),
             ),
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
           Text(
@@ -612,6 +629,7 @@ class _BusinessInsightsScreenState extends State<BusinessInsightsScreen>
               fontSize: 14,
               color: Colors.grey[500],
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

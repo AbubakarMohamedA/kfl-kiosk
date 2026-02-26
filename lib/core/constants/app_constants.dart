@@ -45,7 +45,7 @@ class AppStrings {
   // English
   static const Map<String, String> en = {
     'welcome': 'Welcome to',
-    'company_name': 'Kitui Flour Mills',
+    'company_name': 'SSS',
     'self_service': 'Self-Service Shop',
     'start_order': 'Start Order',
     'select_items': 'Select Items',
@@ -77,7 +77,7 @@ class AppStrings {
   // Swahili
   static const Map<String, String> sw = {
     'welcome': 'Karibu',
-    'company_name': 'Kitui Flour Mills',
+    'company_name': 'SSS',
     'self_service': 'Duka la Kujihudumia',
     'start_order': 'Anza Oda',
     'select_items': 'Chagua Bidhaa',

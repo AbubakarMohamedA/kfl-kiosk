@@ -24,4 +24,13 @@ abstract class ProductRepository {
 
   /// Get products within a price range
   Future<List<Product>> getProductsByPriceRange(double minPrice, double maxPrice);
+
+  /// Add a new product
+  Future<void> addProduct(Product product);
+
+  /// Update an existing product
+  Future<void> updateProduct(Product product);
+
+  /// Delete a product by ID
+  Future<void> deleteProduct(String id);
 }

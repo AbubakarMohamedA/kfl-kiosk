@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/features/products/domain/usecases/product_usecases.dart';
+import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
 import 'product_event.dart';
 import 'product_state.dart';
 
@@ -7,16 +8,27 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
   final GetAllProducts getAllProducts;
   final GetCategories getCategories;
   final GetProductsByCategory getProductsByCategory;
+  final AddProduct addProduct;
+  final UpdateProduct updateProduct;
+  final DeleteProduct deleteProduct;
+  final ConfigurationRepository configurationRepository;
 
   ProductBloc({
     required this.getAllProducts,
     required this.getCategories,
     required this.getProductsByCategory,
+    required this.addProduct,
+    required this.updateProduct,
+    required this.deleteProduct,
+    required this.configurationRepository,
   }) : super(const ProductInitial()) {
     on<LoadProducts>(_onLoadProducts);
     on<FilterProductsByCategory>(_onFilterByCategory);
     on<SearchProducts>(_onSearchProducts);
     on<LoadCategories>(_onLoadCategories);
+    on<AddProductEvent>(_onAddProduct);
+    on<UpdateProductEvent>(_onUpdateProduct);
+    on<DeleteProductEvent>(_onDeleteProduct);
   }
 
   Future<void> _onLoadProducts(
@@ -88,6 +100,49 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         final currentState = state as ProductLoaded;
         emit(currentState.copyWith(categories: categories));
       }
+    } catch (e) {
+      emit(ProductError(e.toString()));
+    }
+  }
+
+  Future<void> _onAddProduct(
+    AddProductEvent event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      final config = await configurationRepository.getConfiguration();
+      // Ensure the product gets the correct enterprise scoping
+      final productWithScope = event.product.copyWith(
+        tenantId: config.tenantId,
+        branchId: config.tierId == 'enterprise' ? config.branchId : null,
+      );
+      
+      await addProduct(productWithScope);
+      add(const LoadProducts()); // Reload products after adding
+    } catch (e) {
+      emit(ProductError(e.toString()));
+    }
+  }
+
+  Future<void> _onUpdateProduct(
+    UpdateProductEvent event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      await updateProduct(event.product);
+      add(const LoadProducts()); // Reload products after updating
+    } catch (e) {
+      emit(ProductError(e.toString()));
+    }
+  }
+
+  Future<void> _onDeleteProduct(
+    DeleteProductEvent event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      await deleteProduct(event.productId);
+      add(const LoadProducts()); // Reload products after deleting
     } catch (e) {
       emit(ProductError(e.toString()));
     }

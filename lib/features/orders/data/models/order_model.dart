@@ -19,6 +19,9 @@ class OrderModel {
   
   @JsonKey(fromJson: _nullableIdToString)
   final String? tenantId;
+  
+  final String? branchId;
+  final String? terminalId;
 
   const OrderModel({
     required this.id,
@@ -28,6 +31,8 @@ class OrderModel {
     required this.timestamp,
     required this.status,
     this.tenantId,
+    this.branchId,
+    this.terminalId,
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) =>
@@ -45,6 +50,8 @@ class OrderModel {
       timestamp: order.timestamp,
       status: order.status,
       tenantId: order.tenantId,
+      branchId: order.branchId,
+      terminalId: order.terminalId,
     );
   }
 
@@ -58,6 +65,8 @@ class OrderModel {
       timestamp: timestamp,
       status: status,
       tenantId: tenantId,
+      branchId: branchId,
+      terminalId: terminalId,
     );
   }
 
@@ -70,6 +79,8 @@ class OrderModel {
     DateTime? timestamp,
     String? status,
     String? tenantId,
+    String? branchId,
+    String? terminalId,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -79,12 +90,14 @@ class OrderModel {
       timestamp: timestamp ?? this.timestamp,
       status: status ?? this.status,
       tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
+      terminalId: terminalId ?? this.terminalId,
     );
   }
 
   @override
   String toString() {
-    return 'OrderModel(id: $id, items: ${cartItems.length}, total: $total, phone: $phone, status: $status, tenantId: $tenantId)';
+    return 'OrderModel(id: $id, items: ${cartItems.length}, total: $total, phone: $phone, status: $status, tenantId: $tenantId, branchId: $branchId, terminalId: $terminalId)';
   }
 
   @override
@@ -96,7 +109,9 @@ class OrderModel {
         other.total == total &&
         other.phone == phone &&
         other.status == status &&
-        other.tenantId == tenantId;
+        other.tenantId == tenantId &&
+        other.branchId == branchId &&
+        other.terminalId == terminalId;
   }
 
   @override
@@ -106,7 +121,9 @@ class OrderModel {
         phone.hashCode ^
         timestamp.hashCode ^
         status.hashCode ^
-        tenantId.hashCode;
+        tenantId.hashCode ^
+        branchId.hashCode ^
+        terminalId.hashCode;
   }
 }
 

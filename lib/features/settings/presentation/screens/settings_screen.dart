@@ -30,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _useItemLevelTracking = false;
   
   // Business Settings
-  String _businessName = 'Kitui Flour Mills';
+  String _businessName = 'SSS';
   String _businessPhone = '+254 700 000 000';
   String _businessEmail = 'info@kituiflour.com';
   String _taxRate = '16.0';
@@ -44,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   
   // Network Sync Settings
   String _serverUrl = '';
+  String _terminalId = '';
   bool _isServerConnected = false;
   
   // Receipt Settings
@@ -73,6 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       setState(() {
         _useItemLevelTracking = config.statusTrackingMode == StatusTrackingMode.itemLevel;
         _serverUrl = orderDataSource.serverUrl ?? '';
+        _terminalId = orderDataSource.terminalId ?? '';
         _isServerConnected = orderDataSource.isOnline;
       });
     } catch (e) {
@@ -540,6 +542,20 @@ class _SettingsScreenState extends State<SettingsScreen>
                           ),
                         ),
                         const SizedBox(width: 12),
+                        SizedBox(
+                          width: 200,
+                          child: TextField(
+                            controller: TextEditingController(text: _terminalId),
+                            decoration: const InputDecoration(
+                              labelText: 'Terminal Name',
+                              hintText: 'e.g. Kiosk 1',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.computer),
+                            ),
+                            onChanged: (value) => setState(() => _terminalId = value),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                         ElevatedButton(
                           onPressed: () => _connectToServer(),
                           style: ElevatedButton.styleFrom(
@@ -792,6 +808,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
         subtitle,
@@ -799,6 +816,8 @@ class _SettingsScreenState extends State<SettingsScreen>
           fontSize: 12,
           color: Colors.grey[600],
         ),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
       ),
       trailing: Switch(
         value: value,
@@ -823,6 +842,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
         subtitle,
@@ -830,6 +850,8 @@ class _SettingsScreenState extends State<SettingsScreen>
           fontSize: 12,
           color: Colors.grey[600],
         ),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
       ),
       trailing: DropdownButton<String>(
         value: value,
@@ -921,6 +943,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
         subtitle,
@@ -928,6 +951,8 @@ class _SettingsScreenState extends State<SettingsScreen>
           fontSize: 12,
           color: Colors.grey[600],
         ),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
       ),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: onTap,
@@ -1097,6 +1122,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       
       // Save other settings here...
       // TODO: Implement saving for business details, tax config, receipt settings, etc.
+      
+      final orderDataSource = getIt<LocalOrderDataSource>();
+      await orderDataSource.setTerminalId(_terminalId);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

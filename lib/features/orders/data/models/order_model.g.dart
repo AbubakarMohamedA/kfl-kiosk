@@ -16,6 +16,8 @@ OrderModel _$OrderModelFromJson(Map<String, dynamic> json) => OrderModel(
   timestamp: DateTime.parse(json['timestamp'] as String),
   status: json['status'] as String,
   tenantId: _nullableIdToString(json['tenantId']),
+  branchId: json['branchId'] as String?,
+  terminalId: json['terminalId'] as String?,
 );
 
 Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
@@ -27,4 +29,6 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
       'timestamp': instance.timestamp.toIso8601String(),
       'status': instance.status,
       'tenantId': instance.tenantId,
+      'branchId': instance.branchId,
+      'terminalId': instance.terminalId,
     };

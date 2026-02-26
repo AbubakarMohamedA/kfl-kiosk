@@ -56,7 +56,7 @@ class ReceiptScreenMobile extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                       const Text(
-                        'KITUI FLOUR MILLS',
+                        'SSS',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -73,9 +73,14 @@ class ReceiptScreenMobile extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Order ID:'),
-                          Text(
-                            order.id,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              order.id,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.right,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -84,8 +89,13 @@ class ReceiptScreenMobile extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Date:'),
-                          Text(
-                            '${order.timestamp.day}/${order.timestamp.month}/${order.timestamp.year}',
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${order.timestamp.day}/${order.timestamp.month}/${order.timestamp.year}',
+                              textAlign: TextAlign.right,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -101,6 +111,7 @@ class ReceiptScreenMobile extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   '${item.product.name} (${item.product.size}) x${item.quantity}',
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               Text(

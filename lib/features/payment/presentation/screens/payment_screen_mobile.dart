@@ -102,7 +102,14 @@ class _PaymentScreenMobileState extends State<PaymentScreenMobile> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(AppStrings.get('total', widget.language), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Expanded(
+                          child: Text(
+                            AppStrings.get('total', widget.language),
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         Text('KSh ${widget.total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(AppColors.primaryBlue))),
                       ],
                     ),

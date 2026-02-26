@@ -1,9 +1,16 @@
 import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
+import 'package:drift/drift.dart';
+import 'package:kfm_kiosk/core/database/app_database.dart' hide Product;
+import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
 import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
-
+ 
 class LocalProductDataSource implements ProductDataSource {
-  // In-memory product storage
-  final List<ProductModel> _products = [
+  final ProductsDao _productsDao;
+ 
+  LocalProductDataSource(this._productsDao);
+ 
+  // Seed data (preserved for initialization)
+  final List<ProductModel> _seedProducts = [
       // Unga Wa Dola - All Purpose Flour
       const ProductModel(
         id: 'uwd_ap_flour_2kg',
@@ -158,46 +165,88 @@ class LocalProductDataSource implements ProductDataSource {
         imageUrl: 'assets/images/golden_drop_20l.png',
       ),
   ];
-
+ 
   @override
-  // This simulates a local database or API
-  // In a real app, this could be fetched from an API or local database
-  List<ProductModel> getAllProducts() {
-    return List.from(_products);
+  Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
+    await _ensureSeeded();
+    final dbProducts = await _productsDao.getAllProducts(tenantId: tenantId);
+    return dbProducts.map((p) => ProductModel(
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      price: p.price,
+      category: p.category,
+      size: p.size,
+      description: p.description,
+      imageUrl: p.imageUrl ?? '',
+    )).toList();
   }
-
-  Future<List<ProductModel>> fetchProducts() async {
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 300));
-    return getAllProducts();
-  }
-
+ 
+  @override
   Future<ProductModel?> getProductById(String id) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    try {
-      return _products.firstWhere((product) => product.id == id);
-    } catch (e) {
-      return null;
+    await _ensureSeeded();
+    final p = await _productsDao.getProductById(id);
+    if (p == null) return null;
+    return ProductModel(
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      price: p.price,
+      category: p.category,
+      size: p.size,
+      description: p.description,
+      imageUrl: p.imageUrl ?? '',
+    );
+  }
+ 
+  Future<void> _ensureSeeded() async {
+    final existing = await _productsDao.getAllProducts();
+    if (existing.isEmpty) {
+      await _productsDao.insertProducts(_seedProducts.map((p) => ProductsCompanion(
+        id: Value(p.id),
+        name: Value(p.name),
+        brand: Value(p.brand),
+        price: Value(p.price),
+        category: Value(p.category),
+        size: Value(p.size),
+        description: Value(p.description),
+        imageUrl: Value(p.imageUrl),
+      )).toList());
     }
   }
-
-  // Method to add product in memory (for testing persistence/admin features)
-  void addProduct(ProductModel product) {
-    if (!_products.any((p) => p.id == product.id)) {
-      _products.add(product);
-    }
+ 
+  @override
+  Future<void> addProduct(ProductModel product) async {
+    await _productsDao.insertProduct(ProductsCompanion(
+      id: Value(product.id),
+      name: Value(product.name),
+      brand: Value(product.brand),
+      price: Value(product.price),
+      category: Value(product.category),
+      size: Value(product.size),
+      description: Value(product.description),
+      imageUrl: Value(product.imageUrl),
+      tenantId: Value(product.tenantId),
+    ));
   }
-
-  // Method to update product in memory
-  void updateProduct(ProductModel product) {
-    final index = _products.indexWhere((p) => p.id == product.id);
-    if (index != -1) {
-      _products[index] = product;
-    }
+ 
+  @override
+  Future<void> updateProduct(ProductModel product) async {
+    await _productsDao.updateProduct(ProductsCompanion(
+      id: Value(product.id),
+      name: Value(product.name),
+      brand: Value(product.brand),
+      price: Value(product.price),
+      category: Value(product.category),
+      size: Value(product.size),
+      description: Value(product.description),
+      imageUrl: Value(product.imageUrl),
+      tenantId: Value(product.tenantId),
+    ));
   }
-
-  // Method to delete product in memory
-  void deleteProduct(String id) {
-    _products.removeWhere((p) => p.id == id);
+ 
+  @override
+  Future<void> deleteProduct(String id) async {
+    await _productsDao.deleteProduct(id);
   }
 }

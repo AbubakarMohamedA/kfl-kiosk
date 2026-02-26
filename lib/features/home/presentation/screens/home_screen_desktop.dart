@@ -64,7 +64,7 @@ class HomeScreenDesktop extends StatelessWidget {
                                 ),
                                 child: const Center(
                                   child: Text(
-                                    'KFM',
+                                    'SSS',
                                     style: TextStyle(
                                       fontSize: 80,
                                       fontWeight: FontWeight.bold,

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
 import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
 import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart'; // ✅ Entity
 
 class WarehouseOrderCard extends StatelessWidget {
   final Order order;
   final List<CartItem> warehouseItems;
   final Warehouse warehouse;
+  final Color color;
+  final IconData icon;
   final VoidCallback? onStartPreparing;
   final VoidCallback? onMarkReady;
   final VoidCallback? onMarkFulfilled;
@@ -17,6 +19,8 @@ class WarehouseOrderCard extends StatelessWidget {
     required this.order,
     required this.warehouseItems,
     required this.warehouse,
+    required this.color,
+    required this.icon,
     this.onStartPreparing,
     this.onMarkReady,
     this.onMarkFulfilled,
@@ -57,7 +61,7 @@ class WarehouseOrderCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: warehouse.color.withValues(alpha: 0.3),
+            color: color.withValues(alpha: 0.3),
             width: 2,
           ),
         ),
@@ -70,81 +74,62 @@ class WarehouseOrderCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            warehouse.icon,
-                            color: warehouse.color,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Order #${order.id}',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'monospace',
-                              color: warehouse.color,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              icon,
+                              color: color,
+                              size: 24,
                             ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Order #${order.id}',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'monospace',
+                                  color: color,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatTimestamp(order.timestamp),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatTimestamp(order.timestamp),
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      Text(
-                        order.phone,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[500],
+                        Text(
+                          order.phone,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Container(
-                        // padding: const EdgeInsets.symmetric(
-                        //     horizontal: 12, vertical: 6),
-                        // decoration: BoxDecoration(
-                        //   color: warehouse.color.withValues(alpha: 0.1),
-                        //   borderRadius: BorderRadius.circular(8),
-                        //   border: Border.all(
-                        //     color: warehouse.color.withValues(alpha: 0.3),
-                        //   ),
-                        // ),
-                        // child: Text(
-                        //   warehouse.category,
-                        //   style: TextStyle(
-                        //     fontSize: 12,
-                        //     fontWeight: FontWeight.bold,
-                        //     color: warehouse.color,
-                        //   ),
-                        // ),
-                      // ),
-                      // const SizedBox(height: 8),
-                      // Text(
-                      //   'Items Total',
-                      //   style: TextStyle(
-                      //     fontSize: 12,
-                      //     color: Colors.grey[600],
-                      //   ),
-                      // ),
                       Text(
                         'KSh ${warehouseTotal.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: warehouse.color,
+                          color: color,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -163,10 +148,10 @@ class WarehouseOrderCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: warehouse.color.withValues(alpha: 0.05),
+                  color: color.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: warehouse.color.withValues(alpha: 0.2),
+                    color: color.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Column(
@@ -177,15 +162,18 @@ class WarehouseOrderCard extends StatelessWidget {
                         Icon(
                           Icons.inventory_2,
                           size: 16,
-                          color: warehouse.color,
+                          color: color,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Items to Prepare (${warehouseItems.length})',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: warehouse.color,
+                        Expanded(
+                          child: Text(
+                            'Items to Prepare (${warehouseItems.length})',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: color,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -210,13 +198,14 @@ class WarehouseOrderCard extends StatelessWidget {
                               child: Text(
                                 '${item.product.name} (${item.product.size})',
                                 style: const TextStyle(fontSize: 14),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: warehouse.color.withValues(alpha: 0.1),
+                                color: color.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -224,7 +213,7 @@ class WarehouseOrderCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: warehouse.color,
+                                  color: color,
                                 ),
                               ),
                             ),
@@ -339,8 +328,10 @@ class WarehouseOrderCard extends StatelessWidget {
           onPressed: onStartPreparing,
           icon: const Icon(Icons.autorenew),
           label: Text(
-            'Start Preparing ${warehouse.category} Items',
+            'Start Preparing ${warehouse.name} Items',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange,
@@ -359,8 +350,10 @@ class WarehouseOrderCard extends StatelessWidget {
           onPressed: onMarkReady,
           icon: const Icon(Icons.inventory_2),
           label: Text(
-            'Mark ${warehouse.category} Items as Ready',
+            'Mark ${warehouse.name} Items as Ready',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.purple,
@@ -391,6 +384,7 @@ class WarehouseOrderCard extends StatelessWidget {
                     'Customer will present Order ID #${order.id} to collect these items.',
                     style: const TextStyle(
                         fontSize: 14, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

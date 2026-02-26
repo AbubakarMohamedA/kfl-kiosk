@@ -51,37 +51,43 @@ class StaffOrderCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      // ✅ FIXED: Show only short ID (ORDxxxx) in UI for cleaner look
-                      // Internal ID: TEN001-ORD0001 -> Display: ORD0001
-                      order.id.split('-').last,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'monospace',
-                        color: Color(AppColors.primaryBlue),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        // ✅ FIXED: Show only short ID (ORDxxxx) in UI for cleaner look
+                        // Internal ID: TEN001-ORD0001 -> Display: ORD0001
+                        order.id.split('-').last,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                          color: Color(AppColors.primaryBlue),
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatTimestamp(order.timestamp),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatTimestamp(order.timestamp),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Text(
-                      order.phone,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[500],
+                      Text(
+                        order.phone,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8), // Add slight spacing between the columns
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [

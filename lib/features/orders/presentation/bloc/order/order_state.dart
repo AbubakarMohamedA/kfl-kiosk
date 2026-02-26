@@ -195,9 +195,12 @@ class OrdersLoaded extends OrderState {
   // ✅ FIXED: Filter directly off `orders`, not `activeOrders`.
   // An order is "active" for a warehouse if it has at least one
   // non-FULFILLED item in that category.
-  List<Order> getWarehouseActiveOrders(String warehouseCategory) {
+  // ✅ FIXED: Filter directly off `orders`, not `activeOrders`.
+  // An order is "active" for a warehouse if it has at least one
+  // non-FULFILLED item in that category.
+  List<Order> getWarehouseActiveOrders(List<String> warehouseCategories) {
     return orders.where((order) {
-      final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+      final warehouseItems = order.getItemsForWarehouse(warehouseCategories);
       if (warehouseItems.isEmpty) return false;
 
       // Active = at least one item is NOT fulfilled
@@ -208,9 +211,11 @@ class OrdersLoaded extends OrderState {
 
   // ✅ FIXED: An order is "fulfilled" for a warehouse if ALL of its
   // items in that category are FULFILLED (and it has items).
-  List<Order> getWarehouseFulfilledOrders(String warehouseCategory) {
+  // ✅ FIXED: An order is "fulfilled" for a warehouse if ALL of its
+  // items in that category are FULFILLED (and it has items).
+  List<Order> getWarehouseFulfilledOrders(List<String> warehouseCategories) {
     return orders.where((order) {
-      final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+      final warehouseItems = order.getItemsForWarehouse(warehouseCategories);
       if (warehouseItems.isEmpty) return false;
 
       return warehouseItems
@@ -219,10 +224,10 @@ class OrdersLoaded extends OrderState {
   }
 
   // ✅ FIXED: Count item.quantity, not just number of CartItem entries
-  int getWarehouseItemCountByStatus(String warehouseCategory, String status) {
+  int getWarehouseItemCountByStatus(List<String> warehouseCategories, String status) {
     int count = 0;
     for (var order in orders) {
-      final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+      final warehouseItems = order.getItemsForWarehouse(warehouseCategories);
       for (var item in warehouseItems) {
         if (item.status == status) {
           count += item.quantity;
@@ -233,7 +238,7 @@ class OrdersLoaded extends OrderState {
   }
 
   // Today's warehouse order count
-  int getTodaysWarehouseOrderCount(String warehouseCategory) {
+  int getTodaysWarehouseOrderCount(List<String> warehouseCategories) {
     final today = DateTime.now();
     return orders.where((order) {
       if (order.timestamp.year != today.year ||
@@ -241,19 +246,19 @@ class OrdersLoaded extends OrderState {
           order.timestamp.day != today.day) {
         return false;
       }
-      return order.getItemsForWarehouse(warehouseCategory).isNotEmpty;
+      return order.getItemsForWarehouse(warehouseCategories).isNotEmpty;
     }).length;
   }
 
   // ✅ FIXED: Count item.quantity, not just number of CartItem entries
-  int getTodaysWarehouseItemCount(String warehouseCategory) {
+  int getTodaysWarehouseItemCount(List<String> warehouseCategories) {
     final today = DateTime.now();
     int count = 0;
     for (var order in orders) {
       if (order.timestamp.year == today.year &&
           order.timestamp.month == today.month &&
           order.timestamp.day == today.day) {
-        final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+        final warehouseItems = order.getItemsForWarehouse(warehouseCategories);
         for (var item in warehouseItems) {
           count += item.quantity;
         }
@@ -263,14 +268,14 @@ class OrdersLoaded extends OrderState {
   }
 
   // ✅ FIXED: Count item.quantity for fulfilled items
-  int getTodaysFulfilledWarehouseItemCount(String warehouseCategory) {
+  int getTodaysFulfilledWarehouseItemCount(List<String> warehouseCategories) {
     final today = DateTime.now();
     int count = 0;
     for (var order in orders) {
       if (order.timestamp.year == today.year &&
           order.timestamp.month == today.month &&
           order.timestamp.day == today.day) {
-        final warehouseItems = order.getItemsForWarehouse(warehouseCategory);
+        final warehouseItems = order.getItemsForWarehouse(warehouseCategories);
         for (var item in warehouseItems) {
           if (item.status == AppConstants.statusFulfilled) {
             count += item.quantity;

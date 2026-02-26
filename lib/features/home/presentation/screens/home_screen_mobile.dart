@@ -5,6 +5,8 @@ import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_
 import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_state.dart';
 import 'package:kfm_kiosk/core/widgets/common/language_selector.dart';
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/catalog_screen_mobile.dart';
+import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_bloc.dart';
+import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_event.dart';
 
 class HomeScreenMobile extends StatelessWidget {
   const HomeScreenMobile({super.key});
@@ -92,6 +94,9 @@ class HomeScreenMobile extends StatelessWidget {
                       // Start Order Button
                       ElevatedButton(
                         onPressed: () {
+                          // Refresh products for the connected server
+                          context.read<ProductBloc>().add(const LoadProducts());
+                          
                           Navigator.push(
                             context,
                             MaterialPageRoute(

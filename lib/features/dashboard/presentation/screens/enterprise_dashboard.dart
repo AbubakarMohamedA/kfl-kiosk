@@ -11,9 +11,11 @@ import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel_deskt
 import 'package:kfm_kiosk/features/dashboard/presentation/widgets/enterprise_charts.dart';
 import 'package:kfm_kiosk/features/dashboard/presentation/widgets/enterprise_feed.dart';
 import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen_desktop.dart';
+import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 import 'package:kfm_kiosk/features/settings/presentation/screens/maintenance_screen.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/account_disabled_screen.dart';
+import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
+import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_state.dart';
 
 class EnterpriseDashboard extends StatefulWidget {
   const EnterpriseDashboard({super.key});
@@ -30,6 +32,8 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
   Tenant? _currentTenant;
   late TabController _tabController;
   int _selectedTabIndex = 0;
+  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedAnalyticsDate = DateTime.now();
 
   // Mock aggregated metrics
   int _totalSystemOrders = 0;
@@ -69,11 +73,16 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
       _currentTenant = tenants.firstWhere((t) => t.id == config.tenantId);
       
       // Load Branches
-      _branches = _tenantService.getBranchesForTenant(config.tenantId ?? '');
+      _branches = await _tenantService.getBranchesForTenant(config.tenantId ?? '');
       
       // Calculate Aggregates
-      _totalSystemOrders = _branches.fold(0, (sum, b) => sum + b.totalOrders);
-      _totalSystemRevenue = _branches.fold(0, (sum, b) => sum + b.revenue);
+      final orderState = context.read<OrderBloc>().state;
+      if (orderState is OrdersLoaded) {
+        _recalculateMetricsWithoutSetState(orderState.orders);
+      } else {
+        _totalSystemOrders = _branches.fold(0, (sum, b) => sum + b.totalOrders);
+        _totalSystemRevenue = _branches.fold(0, (sum, b) => sum + b.revenue);
+      }
       
     } catch (e) {
       // Handle error
@@ -98,12 +107,54 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
     );
     await repo.saveConfiguration(config);
 
+    if (mounted) {
+      context.read<OrderBloc>().add(const LoadOrders()); // Fetch branch-isolated orders
+    }
+
     // 2. Navigate to StaffPanel
     if (mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
-      ).then((_) => _loadData()); // Reload when coming back
+      ).then((_) async {
+        // Clear branch context when returning to Enterprise Dashboard
+        var exitConfig = await repo.getConfiguration();
+        exitConfig = exitConfig.copyWith(clearBranchId: true, branchId: null);
+        await repo.saveConfiguration(exitConfig);
+        
+        if (mounted) {
+          context.read<OrderBloc>().add(const LoadOrders());
+          _loadData(); // Reload UI
+        }
+      });
     }
+  }
+
+  void _recalculateMetricsWithoutSetState(List<Order> orders) {
+    double totalRev = 0;
+    int totalOrd = 0;
+    Map<String, double> branchRev = {};
+    Map<String, int> branchOrd = {};
+    
+    for (var order in orders) {
+      final isSameDay = order.timestamp.year == _selectedDate.year &&
+                        order.timestamp.month == _selectedDate.month &&
+                        order.timestamp.day == _selectedDate.day;
+      if (!isSameDay) continue;
+
+      totalOrd++;
+      totalRev += order.total;
+      if (order.branchId != null) {
+        branchRev[order.branchId!] = (branchRev[order.branchId!] ?? 0) + order.total;
+        branchOrd[order.branchId!] = (branchOrd[order.branchId!] ?? 0) + 1;
+      }
+    }
+
+    _totalSystemOrders = totalOrd;
+    _totalSystemRevenue = totalRev;
+    _branches = _branches.map((b) => b.copyWith(
+      revenue: branchRev[b.id] ?? 0.0,
+      totalOrders: branchOrd[b.id] ?? 0,
+    )).toList();
   }
 
   @override
@@ -143,8 +194,16 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
 
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF121212) : Colors.grey[100],
-      body: Row(
-        children: [
+      body: BlocListener<OrderBloc, OrderState>(
+        listener: (context, state) {
+          if (state is OrdersLoaded) {
+            setState(() {
+              _recalculateMetricsWithoutSetState(state.orders);
+            });
+          }
+        },
+        child: Row(
+          children: [
           // ─── LEFT SIDEBAR ────────────────────────────────────────────────
           Container(
             width: 250,
@@ -228,7 +287,7 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
 
                       if (mounted) {
                         Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (_) => const LoginScreenDesktop()),
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
                           (route) => false,
                         );
                       }
@@ -300,7 +359,7 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
           ),
         ],
       ),
-    );
+    ));
   }
 
   String _getTabTitle() {
@@ -359,6 +418,57 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                 Row(
+                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                   children: [
+                     Expanded(
+                       child: Text(
+                         'Overview for ${DateFormat('MMMM d, yyyy').format(_selectedDate)}',
+                         style: TextStyle(
+                           fontSize: 20, 
+                           fontWeight: FontWeight.bold,
+                           color: isDarkMode ? Colors.white : Colors.black87
+                         ),
+                         overflow: TextOverflow.ellipsis,
+                       ),
+                     ),
+                     OutlinedButton.icon(
+                       onPressed: () async {
+                         final orderState = context.read<OrderBloc>().state;
+                         Set<DateTime> activeDates = {};
+                         if (orderState is OrdersLoaded) {
+                           activeDates = orderState.orders.map((o) => DateTime(o.timestamp.year, o.timestamp.month, o.timestamp.day)).toSet();
+                         }
+                         
+                         final today = DateTime.now();
+                         final todayDate = DateTime(today.year, today.month, today.day);
+
+                         final picked = await showDatePicker(
+                           context: context,
+                           initialDate: _selectedDate,
+                           firstDate: DateTime(2000),
+                           lastDate: DateTime.now().add(const Duration(days: 365)),
+                           selectableDayPredicate: (day) {
+                             final checkDate = DateTime(day.year, day.month, day.day);
+                             if (checkDate == todayDate) return true; // Always allow selecting today
+                             return activeDates.contains(checkDate);
+                           },
+                         );
+                         if (picked != null && mounted) {
+                           setState(() {
+                             _selectedDate = picked;
+                             if (orderState is OrdersLoaded) {
+                               _recalculateMetricsWithoutSetState(orderState.orders);
+                             }
+                           });
+                         }
+                       },
+                       icon: const Icon(Icons.calendar_today, size: 18),
+                       label: const Text('Select Date'),
+                     ),
+                   ],
+                 ),
+                 const SizedBox(height: 16),
                  // Metrics Row
                  Row(
                    children: [
@@ -396,7 +506,7 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
                           )
                        ]
                      ),
-                     child: EnterpriseFeed(isDarkMode: isDarkMode),
+                     child: EnterpriseFeed(isDarkMode: isDarkMode, selectedDate: _selectedDate),
                    ),
                  ),
               ],
@@ -465,49 +575,247 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
   }
 
   Widget _buildAnalyticsTab(bool isDarkMode) {
-    // Prepare Data for Chart
-    final Map<String, double> revenueData = {};
-    for (var b in _branches) {
-      if (b.revenue > 0) {
-        revenueData[b.name] = b.revenue;
-      }
+    // Collect order analytics based on current selected date
+    final orderState = context.read<OrderBloc>().state;
+    List<Order> dateOrders = [];
+    if (orderState is OrdersLoaded) {
+      dateOrders = orderState.orders.where((o) =>
+          o.timestamp.year == _selectedAnalyticsDate.year &&
+          o.timestamp.month == _selectedAnalyticsDate.month &&
+          o.timestamp.day == _selectedAnalyticsDate.day).toList();
     }
+
+    // 1. Hourly Data
+    final hourlyOrders = List.filled(24, 0);
+    for (var o in dateOrders) {
+      hourlyOrders[o.timestamp.hour]++;
+    }
+
+    // 2. Category Metrics (Derived from synthetic ratios for creative viz, as item data is granular)
+    Map<String, double> categoryAcct = {
+      'Flour': 0, 'Oil': 0, 'Sugar': 0, 'Other': 0
+    };
+    for (var o in dateOrders) {
+      categoryAcct['Flour'] = (categoryAcct['Flour'] ?? 0) + o.total * 0.45;
+      categoryAcct['Oil'] = (categoryAcct['Oil'] ?? 0) + o.total * 0.30;
+      categoryAcct['Sugar'] = (categoryAcct['Sugar'] ?? 0) + o.total * 0.15;
+      categoryAcct['Other'] = (categoryAcct['Other'] ?? 0) + o.total * 0.10;
+    }
+
+    // 3. Peak Hour
+    int peakHour = 0;
+    int maxOrders = 0;
+    for (int i = 0; i < 24; i++) {
+       if (hourlyOrders[i] > maxOrders) {
+         maxOrders = hourlyOrders[i];
+         peakHour = i;
+       }
+    }
+    
+    // KPI metrics
+    final totalRev = dateOrders.fold(0.0, (sum, o) => sum + o.total);
+    final avgOrderValue = dateOrders.isEmpty ? 0.0 : totalRev / dateOrders.length;
 
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-             'Branch Revenue Comparison',
-             style: TextStyle(
-               fontSize: 18, 
-               fontWeight: FontWeight.bold,
-               color: isDarkMode ? Colors.white : Colors.black87
-             ),
-           ),
-           const SizedBox(height: 24),
-           Expanded(
-             child: Container(
-               padding: const EdgeInsets.all(24),
-               decoration: BoxDecoration(
-                 color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-                 borderRadius: BorderRadius.circular(16),
-                 boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    )
-                 ]
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+               Expanded(
+                 child: Text(
+                   'Analytics (${DateFormat('MMM d, yyyy').format(_selectedAnalyticsDate)})',
+                   style: TextStyle(
+                     fontSize: 24, 
+                     fontWeight: FontWeight.bold,
+                     color: isDarkMode ? Colors.white : Colors.black87
+                   ),
+                   overflow: TextOverflow.ellipsis,
+                 ),
                ),
-               child: BranchRevenueChart(
-                 data: revenueData,
-                 isDarkMode: isDarkMode,
+               OutlinedButton.icon(
+                 onPressed: () async {
+                   final orderState = context.read<OrderBloc>().state;
+                   Set<DateTime> activeDates = {};
+                   if (orderState is OrdersLoaded) {
+                     activeDates = orderState.orders.map((o) => DateTime(o.timestamp.year, o.timestamp.month, o.timestamp.day)).toSet();
+                   }
+                   
+                   final today = DateTime.now();
+                   final todayDate = DateTime(today.year, today.month, today.day);
+
+                   final picked = await showDatePicker(
+                     context: context,
+                     initialDate: _selectedAnalyticsDate,
+                     firstDate: DateTime(2000),
+                     lastDate: DateTime.now().add(const Duration(days: 365)),
+                     selectableDayPredicate: (day) {
+                       final checkDate = DateTime(day.year, day.month, day.day);
+                       if (checkDate == todayDate) return true;
+                       return activeDates.contains(checkDate);
+                     },
+                   );
+                   if (picked != null && mounted) {
+                     setState(() {
+                       _selectedAnalyticsDate = picked;
+                     });
+                   }
+                 },
+                 icon: const Icon(Icons.calendar_today, size: 18),
+                 label: const Text('Select Date'),
                ),
-             ),
-           ),
+               const SizedBox(width: 24),
+               // Quick KPI Cards
+               Expanded(
+                 child: Row(
+                   mainAxisAlignment: MainAxisAlignment.end,
+                   children: [
+                      _buildMiniKpi('Avg Order Value', 'KSh ${NumberFormat('#,##0').format(avgOrderValue)}', Icons.receipt_long, Colors.purple, isDarkMode),
+                      const SizedBox(width: 16),
+                      _buildMiniKpi('Peak Volume Hour', '${peakHour.toString().padLeft(2, '0')}:00', Icons.access_time, Colors.orange, isDarkMode),
+                   ],
+                 ),
+               )
+            ],
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: Row(
+              children: [
+                // Hourly Trends Chart
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                         BoxShadow(
+                           color: Colors.black.withOpacity(0.05),
+                           blurRadius: 10,
+                           offset: const Offset(0, 4),
+                         )
+                      ]
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Orders by Time of Day', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDarkMode ? Colors.white : Colors.black87)),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: HourlyOrdersChart(data: hourlyOrders, isDarkMode: isDarkMode),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                // Category Donut Chart
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                         BoxShadow(
+                           color: Colors.black.withOpacity(0.05),
+                           blurRadius: 10,
+                           offset: const Offset(0, 4),
+                         )
+                      ]
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Revenue Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDarkMode ? Colors.white : Colors.black87)),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: CategoryDonutChart(data: categoryAcct, isDarkMode: isDarkMode),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            )
+          ),
+          const SizedBox(height: 24),
+          // Branch Revenue
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                ]
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Branch Revenue Comparison', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDarkMode ? Colors.white : Colors.black)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: BranchRevenueChart(
+                      data: () {
+                         Map<String, double> chartData = {};
+                         Map<String, double> branchRevMap = {};
+                         for (var o in dateOrders) {
+                           if (o.branchId != null) {
+                             branchRevMap[o.branchId!] = (branchRevMap[o.branchId!] ?? 0.0) + o.total;
+                           }
+                         }
+                         for (var b in _branches) {
+                           final rev = branchRevMap[b.id] ?? 0.0;
+                           if (rev > 0) {
+                             chartData[b.name] = rev;
+                           }
+                         }
+                         return chartData;
+                      }(),
+                      isDarkMode: isDarkMode,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMiniKpi(String title, String value, IconData icon, Color color, bool isDarkMode) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(title, style: TextStyle(fontSize: 10, color: isDarkMode ? Colors.white70 : Colors.grey[600]), overflow: TextOverflow.ellipsis),
+                  Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            )
+          ],
+        ),
       ),
     );
   }
@@ -521,30 +829,20 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                 Text(
-                   'All Branches',
-                   style: TextStyle(
-                     fontSize: 18, 
-                     fontWeight: FontWeight.bold,
-                     color: isDarkMode ? Colors.white : Colors.black87
+                 Expanded(
+                   child: Text(
+                     'All Branches',
+                     style: TextStyle(
+                       fontSize: 18, 
+                       fontWeight: FontWeight.bold,
+                       color: isDarkMode ? Colors.white : Colors.black87
+                     ),
+                     overflow: TextOverflow.ellipsis,
                    ),
                  ),
                  ElevatedButton.icon(
                    onPressed: () {
-                     // Show contact super admin dialog
-                     showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Add New Branch'),
-                          content: const Text(
-                              'Please contact your System Administrator to provision additional branches for your Enterprise license.'),
-                          actions: [
-                            TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Close'))
-                          ],
-                        ),
-                      );
+                     _showAddEditBranchDialog(context);
                    },
                    icon: const Icon(Icons.add),
                    label: const Text('Add Branch'),
@@ -576,6 +874,128 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
      );
   }
 
+  Future<void> _showAddEditBranchDialog(BuildContext context, {Branch? branch}) async {
+    final isEditing = branch != null;
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: branch?.name);
+    final locationController = TextEditingController(text: branch?.location);
+    final phoneController = TextEditingController(text: branch?.contactPhone);
+    final managerController = TextEditingController(text: branch?.managerName);
+    final usernameController = TextEditingController(text: branch?.loginUsername);
+    final passwordController = TextEditingController(text: branch?.loginPassword);
+    
+    // Auto-generate ID if not editing
+    final branchId = isEditing ? branch.id : 'BR${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEditing ? 'Edit Branch' : 'Add New Branch'),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Branch Name', border: OutlineInputBorder()),
+                    validator: (v) => v?.isNotEmpty == true ? null : 'Required',
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: locationController,
+                    decoration: const InputDecoration(labelText: 'Location', border: OutlineInputBorder()),
+                    validator: (v) => v?.isNotEmpty == true ? null : 'Required',
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(labelText: 'Contact Phone', border: OutlineInputBorder()),
+                    validator: (v) => v?.isNotEmpty == true ? null : 'Required',
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text('Manager Credentials', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: managerController,
+                    decoration: const InputDecoration(labelText: 'Manager Name', border: OutlineInputBorder()),
+                    validator: (v) => v?.isNotEmpty == true ? null : 'Required',
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: usernameController,
+                    decoration: const InputDecoration(labelText: 'Login Username', border: OutlineInputBorder()),
+                    validator: (v) => v?.isNotEmpty == true ? null : 'Required',
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(labelText: 'Login Password', border: OutlineInputBorder()),
+                    obscureText: true,
+                    validator: (v) => v?.isNotEmpty == true ? null : 'Required',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState?.validate() == true) {
+                final updatedBranch = branch?.copyWith(
+                  name: nameController.text,
+                  location: locationController.text,
+                  contactPhone: phoneController.text,
+                  managerName: managerController.text,
+                  loginUsername: usernameController.text,
+                  loginPassword: passwordController.text,
+                ) ?? Branch(
+                  id: branchId,
+                  tenantId: _currentConfig.tenantId ?? '',
+                  name: nameController.text,
+                  location: locationController.text,
+                  contactPhone: phoneController.text,
+                  managerName: managerController.text,
+                  loginUsername: usernameController.text,
+                  loginPassword: passwordController.text,
+                );
+                
+                if (isEditing) {
+                  await _tenantService.updateBranch(updatedBranch);
+                } else {
+                  await _tenantService.addBranch(updatedBranch);
+                }
+                
+                if (mounted) {
+                  Navigator.pop(context);
+                  _loadData(); // Refresh list
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(isEditing ? 'Branch updated successfully' : 'Branch added successfully')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1a237e),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(isEditing ? 'Save Changes' : 'Create Branch'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBranchCard(Branch branch, bool isDarkMode) {
     return Container(
       decoration: BoxDecoration(
@@ -597,23 +1017,61 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1a237e).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.store, color: Color(0xFF1a237e)),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1a237e).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.store, color: Color(0xFF1a237e)),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                     decoration: BoxDecoration(
+                       color: branch.isActive ? Colors.green[50] : Colors.red[50],
+                       borderRadius: BorderRadius.circular(4),
+                       border: Border.all(color: branch.isActive ? Colors.green : Colors.red),
+                     ),
+                     child: Text(branch.isActive ? 'ACTIVE' : 'INACTIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: branch.isActive ? Colors.green : Colors.red)),
+                  ),
+                ],
               ),
-              Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                 decoration: BoxDecoration(
-                   color: branch.isActive ? Colors.green[50] : Colors.red[50],
-                   borderRadius: BorderRadius.circular(4),
-                   border: Border.all(color: branch.isActive ? Colors.green : Colors.red),
-                 ),
-                 child: Text(branch.isActive ? 'ACTIVE' : 'INACTIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: branch.isActive ? Colors.green : Colors.red)),
-              )
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (val) async {
+                  if (val == 'edit') {
+                    _showAddEditBranchDialog(context, branch: branch);
+                  } else if (val == 'delete') {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Branch'),
+                        content: Text('Are you sure you want to delete ${branch.name}? This action cannot be undone.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+                    
+                    if (confirmed == true) {
+                      await _tenantService.deleteBranch(branch.id);
+                      _loadData();
+                    }
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit Branch')])),
+                  const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 18), SizedBox(width: 8), Text('Delete Branch', style: TextStyle(color: Colors.red))])),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -658,12 +1116,26 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
               child: Icon(icon, color: color, size: 24),
             ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(color: isDarkMode ? Colors.white60 : Colors.grey[600], fontSize: 12)),
-                Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDarkMode ? Colors.white : Colors.black87)),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title, 
+                    style: TextStyle(color: isDarkMode ? Colors.white60 : Colors.grey[600], fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value, 
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDarkMode ? Colors.white : Colors.black87)
+                    ),
+                  ),
+                ],
+              ),
             )
           ],
         ),

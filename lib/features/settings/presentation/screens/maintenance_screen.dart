@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
 import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
 import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen_desktop.dart';
+import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 
 class MaintenanceScreen extends StatelessWidget {
   final VoidCallback? onAdminAccess;
@@ -19,7 +19,7 @@ class MaintenanceScreen extends StatelessWidget {
       context.read<OrderBloc>().add(const ClearOrders());
       
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreenDesktop()),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
       );
     }

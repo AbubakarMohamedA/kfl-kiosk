@@ -1,6 +1,6 @@
 # KFL Kiosk — Developer Documentation
 
-> **KFL Kiosk** (package: `kfm_kiosk`) is a cross-platform Flutter self-service kiosk application built for **Kitui Flour Mills (KFM)**. It supports ordering, payment, warehouse fulfilment and multi-tenant management, targeting mobile (Android/iOS), tablet, desktop (Linux/macOS/Windows) and web.
+> **KFL Kiosk** (package: `kfm_kiosk`) is a cross-platform Flutter self-service kiosk application built for **SSS (KFM)**. It supports ordering, payment, warehouse fulfilment and multi-tenant management, targeting mobile (Android/iOS), tablet, desktop (Linux/macOS/Windows) and web.
 
 ---
 

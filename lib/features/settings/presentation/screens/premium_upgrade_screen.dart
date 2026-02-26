@@ -123,11 +123,14 @@ class PremiumUpgradeScreen extends StatelessWidget {
         children: [
           const Icon(Icons.check_circle, color: Color(0xFF4CAF50), size: 20),
           const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

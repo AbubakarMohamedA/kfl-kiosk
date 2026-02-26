@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart';
+import 'package:kfm_kiosk/di/injection.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
 import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
 
-class ReceiptScreenDesktop extends StatelessWidget {
+class ReceiptScreenDesktop extends StatefulWidget {
   final String language;
   final Order order;
 
@@ -13,21 +17,61 @@ class ReceiptScreenDesktop extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  State<ReceiptScreenDesktop> createState() => _ReceiptScreenDesktopState();
+}
+
+class _ReceiptScreenDesktopState extends State<ReceiptScreenDesktop> {
+  Color _primaryColor = const Color(AppColors.primaryBlue);
+  Color _secondaryColor = const Color(AppColors.secondaryGold);
+  StreamSubscription? _configSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupStream();
     Future.delayed(const Duration(seconds: 15), () {
-      if (context.mounted) {
+      if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     });
+  }
 
+  @override
+  void dispose() {
+    _configSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _setupStream() async {
+    final prefs = await SharedPreferences.getInstance();
+    final tenantId = prefs.getString('last_synced_tenant_id');
+    if (tenantId != null) {
+      _configSubscription?.cancel();
+      _configSubscription = getIt<TenantConfigDao>().watchConfig(tenantId).listen((config) {
+        if (config != null && mounted) {
+          setState(() {
+            if (config.primaryColor != null) {
+              _primaryColor = Color(config.primaryColor!);
+            }
+            if (config.secondaryColor != null) {
+              _secondaryColor = Color(config.secondaryColor!);
+            }
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(AppColors.primaryBlue), Colors.white],
-            stops: [0.25, 0.25],
+            colors: [_primaryColor, Colors.white],
+            stops: const [0.25, 0.25],
           ),
         ),
         child: SafeArea(
@@ -37,46 +81,134 @@ class ReceiptScreenDesktop extends StatelessWidget {
               final double w = constraints.maxWidth;
 
               // ── Adaptive font sizes (scale with height) ──
-              final double successFont =
-                  h < 600 ? 20 : h < 800 ? 24 : h < 1000 ? 28 : 32;
-              final double companyFont =
-                  h < 600 ? 16 : h < 800 ? 18 : h < 1000 ? 20 : 24;
-              final double subLabelFont =
-                  h < 600 ? 11 : h < 800 ? 12 : h < 1000 ? 14 : 16;
-              final double detailFont =
-                  h < 600 ? 12 : h < 800 ? 13 : h < 1000 ? 15 : 17;
-              final double itemFont =
-                  h < 600 ? 12 : h < 800 ? 13 : h < 1000 ? 14 : 15;
-              final double totalLabelFont =
-                  h < 600 ? 16 : h < 800 ? 18 : h < 1000 ? 20 : 24;
-              final double totalValueFont =
-                  h < 600 ? 18 : h < 800 ? 20 : h < 1000 ? 24 : 28;
-              final double infoTitleFont =
-                  h < 600 ? 12 : h < 800 ? 13 : h < 1000 ? 14 : 16;
-              final double infoBodyFont =
-                  h < 600 ? 11 : h < 800 ? 12 : h < 1000 ? 13 : 15;
-              final double autoReturnFont =
-                  h < 600 ? 10 : h < 800 ? 11 : h < 1000 ? 12 : 13;
+              final double successFont = h < 600
+                  ? 20
+                  : h < 800
+                  ? 24
+                  : h < 1000
+                  ? 28
+                  : 32;
+              final double companyFont = h < 600
+                  ? 16
+                  : h < 800
+                  ? 18
+                  : h < 1000
+                  ? 20
+                  : 24;
+              final double subLabelFont = h < 600
+                  ? 11
+                  : h < 800
+                  ? 12
+                  : h < 1000
+                  ? 14
+                  : 16;
+              final double detailFont = h < 600
+                  ? 12
+                  : h < 800
+                  ? 13
+                  : h < 1000
+                  ? 15
+                  : 17;
+              final double itemFont = h < 600
+                  ? 12
+                  : h < 800
+                  ? 13
+                  : h < 1000
+                  ? 14
+                  : 15;
+              final double totalLabelFont = h < 600
+                  ? 16
+                  : h < 800
+                  ? 18
+                  : h < 1000
+                  ? 20
+                  : 24;
+              final double totalValueFont = h < 600
+                  ? 18
+                  : h < 800
+                  ? 20
+                  : h < 1000
+                  ? 24
+                  : 28;
+              final double infoTitleFont = h < 600
+                  ? 12
+                  : h < 800
+                  ? 13
+                  : h < 1000
+                  ? 14
+                  : 16;
+              final double infoBodyFont = h < 600
+                  ? 11
+                  : h < 800
+                  ? 12
+                  : h < 1000
+                  ? 13
+                  : 15;
+              final double autoReturnFont = h < 600
+                  ? 10
+                  : h < 800
+                  ? 11
+                  : h < 1000
+                  ? 12
+                  : 13;
 
               // ── Adaptive icon sizes ──
-              final double checkIconSize =
-                  h < 600 ? 36 : h < 800 ? 44 : h < 1000 ? 52 : 64;
-              final double checkPad =
-                  h < 600 ? 6 : h < 800 ? 8 : h < 1000 ? 12 : 16;
-              final double infoIconSize =
-                  h < 600 ? 18 : h < 800 ? 22 : h < 1000 ? 26 : 32;
+              final double checkIconSize = h < 600
+                  ? 36
+                  : h < 800
+                  ? 44
+                  : h < 1000
+                  ? 52
+                  : 64;
+              final double checkPad = h < 600
+                  ? 6
+                  : h < 800
+                  ? 8
+                  : h < 1000
+                  ? 12
+                  : 16;
+              final double infoIconSize = h < 600
+                  ? 18
+                  : h < 800
+                  ? 22
+                  : h < 1000
+                  ? 26
+                  : 32;
 
               // ── Adaptive paddings ──
-              final double cardPad =
-                  h < 600 ? 10 : h < 800 ? 16 : h < 1000 ? 22 : 32;
-              final double totalBoxPad =
-                  h < 600 ? 6 : h < 800 ? 8 : h < 1000 ? 12 : 16;
-              final double infoPad =
-                  h < 600 ? 6 : h < 800 ? 8 : h < 1000 ? 12 : 16;
+              final double cardPad = h < 600
+                  ? 10
+                  : h < 800
+                  ? 16
+                  : h < 1000
+                  ? 22
+                  : 32;
+              final double totalBoxPad = h < 600
+                  ? 6
+                  : h < 800
+                  ? 8
+                  : h < 1000
+                  ? 12
+                  : 16;
+              final double infoPad = h < 600
+                  ? 6
+                  : h < 800
+                  ? 8
+                  : h < 1000
+                  ? 12
+                  : 16;
 
               // ── Small fixed gaps (kept minimal; big gaps handled by Spacer) ──
-              final double tinyGap = h < 600 ? 2 : h < 800 ? 3 : 4;
-              final double smallGap = h < 600 ? 3 : h < 800 ? 5 : 6;
+              final double tinyGap = h < 600
+                  ? 2
+                  : h < 800
+                  ? 3
+                  : 4;
+              final double smallGap = h < 600
+                  ? 3
+                  : h < 800
+                  ? 5
+                  : 6;
 
               final double maxCardWidth = w < 500 ? w - 24 : 680;
 
@@ -107,24 +239,27 @@ class ReceiptScreenDesktop extends StatelessWidget {
                             Container(
                               padding: EdgeInsets.all(checkPad),
                               decoration: BoxDecoration(
-                                color: Colors.green.withValues(alpha: 0.1),
+                                color: _primaryColor.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 Icons.check_circle,
                                 size: checkIconSize,
-                                color: Colors.green,
+                                color: _primaryColor,
                               ),
                             ),
                             SizedBox(height: smallGap),
 
                             // ── Success Message ──
                             Text(
-                              AppStrings.get('payment_success', language),
+                              AppStrings.get(
+                                'payment_success',
+                                widget.language,
+                              ),
                               style: TextStyle(
                                 fontSize: successFont,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.green,
+                                color: _primaryColor,
                               ),
                             ),
 
@@ -133,7 +268,7 @@ class ReceiptScreenDesktop extends StatelessWidget {
 
                             // ── Company Header ──
                             Text(
-                              'KITUI FLOUR MILLS',
+                              'SSS',
                               style: TextStyle(
                                 fontSize: companyFont,
                                 fontWeight: FontWeight.bold,
@@ -159,17 +294,21 @@ class ReceiptScreenDesktop extends StatelessWidget {
                             const Spacer(),
 
                             // ── Order Details ──
-                            _detailRow('Order ID:', order.id, detailFont),
+                            _detailRow(
+                              'Order ID:',
+                              widget.order.id,
+                              detailFont,
+                            ),
                             SizedBox(height: smallGap),
                             _detailRow(
                               'Date:',
-                              '${order.timestamp.day}/${order.timestamp.month}/${order.timestamp.year}',
+                              '${widget.order.timestamp.day}/${widget.order.timestamp.month}/${widget.order.timestamp.year}',
                               detailFont,
                             ),
                             SizedBox(height: smallGap),
                             _detailRow(
                               'Time:',
-                              '${order.timestamp.hour.toString().padLeft(2, '0')}:${order.timestamp.minute.toString().padLeft(2, '0')}',
+                              '${widget.order.timestamp.hour.toString().padLeft(2, '0')}:${widget.order.timestamp.minute.toString().padLeft(2, '0')}',
                               detailFont,
                             ),
 
@@ -206,20 +345,21 @@ class ReceiptScreenDesktop extends StatelessWidget {
                             SizedBox(height: smallGap),
 
                             // ── Order Items ──
-                            ...order.items.map(
+                            ...widget.order.items.map(
                               (item) => Padding(
-                                padding: EdgeInsets.symmetric(vertical: tinyGap),
+                                padding: EdgeInsets.symmetric(
+                                  vertical: tinyGap,
+                                ),
                                 child: Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Expanded(
                                       child: Text(
                                         '${item.product.name} (${item.product.size}) x${item.quantity}',
-                                        style:
-                                            TextStyle(fontSize: itemFont),
+                                        style: TextStyle(fontSize: itemFont),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -247,10 +387,10 @@ class ReceiptScreenDesktop extends StatelessWidget {
                             Container(
                               padding: EdgeInsets.all(totalBoxPad),
                               decoration: BoxDecoration(
-                                color: Colors.green.withValues(alpha: 0.1),
+                                color: _primaryColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: Colors.green.withValues(alpha: 0.3),
+                                  color: _primaryColor.withValues(alpha: 0.3),
                                   width: 2,
                                 ),
                               ),
@@ -266,11 +406,11 @@ class ReceiptScreenDesktop extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    'KSh ${order.total.toStringAsFixed(2)}',
+                                    'KSh ${widget.order.total.toStringAsFixed(2)}',
                                     style: TextStyle(
                                       fontSize: totalValueFont,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.green,
+                                      color: _primaryColor,
                                     ),
                                   ),
                                 ],
@@ -284,10 +424,10 @@ class ReceiptScreenDesktop extends StatelessWidget {
                             Container(
                               padding: EdgeInsets.all(infoPad),
                               decoration: BoxDecoration(
-                                color: Colors.orange[50],
+                                color: _secondaryColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: Colors.orange[300]!,
+                                  color: _secondaryColor.withValues(alpha: 0.3),
                                   width: 2,
                                 ),
                               ),
@@ -297,12 +437,14 @@ class ReceiptScreenDesktop extends StatelessWidget {
                                   Icon(
                                     Icons.info_outline,
                                     size: infoIconSize,
-                                    color: Colors.orange,
+                                    color: _secondaryColor,
                                   ),
                                   SizedBox(height: tinyGap),
                                   Text(
                                     AppStrings.get(
-                                        'order_preparing', language),
+                                      'order_preparing',
+                                      widget.language,
+                                    ),
                                     style: TextStyle(
                                       fontSize: infoTitleFont,
                                       fontWeight: FontWeight.bold,
@@ -311,9 +453,8 @@ class ReceiptScreenDesktop extends StatelessWidget {
                                   ),
                                   SizedBox(height: tinyGap),
                                   Text(
-                                    '${AppStrings.get('show_order_id', language)} ${order.id} ${AppStrings.get('at_pickup', language)}',
-                                    style:
-                                        TextStyle(fontSize: infoBodyFont),
+                                    '${AppStrings.get('show_order_id', widget.language)} ${widget.order.id} ${AppStrings.get('at_pickup', widget.language)}',
+                                    style: TextStyle(fontSize: infoBodyFont),
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
@@ -353,9 +494,14 @@ class ReceiptScreenDesktop extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: TextStyle(fontSize: fontSize)),
-        Text(
-          value,
-          style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );

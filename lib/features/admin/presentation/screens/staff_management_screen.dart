@@ -476,7 +476,9 @@ class _StaffManagementScreenState extends State<StaffManagementScreen>
               children: [
                 Row(
                   children: [
-                    Text(staff['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: Text(staff['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                    ),
                     const SizedBox(width: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -495,11 +497,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen>
                   children: [
                     Icon(Icons.email_outlined, size: 14, color: Colors.grey[600]),
                     const SizedBox(width: 4),
-                    Text(staff['email'], style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    Expanded(child: Text(staff['email'], style: TextStyle(fontSize: 12, color: Colors.grey[600]), overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 16),
                     Icon(Icons.phone_outlined, size: 14, color: Colors.grey[600]),
                     const SizedBox(width: 4),
-                    Text(staff['phone'], style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    Expanded(child: Text(staff['phone'], style: TextStyle(fontSize: 12, color: Colors.grey[600]), overflow: TextOverflow.ellipsis)),
                   ],
                 ),
               ],

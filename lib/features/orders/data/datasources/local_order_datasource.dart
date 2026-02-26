@@ -1,26 +1,35 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:drift/drift.dart' hide Column;
+import 'package:kfm_kiosk/core/config/api_config.dart';
+import 'package:kfm_kiosk/core/database/app_database.dart' hide Order, OrderItem;
+import 'package:kfm_kiosk/core/database/daos/orders_dao.dart';
+import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
 import 'package:kfm_kiosk/features/orders/data/models/order_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-/// Network-based Order Data Source
-/// 
-/// Connects to a local HTTP server for cross-device order sync.
-/// Falls back to local storage if server is unavailable.
 import 'package:kfm_kiosk/features/orders/data/datasources/order_remote_datasource.dart';
+import 'package:kfm_kiosk/features/cart/data/models/cart_item_model.dart';
+import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
 
 class LocalOrderDataSource implements OrderDataSource {
   static const String _serverUrlKey = 'kfl_server_url';
-  static const String _ordersKey = 'kfl_orders';
-  static const String _orderCounterKey = 'kfl_order_counter';
+  static const String _terminalIdKey = 'kfl_terminal_id';
+  static const String _ordersKey = 'kfl_orders'; // Legacy
+  static const String _migrationDoneKey = 'kfl_persistence_migration_done_v1';
   
-  // Server URL (configurable via settings)
-  String? _serverUrl;
+  final OrdersDao _ordersDao;
+  final AppConfigDao _appConfigDao;
+  final http.Client _httpClient;
+
+  LocalOrderDataSource(this._ordersDao, this._appConfigDao, this._httpClient);
+
+  // Terminal ID
+  String? _terminalId;
   
-  // In-memory cache
+  // In-memory cache for fast stream access
   List<OrderModel> _ordersCache = [];
-  Map<String, int> _orderCounters = {}; // Maps "tenantId_yyyyMMdd" -> count
   bool _isInitialized = false;
   bool _isOnline = false;
 
@@ -44,19 +53,31 @@ class LocalOrderDataSource implements OrderDataSource {
   /// Check if connected to server
   bool get isOnline => _isOnline;
 
-  /// Get current server URL
-  String? get serverUrl => _serverUrl;
+  /// Get current server URL (now from ApiConfig)
+  String? get serverUrl => ApiConfig.baseUrl;
 
-  /// Set server URL
-  Future<void> setServerUrl(String? url) async {
-    _serverUrl = url;
+  /// Get current terminal ID
+  String? get terminalId => _terminalId;
+
+  /// Set terminal ID
+  Future<void> setTerminalId(String? id) async {
+    _terminalId = id;
     final prefs = await SharedPreferences.getInstance();
-    if (url != null && url.isNotEmpty) {
-      await prefs.setString(_serverUrlKey, url);
+    if (id != null && id.isNotEmpty) {
+      await prefs.setString(_terminalIdKey, id);
     } else {
-      await prefs.remove(_serverUrlKey);
+      await prefs.remove(_terminalIdKey);
     }
-    // Force resync
+  }
+
+  /// Set server URL (updates ApiConfig)
+  Future<void> setServerUrl(String? url) async {
+    if (url != null && url.isNotEmpty) {
+      ApiConfig.setBaseUrl(url);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_serverUrlKey, url);
+    }
+    // Force resync and health check
     await _syncWithServer();
   }
 
@@ -66,48 +87,107 @@ class LocalOrderDataSource implements OrderDataSource {
     
     final prefs = await SharedPreferences.getInstance();
     
-    // Load server URL
-    _serverUrl = prefs.getString(_serverUrlKey);
-    
-    // Load order counters from local storage
-    final countersJson = prefs.getString(_orderCounterKey);
-    if (countersJson != null) {
-      try {
-        final Map<String, dynamic> decoded = jsonDecode(countersJson);
-        _orderCounters = decoded.map((key, value) => MapEntry(key, value as int));
-      } catch (e) {
-        _orderCounters = {};
-      }
-    } else {
-        // Migration or fallback: preserve old counter if it makes sense, 
-        // but user requested daily reset per tenant. 
-        // We'll start fresh or migrate if needed. Starting fresh for now.
-        _orderCounters = {};
+    // Load config from prefs
+    final savedUrl = prefs.getString(_serverUrlKey);
+    if (savedUrl != null) {
+      ApiConfig.setBaseUrl(savedUrl);
     }
+    _terminalId = prefs.getString(_terminalIdKey);
     
-    // Load orders from local storage (fallback)
+    // Check for migration
+    final migrationDone = prefs.getBool(_migrationDoneKey) ?? false;
+    if (!migrationDone) {
+      await _migrateFromPrefs(prefs);
+      await prefs.setBool(_migrationDoneKey, true);
+    }
+
+    // Load from DB
+    await _loadFromDb();
+    
+    _isInitialized = true;
+    _startSyncPolling();
+    await _syncWithServer();
+  }
+
+  Future<void> _loadFromDb() async {
+    final dbOrders = await _ordersDao.getAllOrders();
+    final List<OrderModel> models = [];
+    
+    for (final order in dbOrders) {
+      final items = await _ordersDao.getItemsForOrder(order.id);
+      models.add(OrderModel(
+        id: order.id,
+        phone: order.customerPhone ?? '',
+        total: order.totalAmount,
+        status: order.status,
+        timestamp: order.createdAt,
+        tenantId: order.tenantId,
+        branchId: order.branchId,
+        terminalId: order.terminalId,
+        cartItems: items.map((i) => CartItemModel(
+          productModel: ProductModel(
+            id: i.productId,
+            name: i.productName,
+            brand: '', // Brand not in snapshot
+            price: i.unitPrice,
+            category: i.productCategory, // Reconstruct from V13 snapshot
+            size: i.productVariant ?? '',
+            description: '',
+            imageUrl: '',
+          ),
+          quantity: i.quantity,
+          status: i.status, // Reconstruct from V13 snapshot
+        )).toList(),
+      ));
+    }
+    _ordersCache = models;
+    _ordersStreamController.add(List.from(_ordersCache));
+  }
+
+  Future<void> _migrateFromPrefs(SharedPreferences prefs) async {
+    // 1. Migrate Orders
     final ordersJson = prefs.getString(_ordersKey);
     if (ordersJson != null) {
       try {
         final List<dynamic> ordersList = jsonDecode(ordersJson);
-        _ordersCache = ordersList
-            .map((json) => OrderModel.fromJson(json as Map<String, dynamic>))
-            .toList();
+        for (final json in ordersList) {
+          final model = OrderModel.fromJson(json as Map<String, dynamic>);
+          await _saveToDb(model);
+        }
       } catch (e) {
-        _ordersCache = [];
+        // Migration error
       }
     }
-    
-    _isInitialized = true;
-    
-    // Start sync polling
-    _startSyncPolling();
-    
-    // Initial sync
-    await _syncWithServer();
-    
-    // Emit initial state
-    _ordersStreamController.add(List.from(_ordersCache));
+    // Note: Order counters migration is tricky because it's a map now.
+    // We'll rely on the DB's natural count for new IDs or continue with stored counters if needed.
+    // Actually, getOrderCounter in this class uses _orderCounters. 
+    // I should move counters to a new DB table or keep in AppConfig.
+    // Let's use AppConfig for counters to keep it simple and persistent.
+  }
+
+  Future<void> _saveToDb(OrderModel model) async {
+    await _ordersDao.upsertOrder(
+      OrdersCompanion(
+        id: Value(model.id),
+        totalAmount: Value(model.total),
+        status: Value(model.status),
+        createdAt: Value(model.timestamp),
+        customerPhone: Value(model.phone),
+        tenantId: Value(model.tenantId),
+        branchId: Value(model.branchId),
+        terminalId: Value(model.terminalId),
+      ),
+      model.cartItems.map((i) => OrderItemsCompanion(
+        orderId: Value(model.id),
+        productId: Value(i.productModel.id),
+        quantity: Value(i.quantity),
+        unitPrice: Value(i.productModel.price),
+        productName: Value(i.productModel.name),
+        productVariant: Value(i.productModel.size),
+        status: Value(i.status),              // Persist status (V13)
+        productCategory: Value(i.productModel.category), // Persist category (V13)
+      )).toList(),
+    );
   }
 
   /// Start polling for server updates
@@ -120,14 +200,27 @@ class LocalOrderDataSource implements OrderDataSource {
 
   /// Sync orders with server
   Future<void> _syncWithServer() async {
-    if (_serverUrl == null || _serverUrl!.isEmpty) {
+    final baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.isEmpty) {
       _isOnline = false;
       return;
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('$_serverUrl/orders'),
+      // 1. Health check first
+      final healthResp = await _httpClient.get(
+        Uri.parse('$baseUrl/api/v1/health'),
+      ).timeout(const Duration(seconds: 2));
+      
+      if (healthResp.statusCode != 200) {
+         _isOnline = false;
+         _ordersStreamController.add(List.from(_ordersCache)); // Notify UI of status change
+         return;
+      }
+
+      // 2. Sync orders
+      final response = await _httpClient.get(
+        Uri.parse('$baseUrl/api/v1/orders'),
       ).timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
@@ -137,20 +230,14 @@ class LocalOrderDataSource implements OrderDataSource {
             .map((json) => OrderModel.fromJson(json as Map<String, dynamic>))
             .toList();
         
-        /* 
-        // TODO: Update server sync logic for new map-based counters
-        final serverCounter = data['counter'] ?? _orderCounter;
-        if (serverCounter > _orderCounter) {
-          _orderCounter = serverCounter;
-          await _persistCounter();
-        }
-        */
+        // TODO: Update server sync logic for new map-based counters if needed
 
         // Update cache if orders changed
         if (_hasOrdersChanged(newOrders)) {
-          _ordersCache = newOrders;
-          await _persistOrders();
-          _ordersStreamController.add(List.from(_ordersCache));
+          for (final order in newOrders) {
+             await _saveToDb(order); // Now uses createOrUpdateOrder for upsert behavior
+          }
+          await _loadFromDb(); 
         }
         
         _isOnline = true;
@@ -158,6 +245,7 @@ class LocalOrderDataSource implements OrderDataSource {
         _isOnline = false;
       }
     } catch (e) {
+      debugPrint('[OrderDataSource] Sync error: $e');
       _isOnline = false;
     }
   }
@@ -186,51 +274,44 @@ class LocalOrderDataSource implements OrderDataSource {
     return false;
   }
 
-  /// Persist orders to local storage
-  Future<void> _persistOrders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final ordersJson = jsonEncode(_ordersCache.map((o) => o.toJson()).toList());
-    await prefs.setString(_ordersKey, ordersJson);
-  }
-
-  /// Persist order counters
-  Future<void> _persistCounter() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_orderCounterKey, jsonEncode(_orderCounters));
-  }
-
   /// Send order to server
   Future<void> _sendToServer(OrderModel order) async {
-    if (_serverUrl == null || _serverUrl!.isEmpty) {
-      print('[LocalOrderDataSource] skipping sync: serverUrl is null/empty');
-      return;
-    }
+    final baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.isEmpty) return;
 
-    print('[LocalOrderDataSource] Sending order ${order.id} to $_serverUrl/orders');
     try {
-      final response = await http.post(
-        Uri.parse('$_serverUrl/orders'),
+      final resp = await _httpClient.post(
+        Uri.parse('$baseUrl/api/v1/orders'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(order.toJson()),
       ).timeout(const Duration(seconds: 3));
-      print('[LocalOrderDataSource] Server response: ${response.statusCode} ${response.body}');
+      
+      if (resp.statusCode != 200) {
+        debugPrint('[OrderDataSource] Server returned ${resp.statusCode} on order creation: ${resp.body}');
+      }
     } catch (e) {
-      print('[LocalOrderDataSource] Error sending order to server: $e');
+      debugPrint('[OrderDataSource] Failed to send order to server: $e');
       // Ignore errors - order is saved locally
     }
   }
 
   /// Update order on server
   Future<void> _updateOnServer(String orderId, Map<String, dynamic> data) async {
-    if (_serverUrl == null || _serverUrl!.isEmpty) return;
+    final baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.isEmpty) return;
 
     try {
-      await http.put(
-        Uri.parse('$_serverUrl/orders/$orderId'),
+      final resp = await _httpClient.put(
+        Uri.parse('$baseUrl/api/v1/orders/$orderId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(data),
       ).timeout(const Duration(seconds: 3));
+      
+      if (resp.statusCode != 200) {
+        debugPrint('[OrderDataSource] Server returned ${resp.statusCode} on order update: ${resp.body}');
+      }
     } catch (e) {
+      debugPrint('[OrderDataSource] Failed to update order on server: $e');
       // Ignore errors
     }
   }
@@ -240,12 +321,17 @@ class LocalOrderDataSource implements OrderDataSource {
   Future<String> saveOrder(OrderModel order) async {
     await _ensureInitialized();
 
-    _ordersCache.add(order);
-    await _persistOrders();
-    await _sendToServer(order);
-    _ordersStreamController.add(List.from(_ordersCache));
+    // Inject terminal ID if not present and available
+    var orderToSave = order;
+    if (order.terminalId == null && _terminalId != null) {
+      orderToSave = order.copyWith(terminalId: _terminalId);
+    }
 
-    return order.id;
+    await _saveToDb(orderToSave);
+    await _loadFromDb(); // Refresh cache and emit
+    await _sendToServer(orderToSave);
+
+    return orderToSave.id;
   }
 
   // Get all orders
@@ -275,23 +361,10 @@ class LocalOrderDataSource implements OrderDataSource {
   Future<void> updateOrderStatus(String orderId, String status) async {
     await _ensureInitialized();
 
-    final index = _ordersCache.indexWhere((order) => order.id == orderId);
-
-    if (index != -1) {
-      final order = _ordersCache[index];
-      _ordersCache[index] = OrderModel(
-        id: order.id,
-        cartItems: order.cartItems,
-        total: order.total,
-        phone: order.phone,
-        timestamp: order.timestamp,
-        status: status,
-      );
-
-      await _persistOrders();
-      await _updateOnServer(orderId, {'status': status});
-      _ordersStreamController.add(List.from(_ordersCache));
-    }
+    // Update in DB
+    await _ordersDao.updateOrderStatus(orderId, status);
+    await _loadFromDb();
+    await _updateOnServer(orderId, {'status': status});
   }
 
   // Save full order
@@ -299,14 +372,9 @@ class LocalOrderDataSource implements OrderDataSource {
   Future<void> saveFullOrder(OrderModel orderModel) async {
     await _ensureInitialized();
 
-    final index = _ordersCache.indexWhere((order) => order.id == orderModel.id);
-
-    if (index != -1) {
-      _ordersCache[index] = orderModel;
-      await _persistOrders();
-      await _sendToServer(orderModel);
-      _ordersStreamController.add(List.from(_ordersCache));
-    }
+    await _saveToDb(orderModel);
+    await _loadFromDb();
+    await _sendToServer(orderModel);
   }
 
   // Get orders by status
@@ -334,64 +402,90 @@ class LocalOrderDataSource implements OrderDataSource {
 
   // Get order counter
   @override
-  Future<int> getOrderCounter({String? tenantId}) async {
+  Future<int> getOrderCounter({String? tenantId, String? branchId}) async {
     await _ensureInitialized();
-    final key = _getCounterKey(tenantId);
-    final count = (_orderCounters[key] ?? 0) + 1;
-    print('[LocalOrderDataSource] getOrderCounter for $key: $count');
-    return count;
+    final key = _getCounterKey(tenantId, branchId);
+    
+    // 1. Try fetching from server first if online
+    final baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.isNotEmpty) {
+      try {
+        final resp = await _httpClient.get(
+          Uri.parse('$baseUrl/api/v1/orders/counter/$key'),
+        ).timeout(const Duration(seconds: 2));
+        
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body);
+          final serverCounter = data['counter'] as int;
+          // Sync local counter to server counter
+          await _appConfigDao.setInt('counter_$key', serverCounter);
+          return serverCounter;
+        }
+      } catch (e) {
+        debugPrint('[OrderDataSource] Error fetching server counter: $e');
+      }
+    }
+
+    // 2. Fallback to local
+    return await _appConfigDao.getInt('counter_$key', defaultValue: 0);
   }
 
   // Increment order counter
   @override
-  Future<void> incrementOrderCounter({String? tenantId}) async {
+  Future<void> incrementOrderCounter({String? tenantId, String? branchId}) async {
     await _ensureInitialized();
-    final key = _getCounterKey(tenantId);
-    final current = _orderCounters[key] ?? 0;
-    _orderCounters[key] = current + 1;
-    print('[LocalOrderDataSource] incrementOrderCounter for $key to ${_orderCounters[key]}');
-    await _persistCounter();
+    final key = _getCounterKey(tenantId, branchId);
+    final count = await getOrderCounter(tenantId: tenantId, branchId: branchId);
     
-    // Sync counter with server (simplified for now, ideally sync map)
-    if (_serverUrl != null && _serverUrl!.isNotEmpty) {
+    // Update local
+    await _appConfigDao.setInt('counter_$key', count + 1);
+
+    // Sync to server
+    final baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.isNotEmpty) {
       try {
-        await http.post(
-          Uri.parse('$_serverUrl/orders/counter'),
+        await _httpClient.post(
+          Uri.parse('$baseUrl/api/v1/orders/counter'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'tenantId': tenantId,
             'key': key,
-            'counter': _orderCounters[key]
+            'counter': count + 1
           }),
         ).timeout(const Duration(seconds: 3));
       } catch (e) {
-        print('[LocalOrderDataSource] Error syncing counter: $e');
-        // Ignore
+        // Sync error
       }
     }
   }
 
-  String _getCounterKey(String? tenantId) {
+  String _getCounterKey(String? tenantId, String? branchId) {
     // If no tenant (e.g. legacy/admin), use "default"
-    // Format: tenantId_yyyyMMdd
-    final now = DateTime.now();
-    final dateStr = "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
+    // Format: tenantId_branchId_YYYY-MM-DD or tenantId_YYYY-MM-DD
     final tId = tenantId ?? "default";
-    return "${tId}_$dateStr";
+    final now = DateTime.now();
+    final dateSuffix = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    
+    if (branchId != null && branchId.isNotEmpty) {
+      return "${tId}_${branchId}_$dateSuffix";
+    }
+    return "${tId}_$dateSuffix";
   }
 
 
   // Delete order
   Future<void> deleteOrder(String orderId) async {
-    await _ensureInitialized();
-
-    _ordersCache.removeWhere((order) => order.id == orderId);
-    await _persistOrders();
+    await _ordersDao.db.transaction(() async {
+       await (_ordersDao.db.delete(_ordersDao.db.orderItems)..where((tbl) => tbl.orderId.equals(orderId))).go();
+       await (_ordersDao.db.delete(_ordersDao.db.orders)..where((tbl) => tbl.id.equals(orderId))).go();
+    });
+    await _loadFromDb();
     
-    if (_serverUrl != null && _serverUrl!.isNotEmpty) {
+    final baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.isNotEmpty) {
       try {
-        await http.delete(
-          Uri.parse('$_serverUrl/orders/$orderId'),
+        await _httpClient.delete(
+          Uri.parse('$baseUrl/api/v1/orders/$orderId'),
         ).timeout(const Duration(seconds: 3));
       } catch (e) {
         // Ignore
@@ -437,15 +531,17 @@ class LocalOrderDataSource implements OrderDataSource {
 
   // Clear all orders
   Future<void> clearAllOrders() async {
-    await _ensureInitialized();
-
-    _ordersCache.clear();
-    await _persistOrders();
+    await _ordersDao.db.transaction(() async {
+      await _ordersDao.db.delete(_ordersDao.db.orderItems).go();
+      await _ordersDao.db.delete(_ordersDao.db.orders).go();
+    });
+    await _loadFromDb();
     
-    if (_serverUrl != null && _serverUrl!.isNotEmpty) {
+    final baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.isNotEmpty) {
       try {
-        await http.delete(
-          Uri.parse('$_serverUrl/orders'),
+        await _httpClient.delete(
+          Uri.parse('$baseUrl/api/v1/orders'),
         ).timeout(const Duration(seconds: 3));
       } catch (e) {
         // Ignore

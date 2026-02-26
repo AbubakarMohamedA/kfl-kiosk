@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:kfm_kiosk/core/config/api_config.dart';
 import 'package:kfm_kiosk/features/orders/data/models/order_model.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
 
 abstract class OrderDataSource {
   Future<String> saveOrder(OrderModel order);
@@ -10,8 +9,8 @@ abstract class OrderDataSource {
   Future<OrderModel?> getOrderById(String id);
   Future<void> updateOrderStatus(String orderId, String status);
   Future<void> saveFullOrder(OrderModel order);
-  Future<int> getOrderCounter({String? tenantId});
-  Future<void> incrementOrderCounter({String? tenantId});
+  Future<int> getOrderCounter({String? tenantId, String? branchId});
+  Future<void> incrementOrderCounter({String? tenantId, String? branchId});
   Stream<List<OrderModel>> watchOrders({String? tenantId});
 }
 
@@ -88,8 +87,8 @@ class OrderRemoteDataSource implements OrderDataSource {
   }
 
   @override
-  Future<int> getOrderCounter({String? tenantId}) async {
-    // TODO: Pass tenantId to backend
+  Future<int> getOrderCounter({String? tenantId, String? branchId}) async {
+    // TODO: Pass tenantId and branchId to backend
     final response = await client.get(Uri.parse('${ApiConfig.baseUrl}/orders/counter'));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -101,15 +100,15 @@ class OrderRemoteDataSource implements OrderDataSource {
   }
 
   @override
-  Future<void> incrementOrderCounter({String? tenantId}) async {
+  Future<void> incrementOrderCounter({String? tenantId, String? branchId}) async {
      // This logic typically happens on server side when creating order, 
      // but closely mirroring local logic:
      // We might post to counter endpoint
-     final current = await getOrderCounter(tenantId: tenantId);
+     final current = await getOrderCounter(tenantId: tenantId, branchId: branchId);
      await client.post(
        Uri.parse('${ApiConfig.baseUrl}/orders/counter'),
        headers: {'Content-Type': 'application/json'},
-       body: jsonEncode({'counter': current + 1, 'tenantId': tenantId}),
+       body: jsonEncode({'counter': current + 1, 'tenantId': tenantId, 'branchId': branchId}),
      );
   }
 

@@ -6,15 +6,18 @@ import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
 import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_event.dart';
 import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
 import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_state.dart';
+import 'package:kfm_kiosk/features/products/presentation/widgets/app_image.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
   final VoidCallback? onTap;
+  final Color primaryColor;
 
   const ProductCard({
     super.key,
     required this.product,
     this.onTap,
+    this.primaryColor = const Color(AppColors.primaryBlue),
   });
 
   @override
@@ -51,10 +54,10 @@ class ProductCard extends StatelessWidget {
                           ),
                           child: Text(
                             product.brand,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Color(AppColors.primaryBlue),
+                              color: primaryColor,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -70,106 +73,79 @@ class ProductCard extends StatelessWidget {
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: const Color(AppColors.primaryBlue),
+                            color: primaryColor,
                             width: 1,
                           ),
                         ),
                         child: Text(
                           product.size,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(AppColors.primaryBlue),
+                            color: primaryColor,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12), 
+                  const SizedBox(height: 8), 
 
                   // Product name
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.name,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                         ),
-                        // const SizedBox(height: 6),
-                        // Text(
-                        //   product.description,
-                        //   style: TextStyle(
-                        //     fontSize: 11,
-                        //     color: Colors.grey[600],
-                        //   ),
-                        //   maxLines: 2,
-                        //   overflow: TextOverflow.ellipsis,
-                        // ),
-                      ],
-                    ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
                   // Product Image
-                  Center(
-                    child: Container(
-                      height: 160,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.asset(
-                          product.imageUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            // Fallback widget when image fails to load
-                            return Container(
-                              color: Colors.grey[100],
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.image_not_supported,
-                                    size: 40,
-                                    color: Colors.grey[400],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Image not available',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        width: double.infinity,
+                        constraints: const BoxConstraints(maxHeight: 160),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: AppImage(
+                            imageUrl: product.imageUrl,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
                   // Price
-                  Text(
-                    'KSh ${product.price.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(AppColors.primaryBlue),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'KSh ${product.price.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 8),
@@ -180,7 +156,7 @@ class ProductCard extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () => _addToCart(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(AppColors.primaryBlue),
+                        backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
@@ -193,6 +169,8 @@ class ProductCard extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),

@@ -12,6 +12,8 @@ class Order extends Equatable {
   final String status; // Keep for backward compatibility
   final String? tenantId; // Nullable for legacy orders
   final String? branchId; // Nullable for non-enterprise or legacy
+  final String? terminalId;
+
 
   const Order({
     required this.id,
@@ -22,10 +24,11 @@ class Order extends Equatable {
     required this.status,
     this.tenantId,
     this.branchId,
+    this.terminalId,
   });
 
   @override
-  List<Object?> get props => [id, items, total, phone, timestamp, status, tenantId, branchId];
+  List<Object?> get props => [id, items, total, phone, timestamp, status, tenantId, branchId, terminalId];
 
   Order copyWith({
     String? id,
@@ -36,6 +39,7 @@ class Order extends Equatable {
     String? status,
     String? tenantId,
     String? branchId,
+    String? terminalId,
   }) {
     return Order(
       id: id ?? this.id,
@@ -46,6 +50,7 @@ class Order extends Equatable {
       status: status ?? this.status,
       tenantId: tenantId ?? this.tenantId,
       branchId: branchId ?? this.branchId,
+      terminalId: terminalId ?? this.terminalId,
     );
   }
 
@@ -61,16 +66,16 @@ class Order extends Equatable {
     );
   }
 
-  // ✅ NEW: Get items for a specific warehouse category
-  List<CartItem> getItemsForWarehouse(String warehouseCategory) {
+  // ✅ NEW: Get items for specific warehouse categories
+  List<CartItem> getItemsForWarehouse(List<String> warehouseCategories) {
     return items
-        .where((item) => item.product.category == warehouseCategory)
+        .where((item) => warehouseCategories.contains(item.product.category))
         .toList();
   }
 
   // ✅ NEW: Get warehouse-specific status
-  String getWarehouseStatus(String warehouseCategory) {
-    final warehouseItems = getItemsForWarehouse(warehouseCategory);
+  String getWarehouseStatus(List<String> warehouseCategories) {
+    final warehouseItems = getItemsForWarehouse(warehouseCategories);
     if (warehouseItems.isEmpty) {
       return AppConstants.statusFulfilled; // No items = already done
     }
@@ -89,22 +94,22 @@ class Order extends Equatable {
   }
 
   // ✅ NEW: Check if all warehouse items have a specific status
-  bool warehouseItemsHaveStatus(String warehouseCategory, String status) {
-    final warehouseItems = getItemsForWarehouse(warehouseCategory);
+  bool warehouseItemsHaveStatus(List<String> warehouseCategories, String status) {
+    final warehouseItems = getItemsForWarehouse(warehouseCategories);
     return warehouseItems.isNotEmpty &&
         warehouseItems.every((item) => item.status == status);
   }
 
   // ✅ NEW: Check if warehouse has any items in specific status
-  bool warehouseHasItemsInStatus(String warehouseCategory, String status) {
-    final warehouseItems = getItemsForWarehouse(warehouseCategory);
+  bool warehouseHasItemsInStatus(List<String> warehouseCategories, String status) {
+    final warehouseItems = getItemsForWarehouse(warehouseCategories);
     return warehouseItems.any((item) => item.status == status);
   }
 
   // ✅ NEW: Update items status for a specific warehouse
-  Order updateWarehouseItemsStatus(String warehouseCategory, String newStatus) {
+  Order updateWarehouseItemsStatus(List<String> warehouseCategories, String newStatus) {
     final updatedItems = items.map((item) {
-      if (item.product.category == warehouseCategory) {
+      if (warehouseCategories.contains(item.product.category)) {
         return item.copyWith(status: newStatus);
       }
       return item;
@@ -161,6 +166,7 @@ class Order extends Equatable {
       'status': status,
       'tenantId': tenantId,
       'branchId': branchId,
+      'terminalId': terminalId,
     };
   }
 
@@ -178,6 +184,7 @@ class Order extends Equatable {
       status: map['status'] ?? AppConstants.statusPaid,
       tenantId: map['tenantId'],
       branchId: map['branchId'],
+      terminalId: map['terminalId'],
     );
   }
 }

@@ -12,6 +12,7 @@ import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.da
 // import 'package:kfm_kiosk/features/warehouse/presentation/screens/inventory_screen.dart';
 // import 'package:kfm_kiosk/features/admin/presentation/screens/staff_management_screen.dart';
 import 'package:kfm_kiosk/features/settings/presentation/screens/settings_screen.dart';
+import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/warehouse_selector_screen.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
 import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_desktop.dart';
@@ -21,7 +22,10 @@ import 'package:kfm_kiosk/features/insights/presentation/screens/business_insigh
 import 'package:kfm_kiosk/features/settings/presentation/screens/maintenance_screen.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/account_disabled_screen.dart';
 import 'package:kfm_kiosk/features/settings/presentation/screens/premium_upgrade_screen.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen_desktop.dart';
+import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
+import 'package:kfm_kiosk/features/warehouse/presentation/screens/warehouse_management_screen.dart'; // ✅ NEW
+import 'package:kfm_kiosk/features/products/presentation/screens/product_management_screen.dart';
+import 'package:kfm_kiosk/features/settings/presentation/screens/mobile_config_screen.dart'; // ✅ NEW
 import 'package:kfm_kiosk/core/widgets/desktop/staff_order_card.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart'; // Added import
 import 'package:intl/intl.dart';
@@ -45,13 +49,19 @@ enum ScreenType {
   settings,
   warehouseSelector,
   warehouseView,
+  warehouseManagement, // ✅ NEW
   businessInsights,
   superAdmin,
+  productManagement, // ✅ NEW
+  mobileConfig, // ✅ NEW
 }
 
 class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _historySearchController = TextEditingController();
+  DateTime _selectedHistoryDate = DateTime.now();
+  DateTime _selectedActiveDate = DateTime.now();
   late TabController _tabController;
   late Timer _autoRefreshTimer;
   late Timer _clockTimer;
@@ -144,6 +154,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   @override
   void dispose() {
     _searchController.dispose();
+    _historySearchController.dispose();
     _tabController.dispose();
     _autoRefreshTimer.cancel();
     _clockTimer.cancel();
@@ -404,7 +415,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreenDesktop()),
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
           (route) => false,
         );
       }
@@ -527,6 +538,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                             ? _buildDashboardContent()
                         : _currentScreen == ScreenType.warehouseSelector
                             ? WarehouseSelectorScreen(
+                                branchId: _currentConfig.branchId,
                                 onWarehouseSelected: (warehouse) {
                                   setState(() {
                                     _selectedWarehouse = warehouse;
@@ -534,9 +546,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                   });
                                 },
                               )
-                            : _currentScreen == ScreenType.warehouseView &&
+                              : _currentScreen == ScreenType.warehouseView &&
                                     _selectedWarehouse != null
                                 ? StaffPanelWarehouse(warehouse: _selectedWarehouse!)
+                                : _currentScreen == ScreenType.warehouseManagement // ✅ NEW
+                                    ? const WarehouseManagementScreen()
+                                : _currentScreen == ScreenType.productManagement // ✅ NEW
+                                    ? const ProductManagementScreen()
                                 // : _currentScreen == ScreenType.staffManagement
                                 //             ? const StaffManagementScreen() // Keep routed just in case, though unreachable from sidebar
                                             : _currentScreen == ScreenType.businessInsights
@@ -547,7 +563,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                                     : const PremiumUpgradeScreen())
                                                 : _currentScreen == ScreenType.superAdmin
                                                     ? const SuperAdminScreen()
-                                                    : const SettingsScreen();
+                                                    : _currentScreen == ScreenType.mobileConfig // ✅ NEW
+                                                        ? const MobileConfigScreen()
+                                                        : const SettingsScreen();
                       },
                     ),
                   ),
@@ -600,30 +618,34 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             ),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Staff Command Center',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: -0.5,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Staff Command Center',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                DateFormat('EEEE, MMMM d, yyyy').format(_currentTime),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontWeight: FontWeight.w400,
+                Text(
+                  DateFormat('EEEE, MMMM d, yyyy').format(_currentTime),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontWeight: FontWeight.w400,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
@@ -662,13 +684,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               context.read<OrderBloc>().add(const LoadOrders());
             },
           ),
-          const SizedBox(width: 12),
-          _buildHeaderIconButton(
-            icon: Icons.notifications_outlined,
-            tooltip: 'New Orders (Paid)',
-            badge: _paidOrdersCount > 0 ? '$_paidOrdersCount' : null,
-            onPressed: () => _showNotificationsDialog(),
-          ),
+          // const SizedBox(width: 12),
+          // _buildHeaderIconButton(
+          //   icon: Icons.notifications_outlined,
+          //   tooltip: 'New Orders (Paid)',
+          //   badge: _paidOrdersCount > 0 ? '$_paidOrdersCount' : null,
+          //   onPressed: () => _showNotificationsDialog(),
+          // ),
           const SizedBox(width: 12),
           _buildHeaderIconButton(
             icon: Icons.settings_outlined,
@@ -816,6 +838,46 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 });
               },
             ),
+          // ✅ NEW: Warehouse Management for Branch Managers
+          if (_currentConfig.branchId != null && _currentConfig.tierId == 'enterprise')
+             _buildSidebarItem(
+              icon: Icons.warehouse_rounded,
+              label: 'Manage Warehouses',
+              isSelected: _currentScreen == ScreenType.warehouseManagement,
+              onTap: () {
+                setState(() {
+                  _currentScreen = ScreenType.warehouseManagement;
+                  _showHistory = false;
+                });
+              },
+            ),
+
+          // ✅ NEW: Product Management
+          // Visible to all tenants as per requirement (if feature enabled)
+          if (_currentConfig.tenantId != null && TenantService().canAccessFeature(_currentConfig.tenantId!, 'products'))
+            _buildSidebarItem(
+              icon: Icons.inventory_2_rounded,
+              label: 'Products',
+              maintenanceKey: 'products',
+              isSelected: _currentScreen == ScreenType.productManagement,
+              onTap: () {
+                setState(() {
+                  _currentScreen = ScreenType.productManagement;
+                  _showHistory = false;
+                });
+              },
+            ),
+            
+           // ✅ NEW: Mobile App Config Item
+           _buildSidebarItem(
+             icon: Icons.phonelink_setup,
+             label: 'Terminal',
+             isSelected: _currentScreen == ScreenType.mobileConfig,
+             onTap: () {
+               setState(() => _currentScreen = ScreenType.mobileConfig);
+             },
+           ),
+
           // Always show Business Insights (Gated by Paywall) - BUT hide if disabled in features
           if (canViewInsights)
             _buildSidebarItem(
@@ -910,81 +972,86 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     final branchId = _currentConfig.branchId;
     if (branchId == null) return const SizedBox.shrink();
 
-    // final isDarkMode = Theme.of(context).brightness == Brightness.dark; // Unused
-    final branches = TenantService().getBranchesForTenant(_currentConfig.tenantId ?? '');
-    
-    // Find branch safely
-    Branch? branch;
-    try {
-      branch = branches.firstWhere((b) => b.id == branchId);
-    } catch (_) {
-      branch = const Branch(
-        id: '', 
-        tenantId: '', 
-        name: 'Unknown Branch', 
-        location: '', 
-        contactPhone: '', 
-        managerName: '',
-        loginUsername: '',
-        loginPassword: '',
-      );
-    }
+    // FutureBuilder handles the async list fetching
+    return FutureBuilder<List<Branch>>(
+      future: TenantService().getBranchesForTenant(_currentConfig.tenantId ?? ''),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        
+        final branches = snapshot.data!;
+        Branch? branch;
+        try {
+          branch = branches.firstWhere((b) => b.id == branchId);
+        } catch (_) {
+          branch = const Branch(
+            id: '', 
+            tenantId: '', 
+            name: 'Unknown Branch', 
+            location: '', 
+            contactPhone: '', 
+            managerName: '',
+            loginUsername: '',
+            loginPassword: '',
+          );
+        }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1a237e).withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF1a237e).withValues(alpha: 0.1)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Icon(Icons.store_rounded, color: Color(0xFF1a237e), size: 20),
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1a237e).withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1a237e).withValues(alpha: 0.1)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CURRENT BRANCH',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  branch.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: Color(0xFF1a237e),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: const Icon(Icons.store_rounded, color: Color(0xFF1a237e), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CURRENT BRANCH',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      branch.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF1a237e),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      }
     );
   }
 
@@ -1276,13 +1343,17 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -1512,7 +1583,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     value: 'all',
                     child: Row(
                       children: [
-                        Icon(Icons.grid_view_rounded, size: 18),
+                        // Icon(Icons.grid_view_rounded, size: 18),
                         SizedBox(width: 12),
                         Text('All Orders'),
                       ],
@@ -1522,7 +1593,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     value: AppConstants.statusPaid,
                     child: Row(
                       children: [
-                        Icon(Icons.payment_rounded, size: 18, color: Colors.blue),
+                        // Icon(Icons.payment_rounded, size: 18, color: Colors.blue),
                         const SizedBox(width: 12),
                         const Text('Paid'),
                       ],
@@ -1532,7 +1603,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     value: AppConstants.statusPreparing,
                     child: Row(
                       children: [
-                        Icon(Icons.restaurant_rounded, size: 18, color: Colors.orange),
+                        // Icon(Icons.restaurant_rounded, size: 18, color: Colors.orange),
                         const SizedBox(width: 12),
                         const Text('Preparing'),
                       ],
@@ -1542,7 +1613,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     value: AppConstants.statusReadyForPickup,
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle_outline_rounded, size: 18, color: Colors.purple),
+                        // Icon(Icons.check_circle_outline_rounded, size: 18, color: Colors.purple),
                         const SizedBox(width: 12),
                         const Text('Ready'),
                       ],
@@ -1558,6 +1629,57 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               ),
             ),
           ),
+          const SizedBox(width: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+              ),
+            ),
+            child: BlocBuilder<OrderBloc, OrderState>(
+              builder: (context, state) {
+                return IconButton(
+                  icon: const Icon(Icons.calendar_month_rounded),
+                  color: const Color(AppColors.primaryBlue),
+                  onPressed: () async {
+                    List<DateTime> activeDates = [];
+                    if (state is OrdersLoaded) {
+                      activeDates = state.orders
+                          .where((o) => _isOrderActive(o))
+                          .map((o) => DateTime(
+                              o.timestamp.year, o.timestamp.month, o.timestamp.day))
+                          .toSet()
+                          .toList();
+                    }
+                    
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final initialDate = _selectedActiveDate.isAfter(now) ? now : _selectedActiveDate;
+                    final initialDay = DateTime(initialDate.year, initialDate.month, initialDate.day);
+
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: initialDate,
+                      firstDate: DateTime(2000),
+                      lastDate: now,
+                      selectableDayPredicate: (day) {
+                        final checkDate = DateTime(day.year, day.month, day.day);
+                        if (checkDate == initialDay || checkDate == today) return true;
+                        return activeDates.contains(checkDate);
+                      },
+                    );
+                    if (picked != null && picked != _selectedActiveDate) {
+                      setState(() {
+                        _selectedActiveDate = picked;
+                      });
+                    }
+                  },
+                );
+              }
+            ),
+          ),
         ],
       ),
     );
@@ -1568,21 +1690,29 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     return BlocBuilder<OrderBloc, OrderState>(
       builder: (context, state) {
         if (state is OrdersLoaded) {
-          final activeOrders = state.orders.where((o) => _isOrderActive(o)).toList();
+          var activeOrders = state.orders.where((o) => _isOrderActive(o)).toList();
+          
+          // Apply active orders date filter
+          activeOrders = activeOrders.where((o) {
+            return o.timestamp.year == _selectedActiveDate.year &&
+                   o.timestamp.month == _selectedActiveDate.month &&
+                   o.timestamp.day == _selectedActiveDate.day;
+          }).toList();
+          
           if (activeOrders.isEmpty) {
             return _buildEmptyState(
               icon: Icons.check_circle_outline,
               title: 'No Active Orders',
               subtitle: _selectedFilter != 'all'
                   ? 'No orders match the selected filter'
-                  : 'All orders have been completed!',
+                  : 'All orders have been completed or selected date has no active orders!',
             );
           }
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
             itemCount: activeOrders.length,
             itemBuilder: (context, index) {
-              final order = activeOrders[activeOrders.length - 1 - index];
+              final order = activeOrders[index];
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: _buildActiveOrderCard(order),
@@ -1984,12 +2114,15 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 children: [
                   Icon(_statusIcon(effectiveStatus), color: _statusColor(effectiveStatus), size: 24),
                   const SizedBox(width: 12),
-                  Text(
-                    'Order Status: ${_statusLabel(effectiveStatus)}',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: _statusColor(effectiveStatus),
+                  Expanded(
+                    child: Text(
+                      'Order Status: ${_statusLabel(effectiveStatus)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: _statusColor(effectiveStatus),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -2065,6 +2198,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     fontWeight: FontWeight.w600,
                     color: _isDarkMode ? Colors.white : Colors.black,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '${item.product.size} × ${item.quantity}',
@@ -2072,6 +2206,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     fontSize: 14,
                     color: _isDarkMode ? Colors.white60 : Colors.grey[600],
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -2109,6 +2244,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     fontWeight: FontWeight.w600,
                     color: _isDarkMode ? Colors.white : Colors.black,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   item.product.size,
@@ -2146,19 +2282,24 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
   // ─── MODE-AWARE ORDER HISTORY VIEW ────────────────────────────────────────
   Widget _buildHistoryHeader() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+    return BlocBuilder<OrderBloc, OrderState>(
+      builder: (context, state) {
+        List<Order> historyOrders = [];
+        if (state is OrdersLoaded) {
+          historyOrders = state.orders.where((o) => !_isOrderActive(o)).toList();
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
+            border: Border(
+              bottom: BorderSide(
+                color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+              ),
+            ),
           ),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
+          child: Row(
             children: [
               Icon(
                 Icons.history_rounded,
@@ -2174,10 +2315,97 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   color: _isDarkMode ? Colors.white : Colors.grey[800],
                 ),
               ),
+              const Spacer(),
+              // Search Bar
+              SizedBox(
+                width: 300,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _historySearchController,
+                    onChanged: (value) => setState(() {}),
+                    style: TextStyle(
+                      color: _isDarkMode ? Colors.white : Colors.black,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search History...',
+                      hintStyle: TextStyle(
+                        color: _isDarkMode ? Colors.white60 : Colors.grey[500],
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: const Color(AppColors.primaryBlue),
+                      ),
+                      suffixIcon: _historySearchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded),
+                              onPressed: () {
+                                _historySearchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Calendar Button
+              Container(
+                decoration: BoxDecoration(
+                  color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+                  ),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.calendar_month_rounded),
+                  color: const Color(AppColors.primaryBlue),
+                  onPressed: () async {
+                    // Extract unique dates with history
+                    final activeDates = historyOrders
+                        .map((o) => DateTime(
+                            o.timestamp.year, o.timestamp.month, o.timestamp.day))
+                        .toSet()
+                        .toList();
+
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final initialDate = _selectedHistoryDate.isAfter(now) ? now : _selectedHistoryDate;
+                    final initialDay = DateTime(initialDate.year, initialDate.month, initialDate.day);
+
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: initialDate,
+                      firstDate: DateTime(2000),
+                      lastDate: now,
+                      selectableDayPredicate: (day) {
+                        final checkDate = DateTime(day.year, day.month, day.day);
+                        if (checkDate == initialDay || checkDate == today) return true;
+                        return activeDates.contains(checkDate);
+                      },
+                    );
+                    if (picked != null && picked != _selectedHistoryDate) {
+                      setState(() {
+                        _selectedHistoryDate = picked;
+                      });
+                    }
+                  },
+                ),
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -2185,12 +2413,31 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     return BlocBuilder<OrderBloc, OrderState>(
       builder: (context, state) {
         if (state is OrdersLoaded) {
-          final historyOrders = state.orders.where((o) => !_isOrderActive(o)).toList();
+          final query = _historySearchController.text.trim().toLowerCase();
+          
+          // 1. Get raw history orders
+          var historyOrders = state.orders.where((o) => !_isOrderActive(o)).toList();
+
+          // 2. Filter by Search Query OR Date
+          if (query.isNotEmpty) {
+            // Search mode: ignore date filter
+            historyOrders = historyOrders.where((o) {
+              return o.id.toLowerCase().contains(query) || o.phone.contains(query);
+            }).toList();
+          } else {
+            // Date Filter mode
+            historyOrders = historyOrders.where((o) {
+              return o.timestamp.year == _selectedHistoryDate.year &&
+                     o.timestamp.month == _selectedHistoryDate.month &&
+                     o.timestamp.day == _selectedHistoryDate.day;
+            }).toList();
+          }
+
           if (historyOrders.isEmpty) {
             return _buildEmptyState(
               icon: Icons.history,
-              title: 'No Order History',
-              subtitle: 'Completed orders will appear here',
+              title: query.isNotEmpty ? 'No Results Found' : 'No Order History for Selected Date',
+              subtitle: query.isNotEmpty ? 'Try a different search query' : 'Try selecting another day from the calendar',
             );
           }
           final grouped = <String, List<Order>>{};
@@ -2644,86 +2891,6 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
-  void _showNotificationsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.notifications_active, color: Color(AppColors.primaryBlue)),
-            const SizedBox(width: 12),
-            const Text('New Orders'),
-          ],
-        ),
-        content: BlocBuilder<OrderBloc, OrderState>(
-          builder: (context, state) {
-            if (state is OrdersLoaded && state.paidCount > 0) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'You have ${state.paidCount} new ${state.paidCount == 1 ? 'order' : 'orders'} waiting to be prepared.',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'These orders are in "Paid" status and ready for preparation.',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  // ✅ NEW: Mode indicator in notifications
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
-                          ? Colors.blue[50]
-                          : Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
-                              ? Icons.list_alt
-                              : Icons.view_module,
-                          size: 18,
-                          color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
-                              ? Colors.blue
-                              : Colors.green,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
-                                ? 'Using Order-Level Tracking: Entire order moves through status stages together'
-                                : 'Using Item-Level Tracking: Items can be processed independently by warehouse stations',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
-                                  ? Colors.blue[900]
-                                  : Colors.green[900],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }
-            return const Text('No new orders at this time.');
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();

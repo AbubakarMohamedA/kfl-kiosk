@@ -6,7 +6,7 @@ abstract class OrderRepository {
   Future<Order?> getOrderById(String id);
   Future<void> updateOrderStatus(String orderId, String status);
   Future<void> saveFullOrder(Order order);
-  Future<int> getOrderCounter({String? tenantId});
-  Future<void> incrementOrderCounter({String? tenantId});
+  Future<int> getOrderCounter({String? tenantId, String? branchId});
+  Future<void> incrementOrderCounter({String? tenantId, String? branchId});
   Stream<List<Order>> watchOrders();
 }

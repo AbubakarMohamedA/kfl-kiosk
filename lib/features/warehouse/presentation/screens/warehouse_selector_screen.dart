@@ -1,23 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:kfm_kiosk/di/injection.dart';
+import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
+import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
+
 
 /// Callback type so StaffPanelDesktop can switch its own _currentScreen
 /// without this widget doing a Navigator.push.
 typedef OnWarehouseSelected = void Function(Warehouse warehouse);
 
-class WarehouseSelectorScreen extends StatelessWidget {
+class WarehouseSelectorScreen extends StatefulWidget {
   /// When provided, selecting a warehouse calls this instead of pushing a route.
   /// StaffPanelDesktop passes its own setState-based switcher here.
   final OnWarehouseSelected? onWarehouseSelected;
+  final String? branchId;
 
   const WarehouseSelectorScreen({
     super.key,
     this.onWarehouseSelected,
+    this.branchId,
   });
 
   @override
+  State<WarehouseSelectorScreen> createState() => _WarehouseSelectorScreenState();
+}
+
+class _WarehouseSelectorScreenState extends State<WarehouseSelectorScreen> {
+  late Future<List<Warehouse>> _warehousesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWarehouses();
+  }
+
+  void _loadWarehouses() {
+    if (widget.branchId != null) {
+      _warehousesFuture = _fetchAndSyncWarehouses();
+    } else {
+      _warehousesFuture = Future.value([]);
+    }
+  }
+
+  Future<List<Warehouse>> _fetchAndSyncWarehouses() async {
+    final configRepo = getIt<ConfigurationRepository>();
+    final config = await configRepo.getConfiguration();
+    final tenantId = config.tenantId;
+    
+    final warehouseService = getIt<WarehouseService>();
+    if (tenantId != null) {
+      await warehouseService.syncWarehousesFromProducts(tenantId, widget.branchId!);
+    }
+    return warehouseService.getWarehousesForBranch(widget.branchId!);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (widget.branchId == null) {
+      return Center(child: Text('No Branch ID configured.'));
+    }
+
     return Column(
       children: [
         // ─── Header (matches AnalyticsScreen._buildHeader style) ───
@@ -28,33 +72,69 @@ class WarehouseSelectorScreen extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSidebar(context),
+              // _buildSidebar(context), // Sidebar might be redundant if list is dynamic?
+              // Let's keep a simplified sidebar or just expand the content
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionHeader('Warehouse Stations'),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Select a station to view and manage its pickups',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                child: FutureBuilder<List<Warehouse>>(
+                  future: _warehousesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    final warehouses = snapshot.data ?? [];
+
+                    if (warehouses.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.warehouse_outlined, size: 64, color: Colors.grey[300]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No Warehouses Found',
+                              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create a warehouse in "Warehouse Management" to get started.',
+                              style: TextStyle(color: Colors.grey[500]),
+                            ),
+                          ],
                         ),
+                      );
+                    }
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionHeader('Warehouse Stations'),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Select a station to view and manage its pickups',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // ─── Dynamic warehouse grid ───
+                          _buildWarehouseGrid(context, warehouses),
+
+                          const SizedBox(height: 32),
+                          // Stats could be fetched properly, placeholder for now
+                          // _buildSectionHeader('Station Summary'),
+                          // const SizedBox(height: 16),
+                          // _buildSummaryCards(),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-
-                      // ─── 2-column warehouse grid ───
-                      _buildWarehouseGrid(context),
-
-                      const SizedBox(height: 32),
-                      _buildSectionHeader('Station Summary'),
-                      const SizedBox(height: 16),
-                      _buildSummaryCards(),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -112,7 +192,7 @@ class WarehouseSelectorScreen extends StatelessWidget {
                 ),
               ),
               Text(
-                'Manage and monitor all stations',
+                'Monitor and access warehouse dashboards',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white70,
@@ -127,201 +207,34 @@ class WarehouseSelectorScreen extends StatelessWidget {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // SIDEBAR – matches AnalyticsScreen._buildSidebar layout & style
+  // WAREHOUSE GRID
   // ─────────────────────────────────────────────────────────────────────
-  Widget _buildSidebar(BuildContext context) {
-    return Container(
-      width: 250,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          right: BorderSide(color: Colors.grey[200]!),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Quick-info cards stacked vertically, like Analytics sidebar items
-          _buildSidebarInfoItem(
-            Icons.grain,
-            'Flour',
-            'Standard products',
-            Colors.brown,
-          ),
-          _buildSidebarInfoItem(
-            Icons.grade,
-            'Premium Flour',
-            'Specialty products',
-            Colors.amber,
-          ),
-          _buildSidebarInfoItem(
-            Icons.bakery_dining,
-            'Baker Flour',
-            'Commercial flour',
-            Colors.orange,
-          ),
-          _buildSidebarInfoItem(
-            Icons.water_drop,
-            'Cooking Oil',
-            'Oil products',
-            Colors.yellow.shade700,
-          ),
-          const Spacer(),
-          // ─── Period-style info box at the bottom (matches Analytics) ───
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const Divider(),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Stations',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '4 Active',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(AppColors.primaryBlue),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'All stations operational',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarInfoItem(
-    IconData icon,
-    String title,
-    String subtitle,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: color,
-            width: 3,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────
-  // WAREHOUSE GRID – cards styled like Analytics KPI cards with shadows
-  // ─────────────────────────────────────────────────────────────────────
-  Widget _buildWarehouseGrid(BuildContext context) {
-    final warehouses = [
-      _WarehouseInfo(
-        warehouse: Warehouse.flour,
-        title: 'Flour',
-        description: 'Standard flour products',
-        icon: Icons.grain,
-        color: Colors.brown,
-      ),
-      _WarehouseInfo(
-        warehouse: Warehouse.premiumFlour,
-        title: 'Premium Flour',
-        description: 'Premium & specialty flour',
-        icon: Icons.grade,
-        color: Colors.amber,
-      ),
-      _WarehouseInfo(
-        warehouse: Warehouse.bakerFlour,
-        title: 'Baker Flour',
-        description: 'Commercial baker flour',
-        icon: Icons.bakery_dining,
-        color: Colors.orange,
-      ),
-      _WarehouseInfo(
-        warehouse: Warehouse.cookingOil,
-        title: 'Cooking Oil',
-        description: 'Cooking oil products',
-        icon: Icons.water_drop,
-        color: Colors.yellow.shade700,
-      ),
-    ];
-
-    return GridView.count(
+  Widget _buildWarehouseGrid(BuildContext context, List<Warehouse> warehouses) {
+    return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.3,
-      children: warehouses.map((info) => _buildWarehouseCard(context, info)).toList(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.3,
+      ),
+      itemCount: warehouses.length,
+      itemBuilder: (context, index) {
+        return _buildWarehouseCard(context, warehouses[index]);
+      },
     );
   }
 
-  Widget _buildWarehouseCard(BuildContext context, _WarehouseInfo info) {
+  Widget _buildWarehouseCard(BuildContext context, Warehouse warehouse) {
+    final color = _getWarehouseColor(warehouse);
+    final icon = _getWarehouseIcon(warehouse);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: info.color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -335,15 +248,15 @@ class WarehouseSelectorScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: () {
-            if (onWarehouseSelected != null) {
+            if (widget.onWarehouseSelected != null) {
               // ✅ Just calls back – StaffPanelDesktop switches screen internally
-              onWarehouseSelected!(info.warehouse);
+              widget.onWarehouseSelected!(warehouse);
             } else {
-              // Fallback for standalone use (should not happen in Staff Panel)
+              // Fallback
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => StaffPanelWarehouse(warehouse: info.warehouse),
+                  builder: (_) => StaffPanelWarehouse(warehouse: warehouse),
                 ),
               );
             }
@@ -360,13 +273,14 @@ class WarehouseSelectorScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: info.color.withValues(alpha: 0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(info.icon, color: info.color, size: 28),
+                      child: Icon(icon, color: color, size: 28),
                     ),
                     const Spacer(),
-                    // "Active" badge – mirrors Analytics change badges
+                    // "Active" badge
+                    if (warehouse.isActive)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -395,19 +309,23 @@ class WarehouseSelectorScreen extends StatelessWidget {
 
                 // ─── Title ───
                 Text(
-                  info.title,
+                  warehouse.name,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  info.description,
+                  warehouse.categories.join(', '),
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.grey[600],
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
 
                 const SizedBox(height: 16),
@@ -420,113 +338,17 @@ class WarehouseSelectorScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: info.color,
+                        color: color,
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Icon(Icons.arrow_forward, size: 16, color: info.color),
+                    Icon(Icons.arrow_forward, size: 16, color: color),
                   ],
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────
-  // SUMMARY CARDS – row of 4 small stat cards (like KPI cards in Analytics)
-  // ─────────────────────────────────────────────────────────────────────
-  Widget _buildSummaryCards() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildSmallStatCard(
-            'Total Stations',
-            '4',
-            Icons.warehouse,
-            Colors.blue,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildSmallStatCard(
-            'Active Now',
-            '4',
-            Icons.check_circle,
-            Colors.green,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildSmallStatCard(
-            'Pending Pickups',
-            '12',
-            Icons.pending_actions,
-            Colors.orange,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildSmallStatCard(
-            'Completed Today',
-            '38',
-            Icons.check_circle_outline,
-            Colors.purple,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSmallStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -540,21 +362,20 @@ class WarehouseSelectorScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-/// Simple data holder – not exported, used only inside this file.
-class _WarehouseInfo {
-  final Warehouse warehouse;
-  final String title;
-  final String description;
-  final IconData icon;
-  final Color color;
+  // Helper to generate consistent colors/icons
+  Color _getWarehouseColor(Warehouse warehouse) {
+    final palette = [Colors.brown, Colors.amber, Colors.orange, Colors.purple];
+    final hash = warehouse.id.hashCode;
+    return palette[hash.abs() % palette.length];
+  }
 
-  const _WarehouseInfo({
-    required this.warehouse,
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.color,
-  });
+  IconData _getWarehouseIcon(Warehouse warehouse) {
+    // Simple heuristic
+    final name = warehouse.name.toLowerCase();
+    if (name.contains('flour')) return Icons.grain;
+    if (name.contains('oil')) return Icons.water_drop;
+    if (name.contains('bakery') || name.contains('bread')) return Icons.bakery_dining;
+    return Icons.warehouse;
+  }
 }

@@ -13,6 +13,7 @@ class AppConfiguration {
   final bool isConfigured;           // Whether initial setup has been completed
   final String? tenantId;            // Unique tenant identifier
   final String? branchId;            // Selected branch identifier (for Enterprise)
+  final String? warehouseId;         // Selected warehouse identifier (for Item-Level routing)
   final String? tierId;              // Tenant's subscription tier ID
   final String? businessName;        // Business/company name
   final String? contactEmail;        // Contact email
@@ -31,6 +32,7 @@ class AppConfiguration {
     this.isConfigured = false,
     this.tenantId,
     this.branchId,
+    this.warehouseId,
     this.tierId,
     this.businessName,
     this.contactEmail,
@@ -49,6 +51,9 @@ class AppConfiguration {
     bool? isConfigured,
     String? tenantId,
     String? branchId,
+    bool clearBranchId = false, // ✅ NEW: Allow explicit nullification
+    String? warehouseId,
+    bool clearWarehouseId = false, // Added explicit clear flag
     String? tierId,
     String? businessName,
     String? contactEmail,
@@ -65,7 +70,8 @@ class AppConfiguration {
       language: language ?? this.language,
       isConfigured: isConfigured ?? this.isConfigured,
       tenantId: tenantId ?? this.tenantId,
-      branchId: branchId ?? this.branchId,
+      branchId: clearBranchId ? null : (branchId ?? this.branchId),
+      warehouseId: clearWarehouseId ? null : (warehouseId ?? this.warehouseId),
       tierId: tierId ?? this.tierId,
       businessName: businessName ?? this.businessName,
       contactEmail: contactEmail ?? this.contactEmail,
@@ -78,6 +84,47 @@ class AppConfiguration {
     );
   }
 
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppConfiguration &&
+          runtimeType == other.runtimeType &&
+          statusTrackingMode == other.statusTrackingMode &&
+          darkMode == other.darkMode &&
+          language == other.language &&
+          isConfigured == other.isConfigured &&
+          tenantId == other.tenantId &&
+          branchId == other.branchId &&
+          warehouseId == other.warehouseId &&
+          tierId == other.tierId &&
+          businessName == other.businessName &&
+          contactEmail == other.contactEmail &&
+          contactPhone == other.contactPhone &&
+          businessAddress == other.businessAddress &&
+          logoPath == other.logoPath &&
+          defaultWarehouse == other.defaultWarehouse &&
+          currency == other.currency &&
+          enableNotifications == other.enableNotifications;
+
+  @override
+  int get hashCode =>
+      statusTrackingMode.hashCode ^
+      darkMode.hashCode ^
+      language.hashCode ^
+      isConfigured.hashCode ^
+      tenantId.hashCode ^
+      branchId.hashCode ^
+      warehouseId.hashCode ^
+      tierId.hashCode ^
+      businessName.hashCode ^
+      contactEmail.hashCode ^
+      contactPhone.hashCode ^
+      businessAddress.hashCode ^
+      logoPath.hashCode ^
+      defaultWarehouse.hashCode ^
+      currency.hashCode ^
+      enableNotifications.hashCode;
+
   Map<String, dynamic> toJson() => {
     'statusTrackingMode': statusTrackingMode.index,
     'darkMode': darkMode,
@@ -85,6 +132,7 @@ class AppConfiguration {
     'isConfigured': isConfigured,
     'tenantId': tenantId,
     'branchId': branchId,
+    'warehouseId': warehouseId,
     'tierId': tierId,
     'businessName': businessName,
     'contactEmail': contactEmail,
@@ -103,10 +151,11 @@ class AppConfiguration {
       darkMode: json['darkMode'] ?? false,
       language: json['language'] ?? 'en',
       isConfigured: json['isConfigured'] ?? false,
-      tenantId: json['tenantId'],
-      branchId: json['branchId'],
-      tierId: json['tierId'],
-      businessName: json['businessName'],
+      tenantId: json['tenantId'] as String?,
+      branchId: json['branchId'] as String?,
+      warehouseId: json['warehouseId'] as String?,
+      tierId: json['tierId'] as String?,
+      businessName: json['businessName'] as String?,
       contactEmail: json['contactEmail'],
       contactPhone: json['contactPhone'],
       businessAddress: json['businessAddress'],

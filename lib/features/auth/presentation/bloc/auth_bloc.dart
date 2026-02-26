@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
 import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
+import 'package:kfm_kiosk/core/services/local_server_service.dart';
 
 // Events
 abstract class AuthEvent extends Equatable {
@@ -9,6 +10,8 @@ abstract class AuthEvent extends Equatable {
   @override
   List<Object> get props => [];
 }
+
+class AuthCheckRequested extends AuthEvent {}
 
 class LoginRequested extends AuthEvent {
   final String email;
@@ -44,13 +47,32 @@ class AuthFailure extends AuthState {
   List<Object> get props => [message];
 }
 
+class AuthUnauthenticated extends AuthState {}
+
 // Bloc
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
+  final LocalServerService localServerService;
 
-  AuthBloc({required this.authRepository}) : super(AuthInitial()) {
+  AuthBloc({
+    required this.authRepository,
+    required this.localServerService,
+  }) : super(AuthInitial()) {
+    on<AuthCheckRequested>(_onAuthCheckRequested);
     on<LoginRequested>(_onLoginRequested);
     on<LogoutRequested>(_onLogoutRequested);
+  }
+
+  Future<void> _onAuthCheckRequested(
+    AuthCheckRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final tenant = await authRepository.getCurrentTenant();
+    if (tenant != null) {
+      emit(AuthAuthenticated(tenant));
+    } else {
+      emit(AuthUnauthenticated());
+    }
   }
 
   Future<void> _onLoginRequested(
@@ -72,6 +94,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     await authRepository.logout();
-    emit(AuthInitial());
+    localServerService.setActiveTenantId(''); // Clear server tenant
+    emit(AuthUnauthenticated());
   }
 }

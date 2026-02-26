@@ -44,4 +44,38 @@ class GetProductById extends UseCase<Product?, String> {
   Future<Product?> call(String id) {
     return repository.getProductById(id);
   }
+
+}
+
+class AddProduct extends UseCase<void, Product> {
+  final ProductRepository repository;
+
+  AddProduct(this.repository);
+
+  @override
+  Future<void> call(Product product) {
+    return repository.addProduct(product);
+  }
+}
+
+class UpdateProduct extends UseCase<void, Product> {
+  final ProductRepository repository;
+
+  UpdateProduct(this.repository);
+
+  @override
+  Future<void> call(Product product) {
+    return repository.updateProduct(product);
+  }
+}
+
+class DeleteProduct extends UseCase<void, String> {
+  final ProductRepository repository;
+
+  DeleteProduct(this.repository);
+
+  @override
+  Future<void> call(String id) {
+    return repository.deleteProduct(id);
+  }
 }

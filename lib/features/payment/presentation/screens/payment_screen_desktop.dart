@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -12,6 +13,9 @@ import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.da
 import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
 import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_event.dart';
 import 'package:kfm_kiosk/features/orders/presentation/screens/receipt_screen_desktop.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart';
+import 'package:kfm_kiosk/di/injection.dart';
 
 class PaymentScreenDesktop extends StatefulWidget {
   final String language;
@@ -35,17 +39,48 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
   String? generatedOrderId;
   bool isGeneratingOrderId = true;
 
+  Color _primaryColor = const Color(0xFF006838);
+  Color _secondaryColor = const Color(0xFFFF7F50);
+  StreamSubscription? _configSubscription;
+
   @override
   void initState() {
     super.initState();
     _generateOrderId();
+    _setupStream();
+  }
+
+  @override
+  void dispose() {
+    _configSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _setupStream() async {
+    final prefs = await SharedPreferences.getInstance();
+    final tenantId = prefs.getString('last_synced_tenant_id');
+    if (tenantId != null) {
+      _configSubscription?.cancel();
+      _configSubscription = getIt<TenantConfigDao>().watchConfig(tenantId).listen((config) {
+        if (config != null && mounted) {
+          setState(() {
+            if (config.primaryColor != null) {
+              _primaryColor = Color(config.primaryColor!);
+            }
+            if (config.secondaryColor != null) {
+              _secondaryColor = Color(config.secondaryColor!);
+            }
+          });
+        }
+      });
+    }
   }
 
   Future<void> _generateOrderId() async {
     try {
       final orderBloc = context.read<OrderBloc>();
       final orderId = await orderBloc.generateOrderIdUseCase();
-      
+
       if (mounted) {
         setState(() {
           generatedOrderId = orderId;
@@ -55,7 +90,8 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          generatedOrderId = 'ORD${DateTime.now().millisecondsSinceEpoch % 10000}';
+          generatedOrderId =
+              'ORD${DateTime.now().millisecondsSinceEpoch % 10000}';
           isGeneratingOrderId = false;
         });
       }
@@ -81,7 +117,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
             ),
           ),
           centerTitle: true,
-          backgroundColor: const Color(0xFF006838),
+          backgroundColor: _primaryColor,
           foregroundColor: Colors.white,
           elevation: 0,
           automaticallyImplyLeading: false,
@@ -98,10 +134,10 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
               timestamp: DateTime.now(),
               status: AppConstants.statusPaid,
             );
-            
+
             context.read<OrderBloc>().add(CreateOrder(order));
             context.read<CartBloc>().add(const ClearCart());
-            
+
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -115,7 +151,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
             setState(() {
               errorMessage = state.message;
             });
-            
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
@@ -160,7 +196,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
             height: screenHeight * 0.12,
             child: CircularProgressIndicator(
               strokeWidth: 6,
-              color: const Color(0xFF006838),
+              color: _primaryColor,
             ),
           ),
           SizedBox(height: screenHeight * 0.04),
@@ -182,14 +218,14 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
             textAlign: TextAlign.center,
           ),
           if (!isGeneratingOrderId && generatedOrderId != null) ...[
-            SizedBox(height: screenHeight * 0.03),
+            SizedBox(height: screenHeight * 0.01),
             Container(
               padding: EdgeInsets.symmetric(
                 horizontal: screenWidth * 0.03,
                 vertical: screenHeight * 0.02,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFF006838),
+                color: _primaryColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -213,6 +249,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
                       color: Colors.white,
                       letterSpacing: 2,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -243,9 +280,9 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
                       _buildOrderBadge(screenHeight, screenWidth)
                     else
                       _buildLoadingBadge(screenHeight, screenWidth),
-                    
-                    SizedBox(height: screenHeight * 0.03),
-                    
+
+                    SizedBox(height: screenHeight * 0.01),
+
                     // Title
                     Text(
                       'Enter M-pesa Phone Number',
@@ -256,19 +293,19 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    
+
                     SizedBox(height: screenHeight * 0.025),
-                    
+
                     // Phone Number Display
                     _buildPhoneDisplay(screenHeight, screenWidth),
-                    
+
                     SizedBox(height: screenHeight * 0.025),
-                    
+
                     // Numpad
                     _buildNumpad(screenHeight, screenWidth),
-                    
+
                     SizedBox(height: screenHeight * 0.025),
-                    
+
                     // Total Display
                     _buildTotalDisplay(screenHeight, screenWidth),
                   ],
@@ -288,7 +325,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
         vertical: screenHeight * 0.015,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFF006838),
+        color: _primaryColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -298,10 +335,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
             'assets/images/OrderIcon.svg',
             width: screenHeight * 0.03,
             height: screenHeight * 0.03,
-            colorFilter: const ColorFilter.mode(
-              Colors.white,
-              BlendMode.srcIn,
-            ),
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
           SizedBox(width: screenWidth * 0.008),
           Text(
@@ -312,6 +346,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
               color: Colors.white,
               letterSpacing: 2,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -346,6 +381,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
               fontSize: screenHeight * 0.018,
               color: Colors.grey[700],
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -378,7 +414,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
             ),
           ),
         ),
-        
+
         // Error Message Display
         if (errorMessage != null) ...[
           SizedBox(height: screenHeight * 0.012),
@@ -391,10 +427,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
             decoration: BoxDecoration(
               color: Colors.red[50],
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: Colors.red[300]!,
-                width: 1.5,
-              ),
+              border: Border.all(color: Colors.red[300]!, width: 1.5),
             ),
             child: Row(
               children: [
@@ -430,15 +463,15 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
           // Row 1-3
           _buildNumpadRow(['1', '2', '3'], screenHeight, screenWidth),
           SizedBox(height: screenHeight * 0.012),
-          
+
           // Row 4-6
           _buildNumpadRow(['4', '5', '6'], screenHeight, screenWidth),
           SizedBox(height: screenHeight * 0.012),
-          
+
           // Row 7-9
           _buildNumpadRow(['7', '8', '9'], screenHeight, screenWidth),
           SizedBox(height: screenHeight * 0.012),
-          
+
           // Bottom row: Delete, 0, Pay
           Row(
             children: [
@@ -450,16 +483,10 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
                 ),
               ),
               SizedBox(width: screenWidth * 0.012),
-              Expanded(
-                child: _buildNumpadButton('0', screenHeight),
-              ),
+              Expanded(child: _buildNumpadButton('0', screenHeight)),
               SizedBox(width: screenWidth * 0.012),
               Expanded(
-                child: _buildNumpadButton(
-                  'PAY',
-                  screenHeight,
-                  isConfirm: true,
-                ),
+                child: _buildNumpadButton('PAY', screenHeight, isConfirm: true),
               ),
             ],
           ),
@@ -468,14 +495,16 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
     );
   }
 
-  Widget _buildNumpadRow(List<String> values, double screenHeight, double screenWidth) {
+  Widget _buildNumpadRow(
+    List<String> values,
+    double screenHeight,
+    double screenWidth,
+  ) {
     return Row(
       children: [
         for (int i = 0; i < values.length; i++) ...[
           if (i > 0) SizedBox(width: screenWidth * 0.012),
-          Expanded(
-            child: _buildNumpadButton(values[i], screenHeight),
-          ),
+          Expanded(child: _buildNumpadButton(values[i], screenHeight)),
         ],
       ],
     );
@@ -491,7 +520,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
       onPressed: () {
         setState(() {
           errorMessage = null;
-          
+
           if (isBackspace) {
             if (phoneNumber.isNotEmpty) {
               phoneNumber = phoneNumber.substring(0, phoneNumber.length - 1);
@@ -504,17 +533,13 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
         });
       },
       style: ElevatedButton.styleFrom(
-        backgroundColor: isConfirm 
-            ? const Color(0xFF006838)
-            : isBackspace 
-                ? const Color(0xFFFF7F50)
-                : Colors.white,
-        foregroundColor: isConfirm || isBackspace
-            ? Colors.white
-            : Colors.black,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        backgroundColor: isConfirm
+            ? _primaryColor
+            : isBackspace
+            ? _secondaryColor
+            : Colors.white,
+        foregroundColor: isConfirm || isBackspace ? Colors.white : Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: EdgeInsets.symmetric(vertical: screenHeight * 0.022),
         elevation: 0,
         side: BorderSide(
@@ -537,7 +562,9 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
           : Text(
               value,
               style: TextStyle(
-                fontSize: isConfirm ? screenHeight * 0.026 : screenHeight * 0.028,
+                fontSize: isConfirm
+                    ? screenHeight * 0.026
+                    : screenHeight * 0.028,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -557,20 +584,24 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            'TOTAL',
-            style: TextStyle(
-              fontSize: screenHeight * 0.026,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          Expanded(
+            child: Text(
+              'TOTAL',
+              style: TextStyle(
+                fontSize: screenHeight * 0.026,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             'KSH. ${widget.total.toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: screenHeight * 0.026,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFFFF7F50),
+              color: _secondaryColor,
             ),
           ),
         ],

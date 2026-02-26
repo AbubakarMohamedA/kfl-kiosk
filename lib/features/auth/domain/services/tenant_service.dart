@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tier.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
+import 'package:kfm_kiosk/core/database/daos/tenants_dao.dart';
+import 'package:kfm_kiosk/core/database/daos/tiers_dao.dart';
+import 'package:kfm_kiosk/core/database/daos/branches_dao.dart';
 
 class TenantService {
   // Singleton pattern for simple state management in this phase
@@ -9,205 +12,195 @@ class TenantService {
   factory TenantService() => _instance;
   TenantService._internal();
 
-  final List<Tier> _tiers = [
-    const Tier(
-      id: 'standard',
-      name: 'Standard',
-      enabledFeatures: ['orders', 'history'],
-      description: 'Basic access for small businesses',
-    ),
-    const Tier(
-      id: 'premium',
-      name: 'Premium',
-      enabledFeatures: ['orders', 'history', 'insights', 'warehouse'],
-      description: 'Full access for enterprise clients',
-    ),
-    const Tier(
-      id: 'alone',
-      name: 'Alone',
-      enabledFeatures: ['orders', 'history'],
-      allowUpdates: false,
-      immuneToBlocking: true,
-      description: 'Offline-like mode: No updates, immune to blocking',
-    ),
-    const Tier(
-      id: 'enterprise',
-      name: 'Enterprise',
-      enabledFeatures: ['orders', 'history', 'insights', 'warehouse', 'branches'],
-      description: 'Multi-branch management with dedicated dashboards',
-    ),
-  ];
+  TenantsDao? _tenantsDao;
+  TiersDao? _tiersDao;
+  BranchesDao? _branchesDao;
 
-  final List<Tenant> _tenants = [
-    // Super Admin Account
-    Tenant(
-      id: 'SUPER_ADMIN',
-      name: 'System Administrator',
-      businessName: 'SSS Kiosk System',
-      email: 'admin@sss.com',
-      phone: '+254000000000',
-      status: 'Active',
-      tierId: 'premium',
-      createdDate: DateTime(2023, 1, 1),
-      lastLogin: DateTime.now(),
-      ordersCount: 0,
-      revenue: 0.0,
-      isMaintenanceMode: false,
-      enabledFeatures: ['orders', 'history', 'insights', 'warehouse'],
-    ),
-    Tenant(
-      id: 'TEN001',
-      name: 'John Mwangi',
-      businessName: 'Mwangi Flour Distributors',
-      email: 'client1@gmail.com',
-      phone: '+254712345678',
-      status: 'Active',
-      tierId: 'enterprise',
-      createdDate: DateTime(2024, 1, 15),
-      lastLogin: DateTime.now().subtract(const Duration(hours: 2)),
-      ordersCount: 156,
-      revenue: 2500000.0,
-      isMaintenanceMode: false,
-    ),
-    Tenant(
-      id: 'TEN002',
-      name: 'Mary Wanjiru',
-      businessName: 'Wanjiru General Store',
-      email: 'client2@gmail.com',
-      phone: '+254723456789',
-      status: 'Active',
-      tierId: 'standard',
-      createdDate: DateTime(2024, 2, 20),
-      lastLogin: DateTime.now().subtract(const Duration(days: 1)),
-      ordersCount: 89,
-      revenue: 1200000.0,
-      isMaintenanceMode: false,
-    ),
-    Tenant(
-      id: 'TEN003',
-      name: 'Peter Ochieng',
-      businessName: 'Ochieng Bakery Supplies',
-      email: 'client3@gmail.com',
-      phone: '+254734567890',
-      status: 'Inactive',
-      tierId: 'standard',
-      createdDate: DateTime(2024, 3, 10),
-      lastLogin: DateTime.now().subtract(const Duration(days: 30)),
-      ordersCount: 45,
-      revenue: 650000.0,
-      isMaintenanceMode: false,
-    ),
-    Tenant(
-      id: 'TEN004',
-      name: 'Grace Akinyi',
-      businessName: 'Grace Kitchen Essentials',
-      email: 'client4@gmail.com',
-      phone: '+254745678901',
-      status: 'Active',
-      tierId: 'premium',
-      createdDate: DateTime(2024, 4, 5),
-      lastLogin: DateTime.now().subtract(const Duration(hours: 5)),
-      ordersCount: 212,
-      revenue: 3100000.0,
-      isMaintenanceMode: false,
-    ),
-    Tenant(
-      id: 'TEN005',
-      name: 'David Kiprop',
-      businessName: 'Kiprop Oil & Flour',
-      email: 'client5@gmail.com',
-      phone: '+254756789012',
-      status: 'Pending',
-      tierId: 'standard',
-      createdDate: DateTime(2024, 5, 1),
-      lastLogin: null,
-      ordersCount: 0,
-      revenue: 0.0,
-      isMaintenanceMode: false,
-    ),
-    Tenant(
-      id: 'TEN007',
-      name: 'David Kiprop',
-      businessName: 'Kiprop Oil & Flour',
-      email: 'client7@gmail.com',
-      phone: '+254756789012',
-      status: 'Active',
-      tierId: 'alone',
-      createdDate: DateTime(2024, 5, 1),
-      lastLogin: DateTime.now().subtract(const Duration(hours: 3)),
-      ordersCount: 0,
-      revenue: 0.0,
-      isMaintenanceMode: false,
-    ),
-  ];
+  void setTenantsDao(TenantsDao dao) => _tenantsDao = dao;
+  void setTiersDao(TiersDao dao) => _tiersDao = dao;
+  void setBranchesDao(BranchesDao dao) => _branchesDao = dao;
 
-  List<Tenant> getTenants() {
-    return List.unmodifiable(_tenants);
-  }
+  final List<Tier> _cacheTiers = [];
+  final List<Tenant> _cacheTenants = [];
 
-  void addTenant(Tenant tenant) {
-    _tenants.add(tenant);
-  }
+  Future<void> initialize() async {
+    if (_tenantsDao == null || _tiersDao == null) return;
 
-  void updateTenant(Tenant updatedTenant) {
-    final index = _tenants.indexWhere((t) => t.id == updatedTenant.id);
-    if (index != -1) {
-      _tenants[index] = updatedTenant;
+    // Load Tiers
+    final dbTiers = await _tiersDao!.getAllTiers();
+    if (dbTiers.isEmpty) {
+      // Seed default tiers
+      final defaults = [
+        const Tier(
+          id: 'standard',
+          name: 'Standard',
+          enabledFeatures: ['orders', 'history', 'products'],
+          description: 'Basic access for small businesses',
+        ),
+        const Tier(
+          id: 'premium',
+          name: 'Premium',
+          enabledFeatures: ['orders', 'history', 'insights', 'warehouse', 'products'],
+          description: 'Full access for enterprise clients',
+        ),
+        const Tier(
+          id: 'alone',
+          name: 'Alone',
+          enabledFeatures: ['orders', 'history', 'products'],
+          allowUpdates: false,
+          immuneToBlocking: true,
+          description: 'Offline-like mode: No updates, immune to blocking',
+        ),
+        const Tier(
+          id: 'enterprise',
+          name: 'Enterprise',
+          enabledFeatures: ['orders', 'history', 'insights', 'warehouse', 'branches', 'products'],
+          description: 'Multi-branch management with dedicated dashboards',
+        ),
+      ];
+      for (final t in defaults) {
+        await _tiersDao!.saveTier(t);
+      }
+      _cacheTiers.addAll(defaults);
+    } else {
+      _cacheTiers.addAll(dbTiers);
+      
+      // Migration: Ensure 'products' feature is added to standard/premium/enterprise tiers if missing
+      // This handles the case where DB was seeded before 'products' feature was added
+      bool needsMigration = false;
+      for (var i = 0; i < _cacheTiers.length; i++) {
+        final tier = _cacheTiers[i];
+        if (['standard', 'premium', 'enterprise', 'alone'].contains(tier.id)) {
+          if (!tier.enabledFeatures.contains('products')) {
+            final updatedFeatures = List<String>.from(tier.enabledFeatures)..add('products');
+            final updatedTier = tier.copyWith(enabledFeatures: updatedFeatures);
+            _cacheTiers[i] = updatedTier;
+            await _tiersDao!.saveTier(updatedTier); // Persist update
+            needsMigration = true;
+          }
+        }
+      }
+      if (needsMigration) {
+        debugPrint('TenantService: Migrated tiers to include products feature');
+      }
+    }
+
+    // Load Tenants
+    final dbTenants = await _tenantsDao!.getAllTenants();
+    if (dbTenants.isEmpty) {
+      // Seed Super Admin
+      final admin = Tenant(
+        id: 'SUPER_ADMIN',
+        name: 'System Administrator',
+        businessName: 'SSS Kiosk System',
+        email: 'admin@sss.com',
+        phone: '+254000000000',
+        status: 'Active',
+        tierId: 'premium',
+        createdDate: DateTime(2023, 1, 1),
+        lastLogin: DateTime.now(),
+        ordersCount: 0,
+        revenue: 0.0,
+        isMaintenanceMode: false,
+        enabledFeatures: ['orders', 'history', 'insights', 'warehouse', 'products'],
+      );
+      await _tenantsDao!.saveTenant(admin);
+      _cacheTenants.add(admin);
+    } else {
+      _cacheTenants.addAll(dbTenants);
+      
+      // Migration: Ensure existing tenants (especially admin) have 'products'
+      for (var i = 0; i < _cacheTenants.length; i++) {
+        final tenant = _cacheTenants[i];
+        // For Super Admin, ensure they have it
+        if (tenant.id == 'SUPER_ADMIN' && !tenant.enabledFeatures.contains('products')) {
+           final updatedFeatures = List<String>.from(tenant.enabledFeatures)..add('products');
+           final updatedTenant = tenant.copyWith(enabledFeatures: updatedFeatures);
+           _cacheTenants[i] = updatedTenant;
+           await _tenantsDao!.saveTenant(updatedTenant);
+        }
+      }
     }
   }
 
-  void deleteTenant(String id) {
-    _tenants.removeWhere((t) => t.id == id);
+  List<Tenant> getTenants() => List.unmodifiable(_cacheTenants);
+
+  Future<void> addTenant(Tenant tenant) async {
+    if (_tenantsDao != null) {
+      await _tenantsDao!.saveTenant(tenant);
+      _cacheTenants.add(tenant);
+    }
+  }
+
+  Future<void> updateTenant(Tenant updatedTenant) async {
+    if (_tenantsDao != null) {
+      await _tenantsDao!.saveTenant(updatedTenant);
+      final index = _cacheTenants.indexWhere((t) => t.id == updatedTenant.id);
+      if (index != -1) {
+        _cacheTenants[index] = updatedTenant;
+      }
+    }
+  }
+
+  Future<void> deleteTenant(String id) async {
+    if (_tenantsDao != null) {
+      await _tenantsDao!.deleteTenant(id);
+      _cacheTenants.removeWhere((t) => t.id == id);
+    }
   }
 
   // Tier Management
-  List<Tier> getTiers() {
-    return List.unmodifiable(_tiers);
-  }
+  List<Tier> getTiers() => List.unmodifiable(_cacheTiers);
 
   Tier? getTierById(String id) {
     try {
-      return _tiers.firstWhere((t) => t.id == id);
+      return _cacheTiers.firstWhere((t) => t.id == id);
     } catch (e) {
       return null;
     }
   }
 
-  void addTier(Tier tier) {
-    if (!_tiers.any((t) => t.id == tier.id)) {
-      _tiers.add(tier);
+  Future<void> addTier(Tier tier) async {
+    if (_tiersDao != null && !_cacheTiers.any((t) => t.id == tier.id)) {
+      await _tiersDao!.saveTier(tier);
+      _cacheTiers.add(tier);
     }
   }
 
-  void updateTier(Tier tier) {
-    final index = _tiers.indexWhere((t) => t.id == tier.id);
-    if (index != -1) {
-      _tiers[index] = tier;
+  Future<void> updateTier(Tier tier) async {
+    if (_tiersDao != null) {
+      await _tiersDao!.saveTier(tier);
+      final index = _cacheTiers.indexWhere((t) => t.id == tier.id);
+      if (index != -1) {
+        _cacheTiers[index] = tier;
+      }
     }
   }
 
-  void deleteTier(String id) {
-    // Prevent deleting default tiers if needed, or if assigned to tenants
-    _tiers.removeWhere((t) => t.id == id);
+  Future<void> deleteTier(String id) async {
+    if (_tiersDao != null) {
+      await _tiersDao!.deleteTier(id);
+      _cacheTiers.removeWhere((t) => t.id == id);
+    }
   }
 
   Map<String, dynamic> getStats() {
-    final totalRevenue = _tenants.fold<double>(0, (sum, t) => sum + t.revenue);
-    final totalOrders = _tenants.fold<int>(0, (sum, t) => sum + t.ordersCount);
-    final activeTenants = _tenants.where((t) => t.status == 'Active').length;
+    final totalRevenue = _cacheTenants.fold<double>(0, (sum, t) => sum + t.revenue);
+    final totalOrders = _cacheTenants.fold<int>(0, (sum, t) => sum + t.ordersCount);
+    final activeTenants = _cacheTenants.where((t) => t.status == 'Active').length;
     
     return {
       'totalRevenue': totalRevenue,
       'totalOrders': totalOrders,
       'activeTenants': activeTenants,
-      'avgRevenue': _tenants.isEmpty ? 0.0 : totalRevenue / _tenants.length,
+      'avgRevenue': _cacheTenants.isEmpty ? 0.0 : totalRevenue / _cacheTenants.length,
     };
   }
 
   // Feature Gating Logic
   bool canAccessFeature(String tenantId, String feature) {
     try {
-      final tenant = _tenants.firstWhere((t) => t.id == tenantId);
+      final tenant = _cacheTenants.firstWhere((t) => t.id == tenantId);
       
       // Check specific enabled features on tenant level first
       if (tenant.enabledFeatures.contains(feature)) {
@@ -237,14 +230,19 @@ class TenantService {
     'warehouse': false,
     'settings': false,
     'enterprise_dashboard': false,
+    'products': false,
   };
 
   bool get isMaintenanceMode => _isMaintenanceMode;
 
-  void setTenantMaintenanceMode(String tenantId, bool enabled) {
-     final index = _tenants.indexWhere((t) => t.id == tenantId);
+  void setTenantMaintenanceMode(String tenantId, bool enabled) async {
+     final index = _cacheTenants.indexWhere((t) => t.id == tenantId);
      if (index != -1) {
-       _tenants[index] = _tenants[index].copyWith(isMaintenanceMode: enabled);
+       final updated = _cacheTenants[index].copyWith(isMaintenanceMode: enabled);
+       _cacheTenants[index] = updated;
+       if (_tenantsDao != null) {
+         await _tenantsDao!.saveTenant(updated);
+       }
      }
   }
 
@@ -265,9 +263,9 @@ class TenantService {
   /// Check if a tenant has immunity to blocking
   bool isTenantImmune(String tenantId, {String? fallbackTierId}) {
     try {
-      // Try to find tenant in memory
+      // Try to find tenant in cache
       try {
-        final tenant = _tenants.firstWhere((t) => t.id == tenantId);
+        final tenant = _cacheTenants.firstWhere((t) => t.id == tenantId);
         
         // 1. Tenant Override
         if (tenant.immuneToBlocking != null) {
@@ -278,7 +276,7 @@ class TenantService {
         final tier = getTierById(tenant.tierId);
         return tier?.immuneToBlocking ?? false;
       } catch (e) {
-        // Tenant not found in memory
+        // Tenant not found in cache
         if (fallbackTierId != null) {
           final tier = getTierById(fallbackTierId);
           return tier?.immuneToBlocking ?? false;
@@ -293,7 +291,7 @@ class TenantService {
   /// Check if a tenant can receive updates
   bool isTenantAllowedUpdates(String tenantId) {
     try {
-      final tenant = _tenants.firstWhere((t) => t.id == tenantId);
+      final tenant = _cacheTenants.firstWhere((t) => t.id == tenantId);
       
       // 1. Tenant Override
       if (tenant.allowUpdate != null) {
@@ -328,7 +326,7 @@ class TenantService {
       
       // Try to get tenant for status check
       try {
-        final tenant = _tenants.firstWhere((t) => t.id == tenantId);
+        final tenant = _cacheTenants.firstWhere((t) => t.id == tenantId);
         
         // 2. Tenant Specific Maintenance Check (Overrides Global if immune? No, distinct)
         // If tenant is manually set to maintenance, they should be blocked unless immune?
@@ -355,7 +353,7 @@ class TenantService {
 
   bool isTenantEnabled(String tenantId) {
      try {
-       final tenant = _tenants.firstWhere((t) => t.id == tenantId);
+       final tenant = _cacheTenants.firstWhere((t) => t.id == tenantId);
        final tier = getTierById(tenant.tierId);
        
        if (tier?.immuneToBlocking == true) return true;
@@ -371,7 +369,7 @@ class TenantService {
     try {
       // Password is treated as Tenant ID for clients
       // Super Admin uses specific ID
-      final tenant = _tenants.firstWhere(
+      final tenant = _cacheTenants.firstWhere(
         (t) => t.email.toLowerCase() == email.toLowerCase() && t.id == password,
       );
       return tenant;
@@ -384,17 +382,20 @@ class TenantService {
     return tenantId == 'SUPER_ADMIN';
   }
 
-  void completeLogin(String tenantId) {
-    final index = _tenants.indexWhere((t) => t.id == tenantId);
+  void completeLogin(String tenantId) async {
+    final index = _cacheTenants.indexWhere((t) => t.id == tenantId);
     if (index != -1) {
-      final updated = _tenants[index].copyWith(lastLogin: DateTime.now());
-      _tenants[index] = updated;
+      final updated = _cacheTenants[index].copyWith(lastLogin: DateTime.now());
+      _cacheTenants[index] = updated;
+      if (_tenantsDao != null) {
+        await _tenantsDao!.saveTenant(updated);
+      }
     }
   }
 
   bool isFirstLogin(String tenantId) {
     try {
-      final tenant = _tenants.firstWhere((t) => t.id == tenantId);
+      final tenant = _cacheTenants.firstWhere((t) => t.id == tenantId);
       return tenant.lastLogin == null;
     } catch (e) {
       return false;
@@ -403,8 +404,8 @@ class TenantService {
 
   @visibleForTesting
   void resetForTesting() {
-    _tiers.clear();
-    _tiers.addAll([
+    _cacheTiers.clear();
+    _cacheTiers.addAll([
       const Tier(
         id: 'standard',
         name: 'Standard',
@@ -433,8 +434,8 @@ class TenantService {
       ),
     ]);
     
-    _tenants.clear();
-    _tenants.add(
+    _cacheTenants.clear();
+    _cacheTenants.add(
       Tenant(
         id: 'SUPER_ADMIN',
         name: 'System Administrator',
@@ -453,47 +454,51 @@ class TenantService {
     );
   }
   // Branch Management
-  final List<Branch> _branches = [
-    // Mock Data for "Mwangi Flour Distributors" (TEN001)
-    const Branch(
-      id: 'BR001',
-      tenantId: 'TEN001',
-      name: 'Nairobi CBD',
-      location: 'Moi Avenue',
-      contactPhone: '+254712345678',
-      managerName: 'James Kamau',
-      loginUsername: 'nairobi_cbd', // New
-      loginPassword: 'MAN001', // New
-    ),
-    const Branch(
-      id: 'BR002',
-      tenantId: 'TEN001',
-      name: 'Mombasa Road',
-      location: 'Industrial Area',
-      contactPhone: '+254722334455',
-      managerName: 'Sarah Njoroge',
-      loginUsername: 'mombasa_rd', // New
-      loginPassword: 'MAN002', // New
-    ),
-  ];
 
-  List<Branch> getBranchesForTenant(String tenantId) {
-    return _branches.where((b) => b.tenantId == tenantId).toList();
+  Future<List<Branch>> getBranchesForTenant(String tenantId) async {
+    if (_branchesDao != null) {
+      return await _branchesDao!.getBranchesForTenant(tenantId);
+    }
+    return [];
   }
   
-  void addBranch(Branch branch) {
-    _branches.add(branch);
+  Future<void> addBranch(Branch branch) async {
+    if (_branchesDao != null) {
+      await _branchesDao!.saveBranch(branch);
+    }
   }
   
-  void updateBranch(Branch branch) {
-    final index = _branches.indexWhere((b) => b.id == branch.id);
-    if (index != -1) {
-      _branches[index] = branch;
+  Future<void> updateBranch(Branch branch) async {
+    // Save handles update on conflict
+    if (_branchesDao != null) {
+      await _branchesDao!.saveBranch(branch);
     }
   }
 
-  void deleteBranch(String branchId) {
-    _branches.removeWhere((b) => b.id == branchId);
+  Future<void> deleteBranch(String branchId) async {
+    if (_branchesDao != null) {
+      await _branchesDao!.deleteBranch(branchId);
+    }
+  }
+
+  // Helper to find branch by ID - This becomes async
+  Future<Branch?> getBranchById(String branchId) async {
+    if (_branchesDao != null) {
+      return await _branchesDao!.getBranchById(branchId);
+    }
+    return null; 
+  }
+
+  // Helper to find tenant for a branch
+  Future<Tenant?> getTenantForBranch(String branchId) async {
+    final branch = await getBranchById(branchId);
+    if (branch == null) return null;
+    
+    try {
+      return _cacheTenants.firstWhere((t) => t.id == branch.tenantId);
+    } catch (_) {
+      return null;
+    }
   }
 }
 

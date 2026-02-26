@@ -9,6 +9,8 @@ class Product extends Equatable {
   final String category;
   final String description;
   final String imageUrl;
+  final String? tenantId;
+  final String? branchId;
 
   const Product({
     required this.id,
@@ -19,6 +21,8 @@ class Product extends Equatable {
     required this.category,
     required this.description,
     required this.imageUrl,
+    this.tenantId,
+    this.branchId,
   });
 
   Product copyWith({
@@ -30,6 +34,8 @@ class Product extends Equatable {
     String? category,
     String? description,
     String? imageUrl,
+    String? tenantId,
+    String? branchId,
   }) {
     return Product(
       id: id ?? this.id,
@@ -40,6 +46,8 @@ class Product extends Equatable {
       category: category ?? this.category,
       description: description ?? this.description,
       imageUrl: imageUrl ?? this.imageUrl,
+      tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
     );
   }
 
@@ -54,6 +62,8 @@ class Product extends Equatable {
       'category': category,
       'description': description,
       'imageUrl': imageUrl,
+      'tenantId': tenantId,
+      'branchId': branchId,
     };
   }
 
@@ -68,6 +78,8 @@ class Product extends Equatable {
       category: map['category'] as String,
       description: map['description'] as String,
       imageUrl: map['imageUrl'] as String,
+      tenantId: map['tenantId'] as String?,
+      branchId: map['branchId'] as String?,
     );
   }
 
@@ -81,10 +93,12 @@ class Product extends Equatable {
     category,
     description,
     imageUrl,
+    tenantId,
+    branchId,
   ];
 
   @override
   String toString() {
-    return 'Product(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl)';
+    return 'Product(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl, tenantId: $tenantId, branchId: $branchId)';
   }
 }

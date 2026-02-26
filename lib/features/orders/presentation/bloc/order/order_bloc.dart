@@ -112,8 +112,17 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     emit(const OrderCreating());
     try {
       final currentTenant = await authRepository.getCurrentTenant();
-      final tenantId = currentTenant?.id;
-      final orderWithTenant = event.order.copyWith(tenantId: tenantId);
+      final config = await configurationRepository.getConfiguration();
+      
+      // Tablets don't have an authenticated `currentTenant`, so fallback to the synced config
+      final tenantId = currentTenant?.id ?? config.tenantId;
+      // Enforce that branch IDs are only applicable to the Enterprise tier
+      final branchId = config.tierId == 'enterprise' ? config.branchId : null;
+      
+      final orderWithTenant = event.order.copyWith(
+        tenantId: tenantId, 
+        branchId: branchId,
+      );
       
       final orderId = await createOrderUseCase(orderWithTenant);
       emit(OrderCreated(
@@ -232,7 +241,7 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
         final updatedOrders = currentState.orders.map((order) {
           if (order.id == event.orderId) {
             return order.updateWarehouseItemsStatus(
-              event.warehouseCategory,
+              event.warehouseCategories,
               event.newStatus,
             );
           }

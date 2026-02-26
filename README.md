@@ -8,7 +8,7 @@
 ![Architecture](https://img.shields.io/badge/architecture-Clean%20%2B%20BLoC-orange)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**An enterprise-grade, multi-tenant self-service kiosk solution for Kitui Flour Mills**
+**An enterprise-grade, multi-tenant self-service kiosk solution for SSS**
 
 [Features](#-features) • [Architecture](#-architecture) • [Local Sync](#-local-sync-system) • [Installation](#-installation) • [Super Admin](#-super-admin-panel)
 
@@ -40,7 +40,7 @@
 
 ## 🎯 Overview
 
-The **KFM Self-Service Kiosk** is a robust point-of-sale ecosystem designed to streamline operations for Kitui Flour Mills and its distributors. Unlike traditional standalone kiosks, this system is built with **Multi-Tenancy** at its core, allowing a single codebase to serve multiple business entities (Tenants) with strict data isolation.
+The **KFM Self-Service Kiosk** is a robust point-of-sale ecosystem designed to streamline operations for SSS and its distributors. Unlike traditional standalone kiosks, this system is built with **Multi-Tenancy** at its core, allowing a single codebase to serve multiple business entities (Tenants) with strict data isolation.
 
 It features a **Local Synchronization Engine** that enables multiple devices (e.g., a customer-facing kiosk and a staff processing unit) to communicate and sync orders in real-time over a local network, ensuring business continuity even without an active internet connection.
 

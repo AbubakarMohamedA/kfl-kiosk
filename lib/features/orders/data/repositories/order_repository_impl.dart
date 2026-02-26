@@ -53,13 +53,13 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<int> getOrderCounter({String? tenantId}) async {
-    return await _dataSource.getOrderCounter(tenantId: tenantId);
+  Future<int> getOrderCounter({String? tenantId, String? branchId}) async {
+    return await _dataSource.getOrderCounter(tenantId: tenantId, branchId: branchId);
   }
 
   @override
-  Future<void> incrementOrderCounter({String? tenantId}) async {
-    await _dataSource.incrementOrderCounter(tenantId: tenantId);
+  Future<void> incrementOrderCounter({String? tenantId, String? branchId}) async {
+    await _dataSource.incrementOrderCounter(tenantId: tenantId, branchId: branchId);
   }
 
   @override

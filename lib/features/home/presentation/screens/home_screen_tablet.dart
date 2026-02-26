@@ -1,12 +1,22 @@
+import 'dart:io';
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:kfm_kiosk/core/database/app_database.dart';
 import 'package:kfm_kiosk/features/orders/data/datasources/local_order_datasource.dart';
 import 'package:kfm_kiosk/di/injection.dart';
 import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
 import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_state.dart';
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/catalog_screen_tablet.dart';
 import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:kfm_kiosk/core/services/sync_service.dart';
+import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_bloc.dart';
+import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_event.dart';
 
 class HomeScreenTablet extends StatefulWidget {
   const HomeScreenTablet({super.key});
@@ -17,11 +27,80 @@ class HomeScreenTablet extends StatefulWidget {
 
 class _HomeScreenTabletState extends State<HomeScreenTablet> {
   bool _isConnected = false;
+  
+  String? _backgroundPath;
+  String? _logoPath;
+  Color _primaryColor = const Color(0xFF1B7A43);
+  String _terminalName = '';
+  StreamSubscription<TenantConfig?>? _configSubscription;
+  int _cloudTapCount = 0;
+  Timer? _tapResetTimer;
 
   @override
   void initState() {
     super.initState();
     _checkConnection();
+    _autoConnect();
+    _setupStream();
+  }
+
+  @override
+  void dispose() {
+    _configSubscription?.cancel();
+    _tapResetTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _setupStream() async {
+    final prefs = await SharedPreferences.getInstance();
+    final tenantId = prefs.getString('last_synced_tenant_id');
+    final tName = prefs.getString('terminal_name') ?? '';
+    
+    setState(() {
+       _terminalName = tName;
+    });
+
+    if (tenantId != null) {
+      _configSubscription?.cancel();
+      _configSubscription = getIt<TenantConfigDao>().watchConfig(tenantId).listen((config) async {
+        if (config != null && mounted) {
+          String? validBgPath = config.backgroundPath;
+          String? validLogoPath = config.logoPath;
+          
+          if (validLogoPath != null && validLogoPath.isNotEmpty) {
+            final file = File(validLogoPath);
+            if (!await file.exists()) {
+               validLogoPath = null;
+            }
+          }
+
+          setState(() {
+            _backgroundPath = validBgPath;
+            _logoPath = validLogoPath;
+            if (config.primaryColor != null) {
+              _primaryColor = Color(config.primaryColor!);
+            }
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _autoConnect() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedIp = prefs.getString('server_ip');
+    if (savedIp != null && savedIp.isNotEmpty) {
+      final syncService = getIt<SyncService>();
+      final result = await syncService.connectAndSync(savedIp);
+      if (mounted) {
+        setState(() {
+          _isConnected = result.success;
+        });
+        if (result.success) {
+          syncService.startAutoSync(savedIp);
+        }
+      }
+    }
   }
 
   void _checkConnection() {
@@ -31,13 +110,17 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
     });
   }
 
-  void _showServerUrlDialog() {
-    final orderDataSource = getIt<LocalOrderDataSource>();
-    final controller = TextEditingController(text: orderDataSource.serverUrl ?? '');
+  void _showServerUrlDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedIp = prefs.getString('server_ip') ?? '';
+    final controller = TextEditingController(text: savedIp);
+    final terminalController = TextEditingController(text: _terminalName);
+    
+    if (!mounted) return;
     
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
+      builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -46,7 +129,7 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1B7A43).withOpacity(0.1),
+                    color: const Color(0xFF1B7A43).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -64,14 +147,26 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
                 TextField(
                   controller: controller,
                   decoration: InputDecoration(
-                    labelText: 'Server URL',
-                    hintText: 'http://192.168.1.100:8080',
+                    labelText: 'Server IP Address',
+                    hintText: 'e.g. 192.168.1.10',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     prefixIcon: const Icon(Icons.link),
                   ),
                   keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: terminalController,
+                  decoration: InputDecoration(
+                    labelText: 'Terminal Name (Optional)',
+                    hintText: 'e.g. Kiosk 1',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.badge),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Container(
@@ -100,6 +195,7 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
                             color: _isConnected ? Colors.green[800] : Colors.orange[800],
                             fontSize: 13,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -114,26 +210,40 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  await orderDataSource.setServerUrl(controller.text);
-                  await Future.delayed(const Duration(seconds: 1));
+                  final ip = controller.text.trim();
+                  final tName = terminalController.text.trim();
+                  if (ip.isEmpty) return;
+
+                  if (tName.isNotEmpty) {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('terminal_name', tName);
+                  }
+
+                  final syncService = getIt<SyncService>();
+                  final result = await syncService.connectAndSync(ip);
                   
-                  setState(() {
-                    _isConnected = orderDataSource.isOnline;
-                  });
-                  setDialogState(() {});
-                  
-                  if (mounted) {
+                  if (context.mounted) {
+                    setState(() {
+                      _isConnected = result.success;
+                    });
+                    setDialogState(() {});
+                    
+                    if (result.success) {
+                      syncService.startAutoSync(ip);
+                      _setupStream(); // Register stream listener on fresh install
+                    }
+                    
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          orderDataSource.isOnline
+                          result.success
                               ? 'Connected to server!'
-                              : 'Could not connect. Check server.',
+                              : (result.troubleshootingStep ?? result.message),
                         ),
-                        backgroundColor: orderDataSource.isOnline ? Colors.green : Colors.red,
+                        backgroundColor: result.success ? Colors.green : Colors.red,
                       ),
                     );
-                    Navigator.pop(context);
+                    if (result.success) Navigator.pop(context);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -149,50 +259,6 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
     );
   }
 
-  void _showLoginDialog() {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tenant Login'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: passwordController,
-              decoration: const InputDecoration(labelText: 'Tenant ID'),
-              obscureText: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              context.read<AuthBloc>().add(
-                    LoginRequested(
-                      emailController.text,
-                      passwordController.text,
-                    ),
-                  );
-              Navigator.pop(context);
-            },
-            child: const Text('Login'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -212,17 +278,22 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
       },
       child: Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF1B7A43), // Base green color
+        decoration: BoxDecoration(
+          color: _primaryColor, // Base green color or custom from config
         ),
         child: Stack(
           children: [
             // Pattern background
             Positioned.fill(
-              child: SvgPicture.asset(
-                'assets/images/Pattern.svg',
-                fit: BoxFit.cover,
-              ),
+              child: _backgroundPath != null && _backgroundPath!.isNotEmpty && _backgroundPath!.endsWith('.svg')
+                  ? SvgPicture.asset(
+                      _backgroundPath!,
+                      fit: BoxFit.cover,
+                    )
+                  : SvgPicture.asset(
+                      'assets/images/Pattern.svg',
+                      fit: BoxFit.cover,
+                    ),
             ),
             
             // Settings and Auth buttons at top right
@@ -233,68 +304,35 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Auth Status / Logout
-                    BlocBuilder<AuthBloc, AuthState>(
-                      builder: (context, state) {
-                        if (state is AuthAuthenticated) {
-                          return GestureDetector(
-                            onTap: () {
-                              context.read<AuthBloc>().add(LogoutRequested());
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.person, color: Colors.white, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    state.tenant.name,
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(Icons.logout, color: Colors.white70, size: 20),
-                                ],
-                              ),
-                            ),
-                          );
-                        }
-                        return GestureDetector(
-                          onTap: _showLoginDialog,
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 12),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withOpacity(0.3)),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.login, color: Colors.white, size: 20),
-                                SizedBox(width: 8),
-                                Text('Login', style: TextStyle(color: Colors.white)),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    
-                    // Connection Status & Settings
+                    // Connection Status & Settings (Login removed)
                     GestureDetector(
-                      onTap: _showServerUrlDialog,
+                      onTap: () {
+                        _tapResetTimer?.cancel();
+                        setState(() {
+                          _cloudTapCount++;
+                        });
+                        if (_cloudTapCount >= 5) {
+                          setState(() {
+                            _cloudTapCount = 0;
+                          });
+                          _showServerUrlDialog();
+                        } else {
+                          _tapResetTimer = Timer(const Duration(seconds: 2), () {
+                            if (mounted) {
+                              setState(() {
+                                _cloudTapCount = 0;
+                              });
+                            }
+                          });
+                        }
+                      },
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withValues(alpha: 0.3),
                             width: 1,
                           ),
                         ),
@@ -304,12 +342,6 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
                             Icon(
                               _isConnected ? Icons.cloud_done : Icons.cloud_off,
                               color: _isConnected ? Colors.greenAccent : Colors.white70,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.settings,
-                              color: Colors.white,
                               size: 24,
                             ),
                           ],
@@ -333,10 +365,21 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
                         // Logo at center above welcome text
                         SizedBox(
                           width: size.width * 0.15,
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            fit: BoxFit.contain,
-                          ),
+                          child: _logoPath != null && _logoPath!.isNotEmpty
+                              ? Image.file(
+                                  File(_logoPath!),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Image.asset(
+                                      'assets/images/logo.png',
+                                      fit: BoxFit.contain,
+                                    );
+                                  },
+                                )
+                              : Image.asset(
+                                  'assets/images/logo.png',
+                                  fit: BoxFit.contain,
+                                ),
                         ),
                         SizedBox(height: size.height * 0.04),
 
@@ -355,61 +398,50 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
                         ),
                         SizedBox(height: size.height * 0.05),
 
-                        // START ORDER BUTTON (Only if authenticated)
-                        BlocBuilder<AuthBloc, AuthState>(
-                          builder: (context, state) {
-                            if (state is! AuthAuthenticated) {
-                              return Text(
-                                'Please login to start taking orders',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: size.width * 0.02,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              );
-                            }
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CatalogScreenTablet(
-                                      language: languageState.languageCode,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: size.width * 0.08,
-                                  vertical: size.height * 0.025,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE8562A),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.2),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  languageState.translate('start_order'),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: size.width * 0.03,
-                                    fontStyle: FontStyle.italic,
-                                    fontFamily: 'Lato',
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1,
-                                  ),
+                        // START ORDER BUTTON (Now always visible)
+                        GestureDetector(
+                          onTap: () {
+                            // Refresh products before entering catalogue
+                            context.read<ProductBloc>().add(const LoadProducts());
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CatalogScreenTablet(
+                                  language: languageState.languageCode,
                                 ),
                               ),
                             );
                           },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: size.width * 0.08,
+                              vertical: size.height * 0.025,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8562A),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              languageState.translate('start_order'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: size.width * 0.03,
+                                fontStyle: FontStyle.italic,
+                                fontFamily: 'Lato',
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
                         ),
                         SizedBox(height: size.height * 0.03),
 

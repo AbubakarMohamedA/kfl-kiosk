@@ -898,6 +898,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -906,6 +907,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
                     fontSize: 12,
                     color: Colors.grey[600],
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -1029,6 +1031,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Text(
@@ -1037,6 +1040,7 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
               fontSize: 13,
               color: Colors.grey[600],
             ),
+            overflow: TextOverflow.ellipsis,
           ),
           const Spacer(),
           Row(

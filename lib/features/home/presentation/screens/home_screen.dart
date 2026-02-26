@@ -4,15 +4,19 @@ import 'package:kfm_kiosk/core/constants/app_constants.dart';
 import 'package:kfm_kiosk/di/injection.dart';
 import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
 import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel_desktop.dart';
-import 'package:kfm_kiosk/features/admin/presentation/screens/tenant_setup_screen.dart';
+
 import 'package:kfm_kiosk/core/presentation/widgets/responsive_wrapper.dart';
 import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_mobile.dart';
 import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_tablet.dart';
 import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_desktop.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_desktop.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen_desktop.dart';
+
+import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 import 'package:kfm_kiosk/features/settings/presentation/screens/maintenance_screen.dart';
+import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
+import 'package:kfm_kiosk/core/database/app_database.dart';
+import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -34,10 +38,10 @@ class HomeScreen extends StatelessWidget {
         // If not configured, show login/setup based on platform
         if (!config.isConfigured) {
            return ResponsiveWrapper(
-             mobile: const TenantSetupScreen(),
-             tablet: const TenantSetupScreen(),
-             desktop: const LoginScreenDesktop(),
-             web: const LoginScreenDesktop(),
+             mobile: const HomeScreenMobile(),
+             tablet: const HomeScreenTablet(),
+             desktop: const LoginScreen(),
+             web: const LoginScreen(),
            );
         }
 
@@ -54,12 +58,56 @@ class HomeScreen extends StatelessWidget {
         )) {
           return const MaintenanceScreen();
         }
+        
+        // If the configuration explicitly indicates we are in a Warehouse Session, restore it!
+        if (config.warehouseId != null && config.branchId != null) {
+          final warehouseService = WarehouseService(getIt<AppDatabase>());
+          return FutureBuilder<List<dynamic>>(
+            future: warehouseService.getWarehousesForBranch(config.branchId!),
+            builder: (context, whSnapshot) {
+              if (whSnapshot.connectionState == ConnectionState.waiting) {
+                return _buildLoadingScreen();
+              }
+              
+              final warehouses = whSnapshot.data ?? [];
+              final activeWarehouse = warehouses.cast().cast().firstWhere(
+                (w) => w.id == config.warehouseId,
+                orElse: () => null,
+              );
+              
+              if (activeWarehouse != null) {
+                return ResponsiveWrapper(
+                  mobile: const HomeScreenMobile(),
+                  tablet: const HomeScreenTablet(),
+                  desktop: StaffPanelWarehouse(warehouse: activeWarehouse),
+                  web: StaffPanelWarehouse(warehouse: activeWarehouse),
+                );
+              }
+              
+              // Fallback to desktop if the specific warehouse couldn't be loaded
+              return ResponsiveWrapper(
+                mobile: const HomeScreenMobile(),
+                tablet: const HomeScreenTablet(),
+                desktop: const StaffPanelDesktop(),
+                web: const HomeScreenDesktop(),
+              );
+            },
+          );
+        }
+
+        // Determine the approriate desktop and web screen based on setup
+        Widget desktopScreen;
+        if (config.tierId == 'enterprise' && config.branchId == null) {
+          desktopScreen = const EnterpriseDashboard();
+        } else {
+          desktopScreen = const StaffPanelDesktop();
+        }
 
         // If configured and allowed, show the main app
         return ResponsiveWrapper(
           mobile: const HomeScreenMobile(),
           tablet: const HomeScreenTablet(),
-          desktop: const StaffPanelDesktop(),
+          desktop: desktopScreen,
           // Web can use desktop version or have its own
           web: const HomeScreenDesktop(),
         );
@@ -76,7 +124,7 @@ class HomeScreen extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [
               const Color(AppColors.primaryBlue),
-              const Color(AppColors.primaryBlue).withOpacity(0.8),
+              const Color(AppColors.primaryBlue).withValues(alpha: 0.8),
               const Color(0xFF0A6F38),
             ],
           ),
@@ -88,7 +136,7 @@ class HomeScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Icon(
@@ -99,7 +147,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               const Text(
-                'KFL Kiosk',
+                'SSS Kiosk',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
@@ -120,7 +168,7 @@ class HomeScreen extends StatelessWidget {
                 'Loading...',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
               ),
             ],

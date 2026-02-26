@@ -7,8 +7,9 @@ import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_state.da
 
 class EnterpriseFeed extends StatelessWidget {
   final bool isDarkMode;
+  final DateTime selectedDate;
 
-  const EnterpriseFeed({super.key, required this.isDarkMode});
+  const EnterpriseFeed({super.key, required this.isDarkMode, required this.selectedDate});
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +22,10 @@ class EnterpriseFeed extends StatelessWidget {
         if (state is OrdersLoaded) {
           // Flatten latest orders
           final orders = List<Order>.from(state.orders)
+            .where((o) => o.timestamp.year == selectedDate.year &&
+                          o.timestamp.month == selectedDate.month &&
+                          o.timestamp.day == selectedDate.day)
+            .toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
             
           final latestOrders = orders.take(20).toList(); // Show last 20

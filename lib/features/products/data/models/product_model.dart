@@ -13,6 +13,8 @@ class ProductModel {
   final String category;
   final String description;
   final String imageUrl;
+  final String? tenantId;
+  final String? branchId;
 
   const ProductModel({
     required this.id,
@@ -23,6 +25,8 @@ class ProductModel {
     required this.category,
     required this.description,
     required this.imageUrl,
+    this.tenantId,
+    this.branchId,
   });
 
   // Factory constructor for creating a ProductModel from JSON
@@ -43,6 +47,8 @@ class ProductModel {
       category: category,
       description: description,
       imageUrl: imageUrl,
+      tenantId: tenantId,
+      branchId: branchId,
     );
   }
 
@@ -57,6 +63,8 @@ class ProductModel {
       category: product.category,
       description: product.description,
       imageUrl: product.imageUrl,
+      tenantId: product.tenantId,
+      branchId: product.branchId,
     );
   }
 
@@ -70,6 +78,8 @@ class ProductModel {
     String? category,
     String? description,
     String? imageUrl,
+    String? tenantId,
+    String? branchId,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -80,12 +90,14 @@ class ProductModel {
       category: category ?? this.category,
       description: description ?? this.description,
       imageUrl: imageUrl ?? this.imageUrl,
+      tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
     );
   }
 
   @override
   String toString() {
-    return 'ProductModel(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl)';
+    return 'ProductModel(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl, tenantId: $tenantId, branchId: $branchId)';
   }
 
   @override
@@ -100,7 +112,9 @@ class ProductModel {
         other.size == size &&
         other.category == category &&
         other.description == description &&
-        other.imageUrl == imageUrl;
+        other.imageUrl == imageUrl &&
+        other.tenantId == tenantId &&
+        other.branchId == branchId;
   }
 
   @override
@@ -112,6 +126,8 @@ class ProductModel {
         size.hashCode ^
         category.hashCode ^
         description.hashCode ^
-        imageUrl.hashCode;
+        imageUrl.hashCode ^
+        tenantId.hashCode ^
+        branchId.hashCode;
   }
 }
