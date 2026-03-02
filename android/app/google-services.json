@@ -23,6 +23,120 @@
           "other_platform_oauth_client": []
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876840743697:android:1a1aca7177542bcde612b0",
+        "android_client_info": {
+          "package_name": "com.example.kflkiosk.superadmin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKwtibcBxrFM7Zya2ICj1_J6cNK9uc0gg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876840743697:android:1a1aca7177542bcde612b0",
+        "android_client_info": {
+          "package_name": "com.example.kflkiosk.manager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKwtibcBxrFM7Zya2ICj1_J6cNK9uc0gg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876840743697:android:1a1aca7177542bcde612b0",
+        "android_client_info": {
+          "package_name": "com.example.kflkiosk.staff"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKwtibcBxrFM7Zya2ICj1_J6cNK9uc0gg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876840743697:android:1a1aca7177542bcde612b0",
+        "android_client_info": {
+          "package_name": "com.example.kflkiosk.warehouse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKwtibcBxrFM7Zya2ICj1_J6cNK9uc0gg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876840743697:android:1a1aca7177542bcde612b0",
+        "android_client_info": {
+          "package_name": "com.example.kflkiosk.dashboard"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKwtibcBxrFM7Zya2ICj1_J6cNK9uc0gg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876840743697:android:1a1aca7177542bcde612b0",
+        "android_client_info": {
+          "package_name": "com.example.kflkiosk.kiosk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKwtibcBxrFM7Zya2ICj1_J6cNK9uc0gg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"
