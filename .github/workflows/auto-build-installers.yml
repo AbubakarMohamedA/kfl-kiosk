@@ -115,7 +115,7 @@ jobs:
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           ENABLE_MANUAL_SIGNING: ${{ secrets.ENABLE_MANUAL_SIGNING }}
         run: |
-          $exePath = "build\windows\x64\runner\Release\$env:APP_NAME.exe"
+          $exePath = "build\windows\x64\runner\Release\$env:FLAVOR_APP_NAME.exe"
           
           # Check if automated signing is available
           if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
@@ -134,7 +134,7 @@ jobs:
               Write-Host "To sign manually:"
               Write-Host "1. Download the unsigned executable from artifacts"
               Write-Host "2. Sign it with your certificate using signtool:"
-              Write-Host "   signtool sign /f cert.pfx /p PASSWORD /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 $env:APP_NAME.exe"
+              Write-Host "   signtool sign /f cert.pfx /p PASSWORD /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 $env:FLAVOR_APP_NAME.exe"
               Write-Host "3. Re-upload the signed executable or configure automated signing"
               Write-Host ""
               Write-Host "To enable automated signing:"
@@ -236,8 +236,8 @@ jobs:
       - name: Save signed executable to artifacts
         shell: pwsh
         run: |
-          $exePath = "build\windows\x64\runner\Release\$env:APP_NAME.exe"
-          Copy-Item -Path $exePath -Destination "artifacts\$env:APP_NAME.exe"
+          $exePath = "build\windows\x64\runner\Release\$env:FLAVOR_APP_NAME.exe"
+          Copy-Item -Path $exePath -Destination "artifacts\$env:FLAVOR_APP_NAME.exe"
           Write-Host "✓ Executable saved to artifacts (signed or unsigned based on previous step)"
       
       - name: Install NSIS
@@ -363,9 +363,9 @@ jobs:
             '!include FileFunc.nsh'
             '!include LogicLib.nsh'
             ''
-            "Name `"$env:APP_NAME`""
+            "Name `"$env:FLAVOR_APP_NAME`""
             "OutFile `"$distDir\$env:FLAVOR_APP_NAME-$env:VERSION-Setup.exe`""
-            'InstallDir "$PROGRAMFILES\' + $env:APP_NAME + '"'
+            'InstallDir "$PROGRAMFILES\' + $env:FLAVOR_APP_NAME + '"'
             'RequestExecutionLevel admin'
             ''
             'CRCCheck on'
@@ -400,33 +400,33 @@ jobs:
             '    MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Error copying files. Some files may be in use." IDRETRY -4'
             '    Abort "Installation failed"'
             '  '
-            '  CreateDirectory "$SMPROGRAMS\' + $env:APP_NAME + '"'
-            '  CreateShortcut "$SMPROGRAMS\' + $env:APP_NAME + '\' + $env:APP_NAME + '.lnk" "$INSTDIR\' + $env:APP_NAME + '.exe"'
-            '  CreateShortcut "$DESKTOP\' + $env:APP_NAME + '.lnk" "$INSTDIR\' + $env:APP_NAME + '.exe"'
+            '  CreateDirectory "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '"'
+            '  CreateShortcut "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '\' + $env:FLAVOR_APP_NAME + '.lnk" "$INSTDIR\' + $env:FLAVOR_APP_NAME + '.exe"'
+            '  CreateShortcut "$DESKTOP\' + $env:FLAVOR_APP_NAME + '.lnk" "$INSTDIR\' + $env:FLAVOR_APP_NAME + '.exe"'
             '  '
             '  WriteUninstaller "$INSTDIR\uninstall.exe"'
             '  '
-            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "DisplayName" "' + $env:APP_NAME + '"'
-            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "UninstallString" "$INSTDIR\uninstall.exe"'
-            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "Publisher" "' + $env:APP_NAME + '"'
-            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "DisplayVersion" "' + $env:VERSION + '"'
-            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "InstallLocation" "$INSTDIR"'
-            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "DisplayIcon" "$INSTDIR\' + $env:APP_NAME + '.exe"'
-            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "NoModify" 1'
-            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "NoRepair" 1'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayName" "' + $env:FLAVOR_APP_NAME + '"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "UninstallString" "$INSTDIR\uninstall.exe"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "Publisher" "' + $env:FLAVOR_APP_NAME + '"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayVersion" "' + $env:VERSION + '"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "InstallLocation" "$INSTDIR"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayIcon" "$INSTDIR\' + $env:FLAVOR_APP_NAME + '.exe"'
+            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "NoModify" 1'
+            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "NoRepair" 1'
             '  '
             '  ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2'
             '  IntFmt $0 "0x%08X" $0'
-            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '" "EstimatedSize" "$0"'
+            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "EstimatedSize" "$0"'
             'SectionEnd'
             ''
             'Section "Uninstall"'
             '  Delete "$INSTDIR\uninstall.exe"'
             '  RMDir /r "$INSTDIR"'
-            '  Delete "$SMPROGRAMS\' + $env:APP_NAME + '\' + $env:APP_NAME + '.lnk"'
-            '  RMDir "$SMPROGRAMS\' + $env:APP_NAME + '"'
-            '  Delete "$DESKTOP\' + $env:APP_NAME + '.lnk"'
-            '  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:APP_NAME + '"'
+            '  Delete "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '\' + $env:FLAVOR_APP_NAME + '.lnk"'
+            '  RMDir "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '"'
+            '  Delete "$DESKTOP\' + $env:FLAVOR_APP_NAME + '.lnk"'
+            '  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '"'
             'SectionEnd'
             ''
             '!insertmacro MUI_LANGUAGE "English"'
@@ -443,7 +443,7 @@ jobs:
             exit $LASTEXITCODE
           }
           
-          $installerPath = "$distDir\$env:APP_NAME-$env:VERSION-Setup.exe"
+          $installerPath = "$distDir\$env:FLAVOR_APP_NAME-$env:VERSION-Setup.exe"
           if (!(Test-Path $installerPath)) {
             Write-Error "Installer not created at $installerPath"
             exit 1
