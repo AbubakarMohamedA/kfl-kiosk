@@ -97,12 +97,19 @@ jobs:
         shell: pwsh
         timeout-minutes: 5
         run: |
-          $exePath = "build\windows\x64\runner\Release\$env:APP_NAME.exe"
-          if (!(Test-Path $exePath)) {
-            Write-Error "Build failed: executable not found at $exePath"
+          $releaseDir = "build\windows\x64\runner\Release"
+          $exeFile = Get-ChildItem -Path $releaseDir -Filter "*.exe" | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
+          
+          if ($exeFile) {
+            Write-Host "Found executable: $($exeFile.Name)"
+            Rename-Item -Path $exeFile.FullName -NewName "$env:FLAVOR_APP_NAME.exe"
+            Write-Host "Renamed to: $env:FLAVOR_APP_NAME.exe"
+            $exePath = Join-Path $releaseDir "$env:FLAVOR_APP_NAME.exe"
+            Write-Host "✓ Build verified: $exePath"
+          } else {
+            Write-Error "Build failed: no executable found in $releaseDir"
             exit 1
           }
-          Write-Host "✓ Build verified: $exePath"
           # Create artifacts directory (files will be copied after signing)
           New-Item -ItemType Directory -Force -Path artifacts | Out-Null
       
