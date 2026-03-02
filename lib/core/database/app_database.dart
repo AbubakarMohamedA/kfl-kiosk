@@ -278,9 +278,9 @@ class AppDatabase extends _$AppDatabase {
 LazyDatabase _openConnection() {
   // the LazyDatabase util lets us find the right location for the file async.
   return LazyDatabase(() async {
-    // put the database file, called db.sqlite here, into the documents folder
-    // for your app.
-    final dbFolder = await getApplicationDocumentsDirectory();
+    // put the database file, called db.sqlite here, into the app support folder
+    // for your app (app data).
+    final dbFolder = await getApplicationSupportDirectory();
     final file = File(p.join(dbFolder.path, 'kiosk_db.sqlite'));
     return NativeDatabase.createInBackground(file);
   });

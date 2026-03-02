@@ -5,6 +5,7 @@ import 'package:kfm_kiosk/core/database/daos/orders_dao.dart';
 import 'package:kfm_kiosk/core/services/license_service.dart';
 import 'package:kfm_kiosk/core/services/local_server_service.dart';
 import 'package:kfm_kiosk/core/services/sync_service.dart';
+import 'package:kfm_kiosk/core/services/cloud_heartbeat_service.dart';
 import 'package:kfm_kiosk/features/products/data/datasources/local_product_datasource.dart';
 import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
 import 'package:kfm_kiosk/features/products/data/datasources/sap_product_datasource.dart';
@@ -80,6 +81,14 @@ Future<void> setupDependencies() async {
   
   getIt.registerLazySingleton<SyncService>(() => SyncService(getIt<ConfigurationRepository>())); // NEW
   
+  getIt.registerLazySingleton<CloudHeartbeatService>(() => CloudHeartbeatService(
+    getIt<ConfigurationRepository>(),
+    getIt<TenantService>(),
+    getIt<LicenseService>(),
+    getIt<AuthRepository>(),
+    getIt<LocalServerService>(),
+  ));
+
   // Initialize TenantService with DAOs
   final tenantService = TenantService();
   tenantService.setBranchesDao(getIt<BranchesDao>());

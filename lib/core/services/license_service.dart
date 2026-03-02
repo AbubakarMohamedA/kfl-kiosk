@@ -1,11 +1,15 @@
-import 'dart:convert';
 import 'package:drift/drift.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kfm_kiosk/core/database/app_database.dart';
 
 class LicenseService {
   final AppDatabase db;
 
   LicenseService(this.db);
+  
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   /// Check if the app is licensed
   Future<bool> isLicensed() async {
@@ -28,42 +32,80 @@ class LicenseService {
     return DateTime.now().isAfter(expiry);
   }
 
-  /// Verify license key (Simulated Backend Validation)
-  /// Key Format: KFL-{TenantIdBase64}-{ExpiryEpoch}
+  /// Verify license key against Cloud (Firestore)
   Future<bool> verifyLicense(String key) async {
-    await Future.delayed(const Duration(seconds: 2)); // Simulate network
-    
-    // 1. Basic Format Check
-    if (!key.startsWith('KFL-')) return false;
-    
-    final parts = key.split('-');
-    if (parts.length != 3) return false;
-    
-    try {
-      // 2. Decode Expiry & Tenant
-      final tenantId = utf8.decode(base64.decode(parts[1]));
-      final expiryEpoch = int.parse(utf8.decode(base64.decode(parts[2])));
-      final expiryDate = DateTime.fromMillisecondsSinceEpoch(expiryEpoch);
-      
-      // 3. Check Expiration
-      if (DateTime.now().isAfter(expiryDate)) {
-        return false; // Key is already expired
-      }
+    if (Platform.isLinux) return true; // Bypass on linux for now or use mock
 
-      // 4. Save License & Expiry & Tenant
-      await saveLicense(key, expiryDate, tenantId);
+    try {
+      // 1. Query Firestore for this key
+      final query = await _firestore
+          .collection('licenses')
+          .where('key', isEqualTo: key)
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+
+      if (query.docs.isEmpty) return false;
+
+      final doc = query.docs.first;
+      final data = doc.data();
+      final tenantId = data['tenantId'] as String;
+      final expiresAt = (data['expiresAt'] as Timestamp).toDate();
+
+      // 2. Mark as active in cloud (Can't be reused)
+      await doc.reference.update({
+        'status': 'active',
+        'activatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 3. Save locally
+      await saveLicense(key, expiresAt, tenantId);
       return true;
     } catch (e) {
-      return false; // Parsing failed
+      debugPrint('LicenseService: Error verifying license: $e');
+      return false;
     }
   }
 
-  /// Generate a new license key (Admin Function)
-  String generateLicense({required String tenantId, required DateTime expiresAt}) {
-    final tenantEncoded = base64.encode(utf8.encode(tenantId));
-    final expiryEncoded = base64.encode(utf8.encode(expiresAt.millisecondsSinceEpoch.toString()));
-    
-    return 'KFL-$tenantEncoded-$expiryEncoded';
+  /// Check Cloud for license updates or remote blocks
+  Future<void> checkCloudLicenseStatus(String tenantId) async {
+    if (Platform.isLinux) return;
+
+    try {
+      final doc = await _firestore.collection('tenants').doc(tenantId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        final expiry = (data?['licenseExpiry'] as Timestamp?)?.toDate();
+        final status = data?['licenseStatus'] as String?;
+
+        if (expiry != null) {
+          await db.into(db.appConfig).insertOnConflictUpdate(AppConfigCompanion(
+            key: const Value('license_expiry'),
+            value: Value(expiry.toIso8601String()),
+          ));
+        }
+
+        if (status != null) {
+          await db.into(db.appConfig).insertOnConflictUpdate(AppConfigCompanion(
+            key: const Value(AppConfigKeys.licenseStatus),
+            value: Value(status),
+          ));
+        }
+      }
+    } catch (e) {
+      debugPrint('LicenseService: Error checking cloud license: $e');
+    }
+  }
+
+  /// Generate a new unique license key
+  String generateLicense() {
+     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No O, 0, I, 1
+     final random = DateTime.now().microsecondsSinceEpoch.toString();
+     String key = 'KFL-';
+     for (int i = 0; i < 12; i++) {
+        key += chars[DateTime.now().microsecondsSinceEpoch % chars.length];
+     }
+     return key;
   }
 
   /// Save license info to database

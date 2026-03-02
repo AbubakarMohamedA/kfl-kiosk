@@ -1,20 +1,22 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:kfm_kiosk/features/home/presentation/screens/home_screen.dart';
 import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
 import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
 import 'package:kfm_kiosk/core/services/local_server_service.dart';
 import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel_desktop.dart';
 import 'package:kfm_kiosk/features/admin/presentation/screens/tenant_setup_screen.dart';
+import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
 import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
 import 'package:kfm_kiosk/di/injection.dart';
+import 'package:kfm_kiosk/core/config/app_role.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -44,47 +46,93 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
     
     setState(() => _isLoading = true);
-
-    // 1. Check Warehouse Staff Login
+    
     try {
-      final warehouseService = getIt<WarehouseService>();
-      final warehouse = await warehouseService.authenticate(email, password);
-      
-      if (warehouse != null) {
-         if (!mounted) return;
-         await _onWarehouseAuthSuccess(warehouse);
-         return;
+      final roleConfig = getIt<RoleConfig>();
+      final tenantService = TenantService();
+
+      // NEW: Primary Cloud Authentication with Linux Super Admin Fallback
+      Map<String, dynamic>? cloudAuth;
+
+      if (Platform.isLinux && email == 'admin@sss.com') {
+        final localTenant = tenantService.login(email, password);
+        if (localTenant != null && localTenant.id == 'SUPER_ADMIN') {
+          cloudAuth = {
+            'type': 'tenant',
+            'id': localTenant.id,
+            'data': {
+              'email': localTenant.email,
+              'businessName': localTenant.businessName,
+              'phone': localTenant.phone,
+              'status': localTenant.status,
+              'tierId': localTenant.tierId,
+            }
+          };
+        }
+      } else {
+        cloudAuth = await tenantService.cloudLogin(email, password, roleConfig.role);
       }
+      
+      if (cloudAuth != null) {
+         final type = cloudAuth['type'];
+         final data = cloudAuth['data'] as Map<String, dynamic>;
+         final id = cloudAuth['id'];
+         
+         if (type == 'tenant') {
+            final tenant = Tenant(
+              id: id,
+              name: data['businessName'] ?? 'Admin', // Use businessName as name fallback
+              email: data['email'],
+              phone: data['phone'],
+              businessName: data['businessName'],
+              tierId: data['tierId'],
+              status: data['status'] ?? 'Active',
+              createdDate: DateTime.now(), // Fallback if missing
+            );
+            await _onAuthSuccess(tenant);
+            return;
+         } else if (type == 'branch') {
+            final tenant = tenantService.getTenants().firstWhere((t) => t.id == cloudAuth?['tenantId']);
+            final branch = Branch(
+              id: id,
+              tenantId: cloudAuth['tenantId'],
+              name: data['name'],
+              location: data['location'],
+              contactPhone: data['contactPhone'] ?? '',
+              managerName: data['managerName'] ?? '',
+              loginUsername: data['loginUsername'],
+              loginPassword: data['loginPassword'],
+            );
+            _onBranchAuthSuccess(tenant, branch);
+            return;
+         } else if (type == 'warehouse') {
+             final warehouse = Warehouse(
+               id: id,
+               tenantId: cloudAuth['tenantId'],
+               branchId: cloudAuth['branchId'],
+               name: data['name'],
+               categories: List<String>.from((data['categories'] as List<dynamic>?) ?? []),
+               loginUsername: data['loginUsername'],
+               loginPassword: data['loginPassword'],
+             );
+             await _onWarehouseAuthSuccess(warehouse);
+             return;
+         }
+      }
+
+      _showError('Invalid credentials or cloud service unavailable. Please check your internet connection.');
+
     } catch (e) {
-      debugPrint('Warehouse Login Error: $e');
+      _showError('An unexpected error occurred during login: $e');
     }
-    
-    // Check if it's a Branch Manager Login
-    final tenantService = TenantService();
-    Branch? matchedBranch;
-    Tenant? branchTenant;
-    
-    for (var t in tenantService.getTenants()) {
-       final branches = await tenantService.getBranchesForTenant(t.id);
-       try {
-         final branch = branches.firstWhere((b) => 
-           b.loginUsername.toLowerCase() == email.toLowerCase() && 
-           b.loginPassword == password
-         );
-         matchedBranch = branch;
-         branchTenant = t;
-         break;
-       } catch (_) {}
-    }
-    
-    if (matchedBranch != null && branchTenant != null) {
-      _onBranchAuthSuccess(branchTenant, matchedBranch);
-      return;
-    }
-    
-    // Standard Tenant/Admin Login
+  }
+
+  void _showError(String message) {
     if (!mounted) return;
-    context.read<AuthBloc>().add(LoginRequested(email, password));
+    setState(() {
+      _errorMessage = message;
+      _isLoading = false;
+    });
   }
 
   Future<void> _onWarehouseAuthSuccess(Warehouse warehouse) async {
@@ -92,11 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final tenant = await tenantService.getTenantForBranch(warehouse.branchId);
     
     if (tenant == null) {
-       if (!mounted) return;
-       setState(() {
-         _errorMessage = 'Configuration Error: Associated Tenant not found.';
-         _isLoading = false;
-       });
+       _showError('Configuration Error: Associated Tenant not found.');
        return;
     }
 
@@ -196,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
          await repo.saveConfiguration(adminConfig);
          if (!mounted) return;
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       } else if (isEnterprise) {
          if (!wasConfigured) {
@@ -245,19 +289,48 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
+          final roleConfig = getIt<RoleConfig>();
+          final isSuperAdmin = state.tenant.id == 'SUPER_ADMIN';
+
+          // Super Admin Build Enforcement (Bypassed on Linux to allow initial tenant setup)
+          if (!Platform.isLinux) {
+            if (isSuperAdmin && roleConfig.role != AppRole.superAdmin) {
+              _showError('Access Denied: Please use the Super Admin App to log in.');
+              context.read<AuthBloc>().add(LogoutRequested()); 
+              return;
+            } else if (!isSuperAdmin && roleConfig.role == AppRole.superAdmin) {
+              _showError('Access Denied: This app is restricted to Super Administrators only.');
+              context.read<AuthBloc>().add(LogoutRequested()); 
+              return;
+            }
+          }
+          
+          // Enterprise Dashboard Build Enforcement
+          if (roleConfig.role == AppRole.dashboard && !isSuperAdmin) {
+            final isEnterprise = state.tenant.tierId == 'enterprise';
+            if (!isEnterprise) {
+              _showError('Access Denied: The Enterprise Dashboard requires an Enterprise Tier subscription.');
+              context.read<AuthBloc>().add(LogoutRequested());
+              return;
+            }
+          }
+
           _onAuthSuccess(state.tenant);
         } else if (state is AuthFailure) {
-           setState(() {
-             _errorMessage = state.message;
-             _isLoading = false;
-           });
+           _showError(state.message);
         } else if (state is AuthLoading) {
-          setState(() {
+           setState(() {
             _isLoading = true;
             _errorMessage = null;
           });
+        } else if (state is AuthUnauthenticated) {
+            // Unauthenticated state reset
+            setState(() {
+              _isLoading = false;
+            });
         }
       },
+
       child: Scaffold(
         backgroundColor: Colors.grey[100],
         body: LayoutBuilder(
@@ -321,15 +394,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ],
             ),
           ),
-          Positioned(
-            bottom: 20,
-            left: 20,
-            child: TextButton.icon(
-              onPressed: _clearData,
-              icon: const Icon(Icons.delete_outline, color: Colors.white54),
-              label: const Text('Clear Local Data (Dev)', style: TextStyle(color: Colors.white54)),
-            ),
-          ),
+          // Positioned(
+          //   bottom: 20,
+          //   left: 20,
+          //   child: TextButton.icon(
+          //     onPressed: _clearData,
+          //     icon: const Icon(Icons.delete_outline, color: Colors.white54),
+          //     label: const Text('Clear Local Data (Dev)', style: TextStyle(color: Colors.white54)),
+          //   ),
+          // ),
         ],
       ),
     );
@@ -382,7 +455,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Text(
                             _errorMessage!,
                             style: TextStyle(color: Colors.red.shade900),
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],

@@ -5,9 +5,35 @@ project(runner LANGUAGES CXX)
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "kflkiosk")
-# The unique GTK application identifier for this application. See:
-# https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "com.example.kflkiosk")
+
+if(DEFINED ENV{FLAVOR})
+  set(APP_FLAVOR "$ENV{FLAVOR}")
+else()
+  set(APP_FLAVOR "default")
+endif()
+
+if(${APP_FLAVOR} STREQUAL "superadmin")
+  set(APP_TITLE "SSS Admin")
+  set(APPLICATION_ID "com.example.kflkiosk.superadmin")
+elseif(${APP_FLAVOR} STREQUAL "manager")
+  set(APP_TITLE "SSS Manager")
+  set(APPLICATION_ID "com.example.kflkiosk.manager")
+elseif(${APP_FLAVOR} STREQUAL "staff")
+  set(APP_TITLE "SSS Staff")
+  set(APPLICATION_ID "com.example.kflkiosk.staff")
+elseif(${APP_FLAVOR} STREQUAL "warehouse")
+  set(APP_TITLE "SSS Warehouse")
+  set(APPLICATION_ID "com.example.kflkiosk.warehouse")
+elseif(${APP_FLAVOR} STREQUAL "dashboard")
+  set(APP_TITLE "SSS Dashboard")
+  set(APPLICATION_ID "com.example.kflkiosk.dashboard")
+elseif(${APP_FLAVOR} STREQUAL "kiosk")
+  set(APP_TITLE "SSS Kiosk")
+  set(APPLICATION_ID "com.example.kflkiosk.kiosk")
+else()
+  set(APP_TITLE "kflkiosk")
+  set(APPLICATION_ID "com.example.kflkiosk")
+endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -56,6 +82,9 @@ pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
+
+# Inject APP_TITLE for use in Window Titles
+target_compile_definitions(${BINARY_NAME} PRIVATE "APP_TITLE=\"${APP_TITLE}\"")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

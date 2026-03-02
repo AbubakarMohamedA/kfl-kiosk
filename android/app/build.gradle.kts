@@ -31,6 +31,41 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
+    }
+
+    flavorDimensions += "role"
+    productFlavors {
+        create("superadmin") {
+            dimension = "role"
+            applicationIdSuffix = ".superadmin"
+            resValue("string", "app_name", "SSS Admin")
+        }
+        create("manager") {
+            dimension = "role"
+            applicationIdSuffix = ".manager"
+            resValue("string", "app_name", "SSS Manager")
+        }
+        create("staff") {
+            dimension = "role"
+            applicationIdSuffix = ".staff"
+            resValue("string", "app_name", "SSS Staff")
+        }
+        create("warehouse") {
+            dimension = "role"
+            applicationIdSuffix = ".warehouse"
+            resValue("string", "app_name", "SSS Warehouse")
+        }
+        create("kiosk") {
+            dimension = "role"
+            applicationIdSuffix = ".kiosk"
+            resValue("string", "app_name", "SSS Kiosk")
+        }
+        create("dashboard") {
+            dimension = "role"
+            applicationIdSuffix = ".dashboard"
+            resValue("string", "app_name", "SSS Dashboard")
+        }
     }
 
     buildTypes {

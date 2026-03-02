@@ -7,8 +7,19 @@ import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 
 class MaintenanceScreen extends StatelessWidget {
   final VoidCallback? onAdminAccess;
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color iconColor;
 
-  const MaintenanceScreen({super.key, this.onAdminAccess});
+  const MaintenanceScreen({
+    super.key, 
+    this.onAdminAccess,
+    this.title = 'System Under Maintenance',
+    this.message = 'We are currently performing scheduled maintenance.\nPlease try again later.',
+    this.icon = Icons.construction,
+    this.iconColor = const Color(0xFFF57C00), // orange[700]
+  });
 
   Future<void> _handleLogout(BuildContext context) async {
     // Clear configuration
@@ -33,14 +44,14 @@ class MaintenanceScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.construction,
+              icon,
               size: 80,
-              color: Colors.orange[700],
+              color: iconColor,
             ),
             const SizedBox(height: 24),
-            const Text(
-              'System Under Maintenance',
-              style: TextStyle(
+            Text(
+              title,
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1a237e),
@@ -48,7 +59,7 @@ class MaintenanceScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'We are currently performing scheduled maintenance.\nPlease try again later.',
+              message,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,

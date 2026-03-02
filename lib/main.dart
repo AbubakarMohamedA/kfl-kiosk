@@ -1,5 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:kfm_kiosk/firebase_options.dart';
+import 'package:kfm_kiosk/core/services/cloud_heartbeat_service.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:kfm_kiosk/core/config/api_config.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/server_connection_screen.dart'; 
@@ -22,11 +25,32 @@ import 'package:kfm_kiosk/core/configuration/data/datasources/local_configuratio
 import 'package:kfm_kiosk/features/settings/presentation/screens/configuration_screen.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 
+import 'package:kfm_kiosk/core/config/app_role.dart';
+
+final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
+  await mainWithRole(AppRole.kiosk);
+}
+
+Future<void> mainWithRole(AppRole role) async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize Firebase (Skip on Linux as it is not configured)
+  if (!Platform.isLinux) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+
   // Setup dependency injection
   await setupDependencies();
+
+  final roleConfig = RoleConfig.forRole(role);
+  // Register RoleConfig so any screen, like LoginScreen, can enforce the role
+  if (!getIt.isRegistered<RoleConfig>()) {
+    getIt.registerSingleton<RoleConfig>(roleConfig);
+  }
   
   // 1. Check License
   final isLicensed = await getIt<LicenseService>().isLicensed();
@@ -50,7 +74,7 @@ void main() async {
     final prefs = await SharedPreferences.getInstance();
     final isMobileConfigured = prefs.getBool('is_mobile_configured') ?? false;
     
-    if (!isMobileConfigured) {
+    if (!isMobileConfigured && role != AppRole.kiosk) {
       startScreen = const ServerConnectionScreen();
     } else {
       final ip = prefs.getString('server_ip');
@@ -62,12 +86,41 @@ void main() async {
     }
   } else {
     // Desktop Logic
-    startScreen = (isLicensed && isConfigured) 
-        ? const HomeScreen() 
-        : const LoginScreen();
+    // For specialized builds, we customize the start screen
+    if (role == AppRole.superAdmin) {
+      // Super Admin ALWAYS starts at Login Screen for security
+      startScreen = const LoginScreen();
+    } else if (role != AppRole.kiosk) {
+      startScreen = (isLicensed && isConfigured) 
+          ? const HomeScreen() 
+          : const LoginScreen();
+    } else {
+      // Kiosk ALWAYS starts at HomeScreen
+      startScreen = const HomeScreen();
+    }
 
     // Attempt to start local server if previously configured
-    if (config.isConfigured && config.tenantId != null) {
+    // ════════════════════════════════════════════════════════════════════
+  // 5. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
+  // ════════════════════════════════════════════════════════════════════
+  if (!Platform.isLinux) {
+    final heartbeat = getIt<CloudHeartbeatService>();
+    // ignore: unawaited_futures
+    heartbeat.checkTenantStatus(); // Fire and forget on startup, will update state/UI later
+  }
+
+  if (config.isConfigured && config.tenantId != null) {
+      final isEnterprise = config.tierId == 'enterprise';
+      bool shouldStartServer = false;
+
+      if (isEnterprise) {
+        // Enterprise Tier: Staff role runs the server (formerly Branch/Manager)
+        shouldStartServer = (role == AppRole.staff);
+      } else {
+        // Standard/Premium/Alone: Kiosk or Staff can run the server
+        shouldStartServer = (role == AppRole.kiosk || role == AppRole.staff);
+      }
+
       final serverService = getIt<LocalServerService>();
       serverService.setActiveTenantId(
         config.tenantId!, 
@@ -75,17 +128,24 @@ void main() async {
         warehouseId: config.warehouseId,
         tierId: config.tierId,
       );
-      serverService.start();
+
+      if (shouldStartServer) {
+        serverService.start();
+        debugPrint('Local Server Started for Role: $role in Tier: ${config.tierId}');
+      } else {
+        debugPrint('Local Server Bypassed. Role ($role) acting as Client in Tier: ${config.tierId}');
+      }
     }
   }
   
-  runApp(KFMKioskApp(home: startScreen));
+  runApp(KFMKioskApp(home: startScreen, roleConfig: roleConfig));
 }
 
 class KFMKioskApp extends StatelessWidget {
   final Widget home;
+  final RoleConfig roleConfig;
   
-  const KFMKioskApp({super.key, required this.home});
+  const KFMKioskApp({super.key, required this.home, required this.roleConfig});
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +171,8 @@ class KFMKioskApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: AppConstants.appName,
+        navigatorKey: globalNavigatorKey,
+        title: roleConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(

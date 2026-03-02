@@ -4,7 +4,34 @@ project(kflkiosk LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "kflkiosk")
+if(DEFINED ENV{FLAVOR})
+  set(APP_FLAVOR "$ENV{FLAVOR}")
+else()
+  set(APP_FLAVOR "default")
+endif()
+
+if(${APP_FLAVOR} STREQUAL "superadmin")
+  set(BINARY_NAME "sss_admin")
+  set(APP_TITLE "SSS Admin")
+elseif(${APP_FLAVOR} STREQUAL "manager")
+  set(BINARY_NAME "sss_manager")
+  set(APP_TITLE "SSS Manager")
+elseif(${APP_FLAVOR} STREQUAL "staff")
+  set(BINARY_NAME "sss_staff")
+  set(APP_TITLE "SSS Staff")
+elseif(${APP_FLAVOR} STREQUAL "warehouse")
+  set(BINARY_NAME "sss_warehouse")
+  set(APP_TITLE "SSS Warehouse")
+elseif(${APP_FLAVOR} STREQUAL "dashboard")
+  set(BINARY_NAME "sss_dashboard")
+  set(APP_TITLE "SSS Dashboard")
+elseif(${APP_FLAVOR} STREQUAL "kiosk")
+  set(BINARY_NAME "sss_kiosk")
+  set(APP_TITLE "SSS Kiosk")
+else()
+  set(BINARY_NAME "kflkiosk")
+  set(APP_TITLE "kflkiosk")
+endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

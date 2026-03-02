@@ -20,7 +20,10 @@ add_executable(${BINARY_NAME} WIN32
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
 
-# Add preprocessor definitions for the build version.
+# Add preprocessor definitions for the build version and flavors.
+target_compile_definitions(${BINARY_NAME} PRIVATE "APP_TITLE=\"${APP_TITLE}\"")
+target_compile_definitions(${BINARY_NAME} PRIVATE "APP_TITLE_W=L\"${APP_TITLE}\"")
+target_compile_definitions(${BINARY_NAME} PRIVATE "APP_EXECUTABLE_NAME=\"${BINARY_NAME}.exe\"")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION=\"${FLUTTER_VERSION}\"")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_MAJOR=${FLUTTER_VERSION_MAJOR}")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_MINOR=${FLUTTER_VERSION_MINOR}")

@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
@@ -9,6 +11,9 @@ import 'package:kfm_kiosk/core/services/license_service.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
 import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
 import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart' as entity;
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 
 class SuperAdminScreen extends StatefulWidget {
   const SuperAdminScreen({super.key});
@@ -28,10 +33,11 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
   @override
   void initState() {
     super.initState();
-    super.initState();
     _tabController = TabController(length: 5, vsync: this);
     _loadTenants();
-    _loadTenants();
+    _tenantService.syncGlobalConfig().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _loadTenants() {
@@ -201,35 +207,45 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
           _buildSidebarItem(2, Icons.vpn_key_outlined, 'Licenses'), // New Item
           _buildSidebarItem(3, Icons.analytics_outlined, 'Analytics'),
           _buildSidebarItem(4, Icons.settings_outlined, 'Settings'),
-          // const Spacer(),
-          // Padding(
-          //   padding: const EdgeInsets.all(16),
-          //   child: Column(
-          //     children: [
-          //       const Divider(),
-          //       const SizedBox(height: 16),
-          //       const Divider(),
-          //       const SizedBox(height: 16),
-          //       _buildQuickStat(
-          //           'Active',
-          //           '${_tenants.where((t) => t.status == 'Active').length}',
-          //           Icons.check_circle,
-          //           Colors.green),
-          //       const SizedBox(height: 12),
-          //       _buildQuickStat(
-          //           'Pending',
-          //           '${_tenants.where((t) => t.status == 'Pending').length}',
-          //           Icons.pending,
-          //           Colors.orange),
-          //       const SizedBox(height: 12),
-          //       _buildQuickStat(
-          //           'Inactive',
-          //           '${_tenants.where((t) => t.status == 'Inactive').length}',
-          //           Icons.cancel,
-          //           Colors.red),
-          //     ],
-          //   ),
-          // ),
+          const Spacer(),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout', style: TextStyle(color: Colors.red)),
+            onTap: () => _handleLogout(),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  void _handleLogout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text('Are you sure you want to log out of the Super Admin Panel?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<AuthBloc>().add(LogoutRequested());
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Logout'),
+          ),
         ],
       ),
     );
@@ -1199,9 +1215,91 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
               onChanged: (val) => setState(() => _tenantService.setModuleMaintenance('products', val)),
             ),
           ]),
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
+          const Text('Cloud Initialization',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('If this is your first time setting up the cloud database, use the button below to seed your local tiers, tenants, and system settings to Firestore.',
+              style: TextStyle(fontSize: 14, color: Colors.grey)),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: () => _syncAllToCloud(),
+              icon: const Icon(Icons.cloud_upload),
+              label: const Text('Push All Local Data to Cloud'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1565C0),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 48),
         ],
       ),
     );
+  }
+
+  Future<void> _syncAllToCloud() async {
+    if (Platform.isLinux) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cloud sync is disabled on Linux.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Synchronizing to cloud...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // 1. Sync Tiers
+      final tiers = _tenantService.getTiers();
+      for (final tier in tiers) {
+        await _tenantService.syncTierToCloud(tier);
+      }
+
+      // 2. Sync Tenants
+      for (final tenant in _tenants) {
+        if (tenant.id != 'SUPER_ADMIN') {
+           await _tenantService.syncTenantToCloud(tenant);
+        }
+      }
+
+      // 3. Sync Maintenance Modes (Trigger setters)
+      _tenantService.setMaintenanceMode(_tenantService.isMaintenanceMode);
+      for (final module in ['orders', 'history', 'insights', 'warehouse', 'settings', 'enterprise_dashboard', 'products']) {
+         _tenantService.setModuleMaintenance(module, _tenantService.isModuleUnderMaintenance(module));
+      }
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Initial cloud data seeded successfully!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Widget _buildSettingsCard(String title, List<Widget> children) {
@@ -2208,8 +2306,91 @@ class _SuperAdminScreenState extends State<SuperAdminScreen>
               ],
             ),
           ),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Active & Pending Licenses',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                _buildLicenseList(),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLicenseList() {
+    if (Platform.isLinux) {
+      return const Center(child: Text('Cloud License List is unavailable on Linux Local-Only mode.'));
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('licenses')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Text('Error: ${snapshot.error}');
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) return const Center(child: Text('No licenses generated yet.'));
+
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: docs.length,
+          separatorBuilder: (context, index) => const Divider(),
+          itemBuilder: (context, index) {
+            final data = docs[index].data() as Map<String, dynamic>;
+            final tenantId = data['tenantId'] as String;
+            final tenant = _tenants.firstWhere((t) => t.id == tenantId, orElse: () => Tenant(id: tenantId, name: 'Unknown', businessName: 'Unknown Tenant', email: '', phone: '', status: '', tierId: '', createdDate: DateTime.now(), lastLogin: DateTime.now(), ordersCount: 0, revenue: 0, isMaintenanceMode: false, enabledFeatures: []));
+            final expiry = (data['expiresAt'] as Timestamp).toDate();
+            final status = data['status'] as String;
+            final key = data['key'] as String;
+
+            return ListTile(
+              title: Text(key, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+              subtitle: Text('${tenant.businessName} • Expires: ${DateFormat('yyyy-MM-dd').format(expiry)}'),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: status == 'active' ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  status.toUpperCase(),
+                  style: TextStyle(
+                    color: status == 'active' ? Colors.green : Colors.orange,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              onTap: () {
+                 Clipboard.setData(ClipboardData(text: key));
+                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Key copied')));
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -2235,6 +2416,9 @@ class _LicenseGeneratorFormState extends State<_LicenseGeneratorForm> {
   Tenant? selectedTenant;
   DateTime selectedDate = DateTime.now().add(const Duration(days: 365));
   String? generatedKey;
+  bool isSaving = false;
+  
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -2287,18 +2471,49 @@ class _LicenseGeneratorFormState extends State<_LicenseGeneratorForm> {
           width: double.infinity,
           height: 50,
           child: ElevatedButton.icon(
-            onPressed: selectedTenant == null
+            onPressed: (selectedTenant == null || isSaving)
                 ? null
-                : () {
+                : () async {
+                    setState(() => isSaving = true);
                     final licenseService = getIt<LicenseService>();
-                    final key = licenseService.generateLicense(
-                      tenantId: selectedTenant!.id,
-                      expiresAt: selectedDate,
-                    );
-                    setState(() => generatedKey = key);
+                    final key = licenseService.generateLicense();
+                    
+                    if (!Platform.isLinux) {
+                      try {
+                        // 1. Save to licenses collection
+                        await _firestore.collection('licenses').add({
+                          'key': key,
+                          'tenantId': selectedTenant!.id,
+                          'status': 'pending',
+                          'expiresAt': Timestamp.fromDate(selectedDate),
+                          'createdAt': FieldValue.serverTimestamp(),
+                        });
+
+                        // 2. Update tenant's record with pending license info (optional, for visibility)
+                        await _firestore.collection('tenants').doc(selectedTenant!.id).set({
+                          'licenseStatus': 'active', // Pre-emptively set to active or leave till activation
+                          'licenseExpiry': Timestamp.fromDate(selectedDate),
+                          'updatedAt': FieldValue.serverTimestamp(),
+                        }, SetOptions(merge: true));
+
+                        setState(() {
+                          generatedKey = key;
+                          isSaving = false;
+                        });
+                      } catch (e) {
+                         debugPrint('SuperAdmin: Error generating license: $e');
+                         setState(() => isSaving = false);
+                      }
+                    } else {
+                       // Mock for Linux
+                       setState(() {
+                          generatedKey = key;
+                          isSaving = false;
+                       });
+                    }
                   },
-            icon: const Icon(Icons.vpn_key),
-            label: const Text('Generate Key'),
+            icon: isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.vpn_key),
+            label: Text(isSaving ? 'Saving...' : 'Generate Key'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1a237e),
               foregroundColor: Colors.white,

@@ -2,6 +2,7 @@ import 'package:kfm_kiosk/core/database/app_database.dart' hide Warehouse;
 import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
 import 'package:kfm_kiosk/core/database/daos/warehouses_dao.dart';
 import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
+import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
 
 class WarehouseService {
   final WarehousesDao _dao;
@@ -45,6 +46,8 @@ class WarehouseService {
           isActive: true,
         );
         await _dao.saveWarehouse(newWarehouse);
+        // Sync to cloud
+        await TenantService().syncWarehouseToCloud(newWarehouse);
       }
     }
   }
@@ -52,6 +55,9 @@ class WarehouseService {
   // Create or Update Warehouse
   Future<void> saveWarehouse(Warehouse warehouse) async {
     await _dao.saveWarehouse(warehouse);
+    // Sync to cloud
+    final tenantService = TenantService();
+    await tenantService.syncWarehouseToCloud(warehouse);
   }
 
   // Get all warehouses for a branch

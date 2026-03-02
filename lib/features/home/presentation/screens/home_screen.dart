@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kfm_kiosk/core/config/app_role.dart';
 import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
 import 'package:kfm_kiosk/di/injection.dart';
@@ -14,9 +15,11 @@ import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 import 'package:kfm_kiosk/features/settings/presentation/screens/maintenance_screen.dart';
 import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:kfm_kiosk/core/services/license_service.dart';
 import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
 import 'package:kfm_kiosk/core/database/app_database.dart';
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:kfm_kiosk/features/admin/presentation/screens/super_admin_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -31,88 +34,140 @@ class HomeScreen extends StatelessWidget {
           return _buildLoadingScreen();
         }
 
-        // Get configuration (or default if error)
-        final config = snapshot.data ?? AppConfiguration();
+        // 1. Get Role Configuration immediately
+        final roleConfig = getIt<RoleConfig>();
 
-        // If not configured, show tenant setup screen
-        // If not configured, show login/setup based on platform
+        // 2. Specialized Build Bypass (Super Admin always has access)
+        if (roleConfig.role == AppRole.superAdmin) {
+          return const SuperAdminScreen();
+        }
+
+        // 3. Check Configuration (Standard Kiosk Flow)
+        final config = snapshot.data ?? AppConfiguration();
         if (!config.isConfigured) {
-           return ResponsiveWrapper(
-             mobile: const HomeScreenMobile(),
-             tablet: const HomeScreenTablet(),
-             desktop: const LoginScreen(),
-             web: const LoginScreen(),
-           );
+          if (roleConfig.role == AppRole.kiosk) {
+            return ResponsiveWrapper(
+              mobile: const HomeScreenMobile(),
+              tablet: const HomeScreenTablet(),
+              desktop: const HomeScreenDesktop(),
+              web: const HomeScreenDesktop(),
+            );
+          } else {
+            // Specialized builds (Staff, Warehouse, etc.) always go to Login if unconfigured
+            return const LoginScreen();
+          }
         }
 
         // If configured, check for maintenance mode (Global or Tenant-specific)
         final tenantId = config.tenantId ?? '';
         final tenantService = TenantService();
+        final licenseService = getIt<LicenseService>();
         final isSuperAdmin = tenantService.isSuperAdmin(tenantId);
-        
+
+        // 4. Check for License Expiration (Skip for 'alone' tier or Super Admin)
+        if (config.tierId != 'alone' && !isSuperAdmin) {
+           return FutureBuilder<bool>(
+             future: licenseService.isExpired(),
+             builder: (context, expirySnapshot) {
+               if (expirySnapshot.data == true) {
+                  return const MaintenanceScreen(
+                    title: 'Kindly renew your license',
+                    message: 'Your system access has been suspended due to an expired license.\nPlease contact the administrator to renew your key.',
+                    icon: Icons.vpn_key_off,
+                    iconColor: Colors.orange,
+                  );
+               }
+               
+               // Proceed with other checks if not expired
+               return _buildResponsiveOrMaintenance(context, config, tenantId, tenantService, isSuperAdmin);
+             }
+           );
+        }
+
+        return _buildResponsiveOrMaintenance(context, config, tenantId, tenantService, isSuperAdmin);
+      },
+    );
+  }
+
+  Widget _buildResponsiveOrMaintenance(
+    BuildContext context, 
+    AppConfiguration config, 
+    String tenantId, 
+    TenantService tenantService, 
+    bool isSuperAdmin
+  ) {
         // Check if system access is allowed
         if (!tenantService.canAccessSystem(
           tenantId, 
           isSuperAdmin: isSuperAdmin,
           fallbackTierId: config.tierId,
         )) {
+          // Detect if it's a maintenance block or a subscription expiry block
+          final tenants = tenantService.getTenants();
+          final currentTenant = tenants.cast().cast().firstWhere(
+            (t) => t.id == tenantId,
+            orElse: () => null,
+          );
+
+          if (currentTenant?.status == 'Inactive') {
+            return const MaintenanceScreen(
+              title: 'Subscription Expired',
+              message: 'Your SSS Kiosk subscription has expired.\nPlease contact support to renew your license.',
+              icon: Icons.lock_clock,
+              iconColor: Colors.red,
+            );
+          }
+
           return const MaintenanceScreen();
         }
         
-        // If the configuration explicitly indicates we are in a Warehouse Session, restore it!
-        if (config.warehouseId != null && config.branchId != null) {
-          final warehouseService = WarehouseService(getIt<AppDatabase>());
-          return FutureBuilder<List<dynamic>>(
-            future: warehouseService.getWarehousesForBranch(config.branchId!),
-            builder: (context, whSnapshot) {
-              if (whSnapshot.connectionState == ConnectionState.waiting) {
-                return _buildLoadingScreen();
-              }
-              
-              final warehouses = whSnapshot.data ?? [];
-              final activeWarehouse = warehouses.cast().cast().firstWhere(
-                (w) => w.id == config.warehouseId,
-                orElse: () => null,
-              );
-              
-              if (activeWarehouse != null) {
-                return ResponsiveWrapper(
-                  mobile: const HomeScreenMobile(),
-                  tablet: const HomeScreenTablet(),
-                  desktop: StaffPanelWarehouse(warehouse: activeWarehouse),
-                  web: StaffPanelWarehouse(warehouse: activeWarehouse),
-                );
-              }
-              
-              // Fallback to desktop if the specific warehouse couldn't be loaded
-              return ResponsiveWrapper(
-                mobile: const HomeScreenMobile(),
-                tablet: const HomeScreenTablet(),
-                desktop: const StaffPanelDesktop(),
-                web: const HomeScreenDesktop(),
-              );
-            },
-          );
+        // ════════════════════════════════════════════════════════════════════
+        // Role-Based UI Routing
+        // ════════════════════════════════════════════════════════════════════
+        final roleConfig = getIt<RoleConfig>();
+
+        if (roleConfig.role == AppRole.superAdmin) {
+          return const SuperAdminScreen();
         }
 
-        // Determine the approriate desktop and web screen based on setup
-        Widget desktopScreen;
-        if (config.tierId == 'enterprise' && config.branchId == null) {
-          desktopScreen = const EnterpriseDashboard();
-        } else {
-          desktopScreen = const StaffPanelDesktop();
+        if (roleConfig.role == AppRole.dashboard) {
+          return const EnterpriseDashboard();
         }
 
-        // If configured and allowed, show the main app
+        if (roleConfig.role == AppRole.warehouse) {
+           // If we have a cached warehouse, show the staff panel directly
+           if (config.warehouseId != null && config.branchId != null) {
+              final warehouseService = WarehouseService(getIt<AppDatabase>());
+              return FutureBuilder<List<dynamic>>(
+                future: warehouseService.getWarehousesForBranch(config.branchId!),
+                builder: (context, whSnapshot) {
+                  if (whSnapshot.connectionState == ConnectionState.waiting) return _buildLoadingScreen();
+                  final warehouses = whSnapshot.data ?? [];
+                  final activeWarehouse = warehouses.cast().cast().firstWhere(
+                    (w) => w.id == config.warehouseId,
+                    orElse: () => null,
+                  );
+                  if (activeWarehouse != null) {
+                    return StaffPanelWarehouse(warehouse: activeWarehouse);
+                  }
+                  return const LoginScreen();
+                },
+              );
+           }
+           return const LoginScreen();
+        }
+
+        if (roleConfig.role == AppRole.staff || roleConfig.role == AppRole.manager) {
+          return const StaffPanelDesktop();
+        }
+
+        // Default Kiosk Routing
         return ResponsiveWrapper(
           mobile: const HomeScreenMobile(),
           tablet: const HomeScreenTablet(),
-          desktop: desktopScreen,
-          // Web can use desktop version or have its own
+          desktop: const HomeScreenDesktop(),
           web: const HomeScreenDesktop(),
         );
-      },
-    );
   }
 
   Widget _buildLoadingScreen() {

@@ -84,7 +84,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final tenant = await authRepository.login(event.email, event.password);
       emit(AuthAuthenticated(tenant));
     } catch (e) {
-      emit(AuthFailure(e.toString()));
+      String message = e.toString();
+      if (e.toString().contains('SocketException')) {
+        message = 'Connection Failed: Unable to reach the server. Please check your internet connection or server IP address.';
+      } else if (e.toString().contains('TimeoutException')) {
+        message = 'Request Timed Out: The server is taking too long to respond.';
+      } else if (e.toString().contains('ClientException')) {
+        message = 'Network Error: Please ensure you are connected to the correct network.';
+      }
+      emit(AuthFailure(message));
     }
   }
 
