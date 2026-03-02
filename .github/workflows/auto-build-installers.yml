@@ -708,7 +708,7 @@ jobs:
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
           # Save app bundle for delta generation later
           mkdir -p artifacts
-          cp -R "$APP_PATH" "artifacts/${APP_NAME}.app"
+          cp -R "$APP_PATH" "artifacts/${FLAVOR_APP_NAME}.app"
       - name: Code sign macOS app
         timeout-minutes: 10
         env:
@@ -749,14 +749,14 @@ jobs:
             echo "APP_PATH not set"
             exit 1
           fi
-          ditto -c -k --keepParent "$APP_PATH" "${APP_NAME}.zip"
-          xcrun notarytool submit "${APP_NAME}.zip" \
+          ditto -c -k --keepParent "$APP_PATH" "${FLAVOR_APP_NAME}.zip"
+          xcrun notarytool submit "${FLAVOR_APP_NAME}.zip" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait
           xcrun stapler staple "$APP_PATH"
-          rm "${APP_NAME}.zip"
+          rm "${FLAVOR_APP_NAME}.zip"
           echo "✓ App notarized and stapled successfully"
       - name: Create polished DMG
         timeout-minutes: 10
@@ -767,10 +767,10 @@ jobs:
             echo "APP_PATH not set"
             exit 1
           fi
-          TEMP_APP="${APP_NAME}.app"
+          TEMP_APP="${FLAVOR_APP_NAME}.app"
           cp -R "$APP_PATH" "$TEMP_APP"
           DMG_NAME="dist/${FLAVOR_APP_NAME}-${VERSION}.dmg"
-          VOLUME_NAME="${APP_NAME} ${VERSION}"
+          VOLUME_NAME="${FLAVOR_APP_NAME} ${VERSION}"
           mkdir -p dmg_root
           cp -R "$TEMP_APP" dmg_root/
           ln -s /Applications dmg_root/Applications
