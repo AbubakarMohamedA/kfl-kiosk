@@ -597,7 +597,7 @@ jobs:
   build-macos:
     needs: parse-metadata
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -691,7 +691,7 @@ jobs:
           
           echo "✓ Certificate imported successfully"
       - name: Build Flutter macOS app
-        timeout-minutes: 20
+        timeout-minutes: 60
         run: |
           set -e
           chmod +x ./set_flavor.sh
@@ -1200,7 +1200,7 @@ jobs:
   build-ios:
     needs: parse-metadata
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
