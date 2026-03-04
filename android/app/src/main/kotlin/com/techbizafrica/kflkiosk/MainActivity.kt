@@ -1,4 +1,4 @@
-package com.example.kflkiosk
+package com.techbizafrica.kflkiosk
 
 import io.flutter.embedding.android.FlutterActivity
 

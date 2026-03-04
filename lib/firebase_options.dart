@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAKwtibcBxrFM7Zya2ICj1_J6cNK9uc0gg',
-    appId: '1:876840743697:android:1a1aca7177542bcde612b0',
+    appId: '1:876840743697:android:94548e4ddd5e83e6e612b0',
     messagingSenderId: '876840743697',
     projectId: 'kflkiosk-dc264',
     storageBucket: 'kflkiosk-dc264.firebasestorage.app',
@@ -59,28 +59,29 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBUNK45LNs6Rq8sUVnMnVZVSm5CHgD0qsw',
-    appId: '1:876840743697:ios:fc916d0ff50ad7e0e612b0',
+    appId: '1:876840743697:ios:4bd8d0a897bee9bee612b0',
     messagingSenderId: '876840743697',
     projectId: 'kflkiosk-dc264',
     storageBucket: 'kflkiosk-dc264.firebasestorage.app',
-    iosBundleId: 'com.example.kflkiosk',
+    iosBundleId: 'com.techbizafrica.kflkiosk.kiosk',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBUNK45LNs6Rq8sUVnMnVZVSm5CHgD0qsw',
-    appId: '1:876840743697:ios:fc916d0ff50ad7e0e612b0',
+    appId: '1:876840743697:ios:4bd8d0a897bee9bee612b0',
     messagingSenderId: '876840743697',
     projectId: 'kflkiosk-dc264',
     storageBucket: 'kflkiosk-dc264.firebasestorage.app',
-    iosBundleId: 'com.example.kflkiosk',
+    iosBundleId: 'com.techbizafrica.kflkiosk.kiosk',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyBTNdlD_F8mtCwEV0Wmq8GHkt-wSakVWYk',
-    appId: '1:876840743697:web:a44fc26dd3daffeee612b0',
+    apiKey: 'AIzaSyBajP8W42l9OYoKsj8o-_ObkN-JbPkdyiI',
+    appId: '1:876840743697:web:69961f89e119de5ce612b0',
     messagingSenderId: '876840743697',
     projectId: 'kflkiosk-dc264',
     authDomain: 'kflkiosk-dc264.firebaseapp.com',
     storageBucket: 'kflkiosk-dc264.firebasestorage.app',
   );
+
 }

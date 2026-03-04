@@ -9,12 +9,12 @@ We use a custom multi-platform flavor implementation to allow all apps to be ins
 ## The 6 App Roles & Entry Points
 | Role | Flavor Name | App Name | Internal App ID / Executable | Entry Point |
 |---|---|---|---|---|
-| Super Admin | `superadmin` | SSS Admin | `com.example.kflkiosk.superadmin` | `lib/main_superadmin.dart` |
-| Manager | `manager` | SSS Manager | `com.example.kflkiosk.manager` | `lib/main_branch.dart` |
-| Staff | `staff` | SSS Staff | `com.example.kflkiosk.staff` | `lib/main_staff.dart` |
-| Warehouse | `warehouse` | SSS Warehouse | `com.example.kflkiosk.warehouse` | `lib/main_warehouse.dart` |
-| Dashboard | `dashboard` | SSS Dashboard | `com.example.kflkiosk.dashboard` | `lib/main_dashboard.dart` |
-| Kiosk | `kiosk` | SSS Kiosk | `com.example.kflkiosk.kiosk` | `lib/main_terminal.dart` |
+| Super Admin | `superadmin` | SSS Admin | `com.techbizafrica.kflkiosk.superadmin` | `lib/main_superadmin.dart` |
+| Manager | `manager` | SSS Manager | `com.techbizafrica.kflkiosk.manager` | `lib/main_branch.dart` |
+| Staff | `staff` | SSS Staff | `com.techbizafrica.kflkiosk.staff` | `lib/main_staff.dart` |
+| Warehouse | `warehouse` | SSS Warehouse | `com.techbizafrica.kflkiosk.warehouse` | `lib/main_warehouse.dart` |
+| Dashboard | `dashboard` | SSS Dashboard | `com.techbizafrica.kflkiosk.dashboard` | `lib/main_dashboard.dart` |
+| Kiosk | `kiosk` | SSS Kiosk | `com.techbizafrica.kflkiosk.kiosk` | `lib/main_terminal.dart` |
 
 ---
 

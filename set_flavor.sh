@@ -13,27 +13,27 @@ fi
 case "$FLAVOR" in
   "superadmin")
     APP_NAME="SSS Admin"
-    APP_ID="com.example.kflkiosk.superadmin"
+    APP_ID="com.techbizafrica.kflkiosk.superadmin"
     ;;
   "manager")
     APP_NAME="SSS Manager"
-    APP_ID="com.example.kflkiosk.manager"
+    APP_ID="com.techbizafrica.kflkiosk.manager"
     ;;
   "staff")
     APP_NAME="SSS Staff"
-    APP_ID="com.example.kflkiosk.staff"
+    APP_ID="com.techbizafrica.kflkiosk.staff"
     ;;
   "warehouse")
     APP_NAME="SSS Warehouse"
-    APP_ID="com.example.kflkiosk.warehouse"
+    APP_ID="com.techbizafrica.kflkiosk.warehouse"
     ;;
   "dashboard")
     APP_NAME="SSS Dashboard"
-    APP_ID="com.example.kflkiosk.dashboard"
+    APP_ID="com.techbizafrica.kflkiosk.dashboard"
     ;;
   "kiosk")
     APP_NAME="SSS Kiosk"
-    APP_ID="com.example.kflkiosk.kiosk"
+    APP_ID="com.techbizafrica.kflkiosk.kiosk"
     ;;
   *)
     echo "Unknown flavor: $FLAVOR"
@@ -63,7 +63,7 @@ if [ -d "ios/Runner.xcodeproj" ]; then
     # Update project.pbxproj PRODUCT_BUNDLE_IDENTIFIER
     sed -i.bak -E "s/PRODUCT_BUNDLE_IDENTIFIER = com\.example\.kflkiosk[^;]*;/PRODUCT_BUNDLE_IDENTIFIER = $APP_ID;/g" ios/Runner.xcodeproj/project.pbxproj
     # Fix the RunnerTests target bundle id so it remains valid
-    sed -i.bak -E "s/PRODUCT_BUNDLE_IDENTIFIER = $APP_ID\.RunnerTests;/PRODUCT_BUNDLE_IDENTIFIER = com.example.kflkiosk.RunnerTests;/g" ios/Runner.xcodeproj/project.pbxproj
+    sed -i.bak -E "s/PRODUCT_BUNDLE_IDENTIFIER = $APP_ID\.RunnerTests;/PRODUCT_BUNDLE_IDENTIFIER = com.techbizafrica.kflkiosk.RunnerTests;/g" ios/Runner.xcodeproj/project.pbxproj
     rm -f ios/Runner.xcodeproj/project.pbxproj.bak
     
     # Update Info.plist CFBundleDisplayName

@@ -61,45 +61,27 @@ Future<void> mainWithRole(AppRole role) async {
 
   // 3. Determine Start Screen
   Widget startScreen;
-  
-  // Mobile Specific Logic
-  bool isMobile = false;
-  try {
-    isMobile = Platform.isAndroid || Platform.isIOS;
-  } catch (e) {
-    // Web or other
+  // Attempt to load previously configured IP for Remote Terminal mode
+  final prefs = await SharedPreferences.getInstance();
+  final ip = prefs.getString('server_ip');
+  if (ip != null && ip.isNotEmpty) {
+    ApiConfig.setBaseUrl('http://$ip:8080');
+    ApiConfig.setFlavor(AppFlavor.prod);
   }
 
-  if (isMobile) {
-    final prefs = await SharedPreferences.getInstance();
-    final isMobileConfigured = prefs.getBool('is_mobile_configured') ?? false;
-    
-    if (!isMobileConfigured && role != AppRole.kiosk) {
-      startScreen = const ServerConnectionScreen();
-    } else {
-      final ip = prefs.getString('server_ip');
-      if (ip != null) {
-        ApiConfig.setBaseUrl('http://$ip:8080'); // ✅ Set Server URL
-        ApiConfig.setFlavor(AppFlavor.prod);    // ✅ Force Remote Mode if configured
-      }
-      startScreen = const HomeScreen(); // ✅ NEW: Go to Home instead of Login
-    }
+  // Unified Start Screen Logic (Regardless of platform)
+  if (role == AppRole.superAdmin) {
+    // Super Admin ALWAYS starts at Login Screen for security
+    startScreen = const LoginScreen();
+  } else if (role == AppRole.kiosk) {
+    // Kiosk ALWAYS starts at HomeScreen
+    startScreen = const HomeScreen();
   } else {
-    // Desktop Logic
-    // For specialized builds, we customize the start screen
-    if (role == AppRole.superAdmin) {
-      // Super Admin ALWAYS starts at Login Screen for security
-      startScreen = const LoginScreen();
-    } else if (role != AppRole.kiosk) {
-      startScreen = (isLicensed && isConfigured) 
-          ? const HomeScreen() 
-          : const LoginScreen();
-    } else {
-      // Kiosk ALWAYS starts at HomeScreen
-      startScreen = const HomeScreen();
-    }
-
-    // Attempt to start local server if previously configured
+    // Other roles start at Home if licensed & configured, else Login
+    startScreen = (isLicensed && isConfigured) 
+        ? const HomeScreen() 
+        : const LoginScreen();
+  }
     // ════════════════════════════════════════════════════════════════════
   // 5. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
   // ════════════════════════════════════════════════════════════════════
@@ -136,7 +118,6 @@ Future<void> mainWithRole(AppRole role) async {
         debugPrint('Local Server Bypassed. Role ($role) acting as Client in Tier: ${config.tierId}');
       }
     }
-  }
   
   runApp(KFMKioskApp(home: startScreen, roleConfig: roleConfig));
 }

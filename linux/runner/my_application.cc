@@ -7,6 +7,10 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+#include <unistd.h>
+#include <limits.h>
+#include <string>
+
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
@@ -61,6 +65,18 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+
+  // Attempt to load the application icon from the flutter assets
+  char exe_path[PATH_MAX];
+  ssize_t count = readlink("/proc/self/exe", exe_path, PATH_MAX);
+  if (count != -1) {
+    std::string path(exe_path, count);
+    std::string base_dir = path.substr(0, path.find_last_of("\\/"));
+    std::string icon_path = base_dir + "/data/flutter_assets/assets/images/logo.png";
+    g_autoptr(GError) error = nullptr;
+    gtk_window_set_icon_from_file(window, icon_path.c_str(), &error);
+    // Ignore error if the file doesn't exist yet/not bundled
+  }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
