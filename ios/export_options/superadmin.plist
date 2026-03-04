@@ -7,14 +7,14 @@
 	<key>provisioningProfiles</key>
 	<dict>
 		<key>com.techbizafrica.kflkiosk.superadmin</key>
-		<string>Superadmin</string>
+		<string>KFL Kiosk Superadmin Ad Hoc</string>
 	</dict>
 	<key>signingStyle</key>
 	<string>manual</string>
 	<key>stripSwiftSymbols</key>
 	<true/>
 	<key>teamID</key>
-	<string>6L6W9S9V6L</string>
+	<string>45XP48S67P</string>
 	<key>thinning</key>
 	<string>&lt;none&gt;</string>
 </dict>
