@@ -622,7 +622,7 @@ jobs:
           if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
           if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
           
-          flutter build macos --release -t $ENTRY_FILE --export-options-plist=macos/export_options/${{ matrix.flavor }}.plist
+          flutter build macos --release -t $ENTRY_FILE
       - name: Verify macOS build
         timeout-minutes: 5
         run: |
