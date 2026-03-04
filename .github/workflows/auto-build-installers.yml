@@ -1212,8 +1212,10 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
           # apply provisioning profile
+          UUID=$(security cms -D -i $PP_PATH | awk -F'>' '/UUID/{getline; print $2}' | awk -F'<' '{print $1}')
+          echo "Extracted Profile UUID: $UUID"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
       - name: Build Signed iOS App (IPA)
         if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
@@ -1224,6 +1226,11 @@ jobs:
           ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
           if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
           if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+          
+          # Force Xcode to use Manual signing with Distribution certificates instead of defaulting to Automatic/Development
+          sed -i.bak -e 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i.bak -e 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";/g' ios/Runner.xcodeproj/project.pbxproj
+          rm -f ios/Runner.xcodeproj/project.pbxproj.bak
           
           flutter build ipa --release -t $ENTRY_FILE --export-options-plist=ios/export_options/${{ matrix.flavor }}.plist
           
