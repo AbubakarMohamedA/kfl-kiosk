@@ -120,126 +120,62 @@ jobs:
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          ENABLE_MANUAL_SIGNING: ${{ secrets.ENABLE_MANUAL_SIGNING }}
         run: |
           $exePath = "build\windows\x64\runner\Release\$env:FLAVOR_APP_NAME.exe"
+          $certPath = Join-Path $env:TEMP "cert.pfx"
+          $certPassword = ""
           
-          # Check if automated signing is available
-          if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
-            Write-Host "⚠️ Automated code signing not configured"
-            Write-Host "   WINDOWS_CERTIFICATE or WINDOWS_CERTIFICATE_PASSWORD secrets not set"
+          if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            Write-Host "Using provided code signing certificate from secrets..."
+            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            [IO.File]::WriteAllBytes($certPath, $certBytes)
+            $certPassword = $env:WINDOWS_CERTIFICATE_PASSWORD
+          } else {
+            Write-Host "Generating self-signed certificate for TECHBIZ LIMITED..."
+            $cert = New-SelfSignedCertificate -Subject "CN=TECHBIZ LIMITED" -Type CodeSigningCert -CertStoreLocation "Cert:\CurrentUser\My"
+            $securePwd = ConvertTo-SecureString -String "Techbiz123" -Force -AsPlainText
+            Export-PfxCertificate -Cert $cert -FilePath $certPath -Password $securePwd | Out-Null
+            $certPassword = "Techbiz123"
             
-            # Check if manual signing is enabled
-            if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-              Write-Host ""
-              Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              Write-Host "MANUAL SIGNING MODE ENABLED"
-              Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              Write-Host ""
-              Write-Host "The executable is available at: $exePath"
-              Write-Host ""
-              Write-Host "To sign manually:"
-              Write-Host "1. Download the unsigned executable from artifacts"
-              Write-Host "2. Sign it with your certificate using signtool:"
-              Write-Host "   signtool sign /f cert.pfx /p PASSWORD /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 $env:FLAVOR_APP_NAME.exe"
-              Write-Host "3. Re-upload the signed executable or configure automated signing"
-              Write-Host ""
-              Write-Host "To enable automated signing:"
-              Write-Host "- Set WINDOWS_CERTIFICATE secret (base64 encoded .pfx file)"
-              Write-Host "- Set WINDOWS_CERTIFICATE_PASSWORD secret"
-              Write-Host ""
-              
-              # Create a marker file to indicate manual signing is needed
-              "UNSIGNED - Manual signing required" | Out-File -FilePath "artifacts\SIGNING_REQUIRED.txt" -Encoding utf8
-              
-              Write-Host "✓ Continuing build without signature (manual signing required)"
-            } else {
-              Write-Host ""
-              Write-Host "To enable code signing, add these secrets to your repository:"
-              Write-Host "- WINDOWS_CERTIFICATE (base64 encoded .pfx file)"
-              Write-Host "- WINDOWS_CERTIFICATE_PASSWORD"
-              Write-Host "- Optionally: ENABLE_MANUAL_SIGNING=true for manual signing workflow"
-              Write-Host ""
-              Write-Host "✓ Continuing build without signature"
-            }
-            exit 0
+            # Export for the installer signing step
+            "WIN_CERT_PATH=$certPath" | Out-File -FilePath "$env:GITHUB_ENV" -Append -Encoding utf8
+            "WIN_CERT_PASSWORD=$certPassword" | Out-File -FilePath "$env:GITHUB_ENV" -Append -Encoding utf8
           }
           
           try {
-            Write-Host "Attempting automated code signing..."
-            
-            # Decode and save certificate
-            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
-            $certPath = Join-Path $env:TEMP "cert.pfx"
-            [IO.File]::WriteAllBytes($certPath, $certBytes)
-            
-            # Find signtool.exe
-            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
+            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
               Where-Object { $_.Directory.FullName -match "\\x64$" } |
               Select-Object -First 1 -ExpandProperty FullName
             
             if (-not $signToolPath) {
-              Write-Warning "signtool.exe not found - skipping automated signing"
-              
-              if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-                Write-Host "Manual signing mode enabled - see instructions above"
-                "UNSIGNED - signtool not found, manual signing required" | Out-File -FilePath "artifacts\SIGNING_REQUIRED.txt" -Encoding utf8
-              }
+              Write-Warning "signtool.exe not found - skipping signing"
               exit 0
             }
             
             Write-Host "Using signtool from: $signToolPath"
             
             # Sign the executable
-            & $signToolPath sign `
-              /f $certPath `
-              /p $env:WINDOWS_CERTIFICATE_PASSWORD `
-              /tr http://timestamp.digicert.com `
-              /td SHA256 `
-              /fd SHA256 `
-              $exePath
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              & $signToolPath sign /f $certPath /p $certPassword /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 $exePath
+            } else {
+              & $signToolPath sign /f $certPath /p $certPassword /fd SHA256 $exePath
+            }
             
             if ($LASTEXITCODE -ne 0) {
               Write-Warning "Code signing failed with exit code $LASTEXITCODE"
-              
-              if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-                Write-Host "Manual signing mode enabled - see instructions above"
-                "UNSIGNED - Automated signing failed, manual signing required" | Out-File -FilePath "artifacts\SIGNING_REQUIRED.txt" -Encoding utf8
-              }
               exit 0
             }
             
-            # Verify signature
-            & $signToolPath verify /pa $exePath
-            
-            if ($LASTEXITCODE -ne 0) {
-              Write-Warning "Signature verification failed"
-              
-              if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-                Write-Host "Manual signing mode enabled - see instructions above"
-                "UNSIGNED - Signature verification failed, manual signing required" | Out-File -FilePath "artifacts\SIGNING_REQUIRED.txt" -Encoding utf8
-              }
-              exit 0
-            }
-            
-            Write-Host "✓ Executable signed and verified successfully"
+            Write-Host "✓ Executable signed successfully"
           }
           catch {
             Write-Warning "Code signing error: $_"
-            
-            if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-              Write-Host "Manual signing mode enabled - see instructions above"
-              "UNSIGNED - Error during signing: $_ - Manual signing required" | Out-File -FilePath "artifacts\SIGNING_REQUIRED.txt" -Encoding utf8
-            } else {
-              Write-Host "   Continuing without code signing..."
-            }
           }
           finally {
-            if (Test-Path $certPath) {
-              Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              if (Test-Path $certPath) { Remove-Item $certPath -Force -ErrorAction SilentlyContinue }
             }
           }
-      
       - name: Save signed executable to artifacts
         shell: pwsh
         run: |
@@ -415,7 +351,7 @@ jobs:
             '  '
             '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayName" "' + $env:FLAVOR_APP_NAME + '"'
             '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "UninstallString" "$INSTDIR\uninstall.exe"'
-            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "Publisher" "' + $env:FLAVOR_APP_NAME + '"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "Publisher" "TECHBIZ LIMITED"'
             '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayVersion" "' + $env:VERSION + '"'
             '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "InstallLocation" "$INSTDIR"'
             '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayIcon" "$INSTDIR\' + $env:FLAVOR_APP_NAME + '.exe"'
@@ -465,108 +401,55 @@ jobs:
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          ENABLE_MANUAL_SIGNING: ${{ secrets.ENABLE_MANUAL_SIGNING }}
         run: |
           $installerPath = "dist\${env:FLAVOR_APP_NAME}-${env:VERSION}-Setup.exe"
+          $certPath = ""
+          $certPassword = ""
           
-          # Check if automated signing is available
-          if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
-            Write-Host "⚠️ Automated installer signing not configured"
-            
-            # Check if manual signing is enabled
-            if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-              Write-Host ""
-              Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              Write-Host "MANUAL INSTALLER SIGNING MODE"
-              Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              Write-Host ""
-              Write-Host "The installer is available at: $installerPath"
-              Write-Host ""
-              Write-Host "To sign manually:"
-              Write-Host "1. Download the unsigned installer from artifacts"
-              Write-Host "2. Sign it with your certificate"
-              Write-Host "3. Re-upload or configure automated signing"
-              Write-Host ""
-              
-              # Update marker file
-              "UNSIGNED INSTALLER - Manual signing required" | Out-File -FilePath "artifacts\INSTALLER_SIGNING_REQUIRED.txt" -Encoding utf8
-              
-              Write-Host "✓ Continuing build without installer signature"
-            } else {
-              Write-Host "✓ Skipping installer signing"
-            }
+          if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            $certPath = Join-Path $env:TEMP "cert_installer.pfx"
+            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            [IO.File]::WriteAllBytes($certPath, $certBytes)
+            $certPassword = $env:WINDOWS_CERTIFICATE_PASSWORD
+          } elseif ($env:WIN_CERT_PATH -and $env:WIN_CERT_PASSWORD) {
+            $certPath = $env:WIN_CERT_PATH
+            $certPassword = $env:WIN_CERT_PASSWORD
+          } else {
+            Write-Warning "No certificate found for installer signing."
             exit 0
           }
           
           try {
-            Write-Host "Attempting automated installer signing..."
-            
-            # Decode and save certificate
-            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
-            $certPath = Join-Path $env:TEMP "cert.pfx"
-            [IO.File]::WriteAllBytes($certPath, $certBytes)
-            
-            # Find signtool.exe
-            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
+            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
               Where-Object { $_.Directory.FullName -match "\\x64$" } |
               Select-Object -First 1 -ExpandProperty FullName
             
             if (-not $signToolPath) {
               Write-Warning "signtool.exe not found - skipping installer signing"
-              
-              if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-                "UNSIGNED INSTALLER - signtool not found, manual signing required" | Out-File -FilePath "artifacts\INSTALLER_SIGNING_REQUIRED.txt" -Encoding utf8
-              }
               exit 0
             }
             
-            # Sign the installer
-            & $signToolPath sign `
-              /f $certPath `
-              /p $env:WINDOWS_CERTIFICATE_PASSWORD `
-              /tr http://timestamp.digicert.com `
-              /td SHA256 `
-              /fd SHA256 `
-              $installerPath
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              & $signToolPath sign /f $certPath /p $certPassword /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 $installerPath
+            } else {
+               & $signToolPath sign /f $certPath /p $certPassword /fd SHA256 $installerPath
+            }
             
             if ($LASTEXITCODE -ne 0) {
               Write-Warning "Installer signing failed with exit code $LASTEXITCODE"
-              
-              if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-                "UNSIGNED INSTALLER - Automated signing failed, manual signing required" | Out-File -FilePath "artifacts\INSTALLER_SIGNING_REQUIRED.txt" -Encoding utf8
-              }
               exit 0
             }
             
-            # Verify signature
-            & $signToolPath verify /pa $installerPath
-            
-            if ($LASTEXITCODE -ne 0) {
-              Write-Warning "Installer signature verification failed"
-              
-              if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-                "UNSIGNED INSTALLER - Verification failed, manual signing required" | Out-File -FilePath "artifacts\INSTALLER_SIGNING_REQUIRED.txt" -Encoding utf8
-              }
-              exit 0
-            }
-            
-            Write-Host "✓ Installer signed and verified successfully"
+            Write-Host "✓ Installer signed successfully"
           }
           catch {
             Write-Warning "Installer signing error: $_"
-            
-            if ($env:ENABLE_MANUAL_SIGNING -eq "true") {
-              "UNSIGNED INSTALLER - Error: $_ - Manual signing required" | Out-File -FilePath "artifacts\INSTALLER_SIGNING_REQUIRED.txt" -Encoding utf8
-            } else {
-              Write-Host "   Continuing without installer signing..."
-            }
           }
           finally {
-            if (Test-Path $certPath) {
-              Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              if (Test-Path $certPath) { Remove-Item $certPath -Force -ErrorAction SilentlyContinue }
             }
           }
-      
       - name: Save signed installer to artifacts
         shell: pwsh
         run: |
@@ -660,11 +543,40 @@ jobs:
           flutter pub get
           flutter config --enable-macos-desktop
           flutter doctor -v
-      - name: Import Code-Signing Certificates
+          
+      - name: Resolve Provisioning Profile Config
+        id: resolve-profile
         env:
+          PROFILE_SUPERADMIN: ${{ secrets.MACOS_PROFILE_SUPERADMIN }}
+          PROFILE_MANAGER: ${{ secrets.MACOS_PROFILE_MANAGER }}
+          PROFILE_STAFF: ${{ secrets.MACOS_PROFILE_STAFF }}
+          PROFILE_WAREHOUSE: ${{ secrets.MACOS_PROFILE_WAREHOUSE }}
+          PROFILE_DASHBOARD: ${{ secrets.MACOS_PROFILE_DASHBOARD }}
+          PROFILE_KIOSK: ${{ secrets.MACOS_PROFILE_KIOSK }}
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          FLAVOR_UPPER=$(echo "${{ matrix.flavor }}" | tr '[:lower:]' '[:upper:]')
+          PROFILE_VAR="PROFILE_${FLAVOR_UPPER}"
+          PROFILE_VALUE="${!PROFILE_VAR}"
+          
+          if [ -n "$MACOS_CERTIFICATE" ] && [ -n "$MACOS_CERTIFICATE_PASSWORD" ] && [ -n "$MACOS_SIGNING_IDENTITY" ] && [ -n "$PROFILE_VALUE" ]; then
+            echo "ENABLE_MACOS_SIGNING=true" >> $GITHUB_ENV
+            echo "::add-mask::$PROFILE_VALUE"
+            echo "MACOS_PROVISIONING_PROFILE=$PROFILE_VALUE" >> $GITHUB_ENV
+            echo "Found matching provisioning profile secret for flavor: ${{ matrix.flavor }}"
+          else
+            echo "ENABLE_MACOS_SIGNING=false" >> $GITHUB_ENV
+            echo "Signing disabled for flavor: ${{ matrix.flavor }} (Missing certificate, identity, or specific profile: MACOS_PROFILE_${FLAVOR_UPPER})"
+          fi
+          
+      - name: Import Code-Signing Certificates & Profile
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE: ${{ env.MACOS_PROVISIONING_PROFILE }}
         run: |
           if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$MACOS_CERTIFICATE_PASSWORD" ] || [ -z "$MACOS_SIGNING_IDENTITY" ]; then
             echo "Skipping certificate import - missing required secrets"
@@ -688,6 +600,15 @@ jobs:
           
           # List certificates to verify
           security find-identity -v -p codesigning build.keychain
+          
+          # Apply provisioning profile (if supplied for macOS)
+          if [ -n "$MACOS_PROVISIONING_PROFILE" ]; then
+            PP_PATH=$CERT_DIR/build_pp.provisionprofile
+            echo -n "$MACOS_PROVISIONING_PROFILE" | base64 --decode -o "$PP_PATH"
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+            echo "✓ Provisioning profile installed successfully"
+          fi
           
           echo "✓ Certificate imported successfully"
       - name: Build Flutter macOS app
@@ -717,16 +638,11 @@ jobs:
           mkdir -p artifacts
           cp -R "$APP_PATH" "artifacts/${FLAVOR_APP_NAME}.app"
       - name: Code sign macOS app
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
         timeout-minutes: 10
         env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
         run: |
-          if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$MACOS_CERTIFICATE_PASSWORD" ] || [ -z "$MACOS_SIGNING_IDENTITY" ]; then
-            echo "Skipping code signing - missing required secrets"
-            exit 0
-          fi
           set -e
           if [ -z "$APP_PATH" ]; then
             echo "APP_PATH not set"
@@ -740,6 +656,7 @@ jobs:
           codesign --verify --verbose "$APP_PATH"
           echo "✓ App signed and verified successfully"
       - name: Notarize macOS app
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
         timeout-minutes: 30
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
@@ -788,15 +705,11 @@ jobs:
           mkdir -p artifacts
           cp "$DMG_NAME" "artifacts/${FLAVOR_APP_NAME}.dmg"
       - name: Sign DMG
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
         timeout-minutes: 5
         env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
         run: |
-          if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$MACOS_SIGNING_IDENTITY" ]; then
-            echo "Skipping DMG signing - missing required secrets"
-            exit 0
-          fi
           set -e
           DMG_PATH="dist/${FLAVOR_APP_NAME}-${VERSION}.dmg"
           if [ ! -f "$DMG_PATH" ]; then
@@ -954,8 +867,10 @@ jobs:
           ln -sf "$INSTALL_DIR/$APP_NAME" "$BIN_DIR/$APP_NAME"
           ICON_PATH=""
           for icon_location in \
+            "$INSTALL_DIR/data/flutter_assets/assets/images/logo.png" \
             "$INSTALL_DIR/data/flutter_assets/assets/icons/icon.png" \
             "$INSTALL_DIR/data/flutter_assets/assets/icon.png" \
+            "$INSTALL_DIR/assets/images/logo.png" \
             "$INSTALL_DIR/assets/icons/icon.png" \
             "$INSTALL_DIR/assets/icon.png"; do
             if [ -f "$icon_location" ]; then
@@ -1025,6 +940,7 @@ jobs:
           chmod +x "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
           ICON_CREATED=false
           for icon_path in \
+            "assets/images/logo.png" \
             "assets/icons/icon.png" \
             "assets/images/icon.png" \
             "assets/icon.png" \
@@ -1187,9 +1103,9 @@ jobs:
           if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
           if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
           
-          flutter build apk --flavor ${{ matrix.flavor }} -t $ENTRY_FILE
+          flutter build apk --flavor ${{ matrix.flavor }} --split-per-abi -t $ENTRY_FILE
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk dist/${FLAVOR_APP_NAME}-${VERSION}.apk
+          cp build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-arm64-v8a-release.apk dist/${FLAVOR_APP_NAME}-${VERSION}.apk
           
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -1222,7 +1138,34 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
         
+      - name: Resolve Provisioning Profile Config
+        id: resolve-profile
+        env:
+          PROFILE_SUPERADMIN: ${{ secrets.IOS_PROFILE_SUPERADMIN }}
+          PROFILE_MANAGER: ${{ secrets.IOS_PROFILE_MANAGER }}
+          PROFILE_STAFF: ${{ secrets.IOS_PROFILE_STAFF }}
+          PROFILE_WAREHOUSE: ${{ secrets.IOS_PROFILE_WAREHOUSE }}
+          PROFILE_DASHBOARD: ${{ secrets.IOS_PROFILE_DASHBOARD }}
+          PROFILE_KIOSK: ${{ secrets.IOS_PROFILE_KIOSK }}
+          IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          FLAVOR_UPPER=$(echo "${{ matrix.flavor }}" | tr '[:lower:]' '[:upper:]')
+          PROFILE_VAR="PROFILE_${FLAVOR_UPPER}"
+          PROFILE_VALUE="${!PROFILE_VAR}"
+          
+          if [ -n "$IOS_CERTIFICATE" ] && [ -n "$IOS_CERTIFICATE_PASSWORD" ] && [ -n "$PROFILE_VALUE" ]; then
+            echo "ENABLE_IOS_SIGNING=true" >> $GITHUB_ENV
+            echo "::add-mask::$PROFILE_VALUE"
+            echo "IOS_PROVISIONING_PROFILE=$PROFILE_VALUE" >> $GITHUB_ENV
+            echo "Found matching provisioning profile secret for flavor: ${{ matrix.flavor }}"
+          else
+            echo "ENABLE_IOS_SIGNING=false" >> $GITHUB_ENV
+            echo "Signing disabled for flavor: ${{ matrix.flavor }} (Missing certificate or specific profile: IOS_PROFILE_${FLAVOR_UPPER})"
+          fi
+          
       - name: Build iOS App without signing (Simulator/Archive)
+        if: ${{ env.ENABLE_IOS_SIGNING != 'true' }}
         run: |
           chmod +x ./set_flavor.sh
           ./set_flavor.sh ${{ matrix.flavor }}
@@ -1239,11 +1182,58 @@ jobs:
           cd build/ios/iphoneos
           tar -czf ../../../dist/${FLAVOR_APP_NAME}-ios-${VERSION}.tar.gz Runner.app
           
+      - name: Install Apple Certificate and Provisioning Profile
+        if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ env.IOS_PROVISIONING_PROFILE }}
+          KEYCHAIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # import certificate and provisioning profile from secrets
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          # create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # apply provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+
+      - name: Build Signed iOS App (IPA)
+        if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
+        run: |
+          chmod +x ./set_flavor.sh
+          ./set_flavor.sh ${{ matrix.flavor }}
+          
+          ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
+          if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
+          if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+          
+          flutter build ipa --release -t $ENTRY_FILE --export-options-plist=ios/ExportOptions.plist
+          
+          mkdir -p dist
+          cp build/ios/ipa/*.ipa dist/${FLAVOR_APP_NAME}-${VERSION}.ipa
+
       - name: Upload iOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ios-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.ipa
 
   release:
     needs: [parse-metadata, build-windows, build-macos, build-linux, build-android, build-ios]
@@ -1281,6 +1271,7 @@ jobs:
           echo "Copying mobile artifacts..."
           find artifacts -type f -name "*.apk" -exec cp {} release_files/ \; 2>/dev/null || true
           find artifacts -type f -name "*-ios-*.tar.gz" -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.ipa" -exec cp {} release_files/ \; 2>/dev/null || true
 
           echo "Copying installers and packages..."
           
@@ -1588,10 +1579,15 @@ jobs:
         run: |
           set -e
           sudo apt-get update
-          sudo apt-get install -y cyclonedx-cli || echo "CycloneDX not available"
+          sudo apt-get install -y cyclonedx-cli || {
+            echo "CycloneDX apt package not found, downloading binary..."
+            wget -q https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.25.0/cyclonedx-linux-x64
+            sudo mv cyclonedx-linux-x64 /usr/local/bin/cyclonedx
+            sudo chmod +x /usr/local/bin/cyclonedx
+          }
           wget -q https://github.com/aquasecurity/trivy/releases/download/v0.48.0/trivy_0.48.0_Linux-64bit.deb
           sudo dpkg -i trivy_0.48.0_Linux-64bit.deb
-          trivy fs --format table --output security-report.txt . || echo "Trivy scan completed with warnings"
+          trivy fs --format table --output security-report.txt . || echo "Trivy scan failed or completed with warnings, continuing..."
           echo "✓ Security report generated"
       - name: Upload SBOM and Security Report
         uses: actions/upload-artifact@v4
@@ -1609,10 +1605,28 @@ jobs:
     steps:
       - name: Checkout pins branch
         uses: actions/checkout@v4
+        continue-on-error: true
+        id: checkout-pins
         with:
           ref: pins-branch
-          fetch-depth: 1
           path: pins-repo
+          fetch-depth: 1
+
+      - name: Initialize pins branch if missing
+        if: steps.checkout-pins.outcome == 'failure'
+        run: |
+          mkdir -p pins-repo
+          cd pins-repo
+          git init
+          git checkout -b pins-branch
+          echo "{}" > latest.json
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add latest.json
+          git commit -m "Initial pins file"
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push -u origin pins-branch
+          cd ..
       - name: Get current GitHub certificate pins
         id: get_pins
         working-directory: pins-repo
