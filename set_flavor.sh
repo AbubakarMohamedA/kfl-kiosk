@@ -61,7 +61,7 @@ fi
 # --- iOS Configuration ---
 if [ -d "ios/Runner.xcodeproj" ]; then
     # Update project.pbxproj PRODUCT_BUNDLE_IDENTIFIER
-    sed -i.bak -E "s/PRODUCT_BUNDLE_IDENTIFIER = com\.example\.kflkiosk[^;]*;/PRODUCT_BUNDLE_IDENTIFIER = $APP_ID;/g" ios/Runner.xcodeproj/project.pbxproj
+    sed -i.bak -E "s/PRODUCT_BUNDLE_IDENTIFIER = [^;]*;/PRODUCT_BUNDLE_IDENTIFIER = $APP_ID;/g" ios/Runner.xcodeproj/project.pbxproj
     # Fix the RunnerTests target bundle id so it remains valid
     sed -i.bak -E "s/PRODUCT_BUNDLE_IDENTIFIER = $APP_ID\.RunnerTests;/PRODUCT_BUNDLE_IDENTIFIER = com.techbizafrica.kflkiosk.RunnerTests;/g" ios/Runner.xcodeproj/project.pbxproj
     rm -f ios/Runner.xcodeproj/project.pbxproj.bak
