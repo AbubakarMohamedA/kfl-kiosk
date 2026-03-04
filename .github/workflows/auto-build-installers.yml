@@ -1604,7 +1604,6 @@ jobs:
     timeout-minutes: 10
     if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     steps:
-steps:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
