@@ -1222,7 +1222,7 @@ jobs:
           if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
           if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
           
-          flutter build ipa --release -t $ENTRY_FILE --export-options-plist=ios/ExportOptions.plist
+          flutter build ipa --release -t $ENTRY_FILE --export-options-plist=ios/export_options/${{ matrix.flavor }}.plist
           
           mkdir -p dist
           cp build/ios/ipa/*.ipa dist/${FLAVOR_APP_NAME}-${VERSION}.ipa
