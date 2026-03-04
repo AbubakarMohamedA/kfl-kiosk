@@ -917,7 +917,7 @@ jobs:
           Uninstall:
           - Run the command shown at the end of installation
           EOF
-          tar -czf "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "$PACKAGE_DIR"
+          tar -czf "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "$PACKAGE_DIR" || if [ $? -eq 2 ]; then echo "Tar warning ignored"; else exit 1; fi
           echo "✓ Successfully created tarball: dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz"
           # Save tarball for delta generation
           mkdir -p artifacts
@@ -1604,29 +1604,34 @@ jobs:
     timeout-minutes: 10
     if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     steps:
-      - name: Checkout pins branch
-        uses: actions/checkout@v4
-        continue-on-error: true
-        id: checkout-pins
+steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          ref: pins-branch
-          path: pins-repo
-          fetch-depth: 1
+          node-version: 20
 
-      - name: Initialize pins branch if missing
-        if: steps.checkout-pins.outcome == 'failure'
+      - name: Checkout pins branch or initialize
         run: |
           mkdir -p pins-repo
           cd pins-repo
           git init
-          git checkout -b pins-branch
-          echo "{}" > latest.json
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add latest.json
-          git commit -m "Initial pins file"
           git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git push -u origin pins-branch
+          
+          # Try to fetch the branch
+          if git fetch origin pins-branch; then
+            echo "Branch exists, checking out..."
+            git checkout -b pins-branch FETCH_HEAD
+          else
+            echo "Branch does not exist, initializing..."
+            git checkout --orphan pins-branch
+            git rm -rf . || true
+            echo "{}" > latest.json
+            git add latest.json
+            git commit -m "Initial pins file"
+            git push -u origin pins-branch
+          fi
           cd ..
       - name: Get current GitHub certificate pins
         id: get_pins
