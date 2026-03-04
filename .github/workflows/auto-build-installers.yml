@@ -55,12 +55,21 @@ jobs:
           fetch-depth: 1
       
       - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\Users\runneradmin\AppData\Local\Pub\Cache
+            C:\Users\runneradmin\AppData\Local\flutter
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
             ${{ runner.os }}-flutter-
       
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+          cache-key: flutter-windows-${{ hashFiles('**/pubspec.lock') }}
       
       - name: Install dependencies
         shell: pwsh
@@ -487,8 +496,23 @@ jobs:
         with:
           fetch-depth: 1
       - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/flutter
+            ~/Library/Caches/pub
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
             ${{ runner.os }}-flutter-
       - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ios/Pods
+            macos/Pods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
             ${{ runner.os }}-cocoapods-
       - name: Install bsdiff for delta updates
         run: |
@@ -510,6 +534,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+          cache-key: flutter-macos-${{ hashFiles('**/pubspec.lock') }}
       - name: Install dependencies
         timeout-minutes: 10
         run: |
@@ -732,8 +758,20 @@ jobs:
         with:
           fetch-depth: 1
       - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.flutter
+            ~/.pub-cache
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
             ${{ runner.os }}-flutter-
       - name: Cache Linux packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
             ${{ runner.os }}-apt-
       - name: Install bsdiff for delta updates
         run: |
@@ -755,6 +793,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+          cache-key: flutter-linux-${{ hashFiles('**/pubspec.lock') }}
       - name: Install Linux dependencies
         timeout-minutes: 10
         run: |
@@ -1053,6 +1093,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
           
       - name: Install dependencies
         run: flutter pub get
@@ -1093,6 +1134,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
           
       - name: Install dependencies
         run: flutter pub get
@@ -1170,10 +1212,8 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
           # apply provisioning profile
-          UUID=$(security cms -D -i $PP_PATH | awk -F'>' '/UUID/{getline; print $2}' | awk -F'<' '{print $1}')
-          echo "Extracted Profile UUID: $UUID"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
       - name: Build Signed iOS App (IPA)
         if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
@@ -1184,11 +1224,6 @@ jobs:
           ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
           if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
           if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
-          
-          # Force Xcode to use Manual signing with Distribution certificates instead of defaulting to Automatic/Development
-          sed -i.bak -e 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i.bak -e 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";/g' ios/Runner.xcodeproj/project.pbxproj
-          rm -f ios/Runner.xcodeproj/project.pbxproj.bak
           
           flutter build ipa --release -t $ENTRY_FILE --export-options-plist=ios/export_options/${{ matrix.flavor }}.plist
           
