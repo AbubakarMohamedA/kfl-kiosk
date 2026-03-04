@@ -143,7 +143,7 @@ jobs:
           }
           
           try {
-            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
+            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
               Where-Object { $_.Directory.FullName -match "\\x64$" } |
               Select-Object -First 1 -ExpandProperty FullName
             
@@ -420,7 +420,7 @@ jobs:
           }
           
           try {
-            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
+            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
               Where-Object { $_.Directory.FullName -match "\\x64$" } |
               Select-Object -First 1 -ExpandProperty FullName
             
