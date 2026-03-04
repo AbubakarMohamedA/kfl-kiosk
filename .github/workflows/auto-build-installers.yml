@@ -55,21 +55,12 @@ jobs:
           fetch-depth: 1
       
       - name: Cache Flutter SDK
-        uses: actions/cache@v4
-        with:
-          path: |
-            C:\Users\runneradmin\AppData\Local\Pub\Cache
-            C:\Users\runneradmin\AppData\Local\flutter
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
             ${{ runner.os }}-flutter-
       
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
-          cache-key: flutter-windows-${{ hashFiles('**/pubspec.lock') }}
       
       - name: Install dependencies
         shell: pwsh
@@ -496,23 +487,8 @@ jobs:
         with:
           fetch-depth: 1
       - name: Cache Flutter SDK
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Caches/flutter
-            ~/Library/Caches/pub
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
             ${{ runner.os }}-flutter-
       - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cocoapods
-            ios/Pods
-            macos/Pods
-          key: ${{ runner.os }}-cocoapods-${{ hashFiles('**/Podfile.lock') }}
-          restore-keys: |
             ${{ runner.os }}-cocoapods-
       - name: Install bsdiff for delta updates
         run: |
@@ -534,8 +510,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
-          cache-key: flutter-macos-${{ hashFiles('**/pubspec.lock') }}
       - name: Install dependencies
         timeout-minutes: 10
         run: |
@@ -758,20 +732,8 @@ jobs:
         with:
           fetch-depth: 1
       - name: Cache Flutter SDK
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.flutter
-            ~/.pub-cache
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
             ${{ runner.os }}-flutter-
       - name: Cache Linux packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt
-          key: ${{ runner.os }}-apt-${{ hashFiles('**/pubspec.yaml') }}
-          restore-keys: |
             ${{ runner.os }}-apt-
       - name: Install bsdiff for delta updates
         run: |
@@ -793,8 +755,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
-          cache-key: flutter-linux-${{ hashFiles('**/pubspec.lock') }}
       - name: Install Linux dependencies
         timeout-minutes: 10
         run: |
@@ -1093,7 +1053,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
           
       - name: Install dependencies
         run: flutter pub get
@@ -1134,7 +1093,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
           
       - name: Install dependencies
         run: flutter pub get
