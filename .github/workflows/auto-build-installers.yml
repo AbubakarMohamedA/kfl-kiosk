@@ -1346,7 +1346,7 @@ jobs:
           cd ios && pod install && cd ..
 
           # Build archive with full manual signing override
-          xcodebuild -workspace ios/Runner.xcworkspace \
+          set -o pipefail && xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Runner.xcarchive \
@@ -1360,8 +1360,16 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             FLUTTER_TARGET=$ENTRY_FILE \
             -destination "generic/platform=iOS" \
-            | xcpretty
-
+            2>&1 | tee xcodebuild.log
+          
+          # Print last 100 lines if failed
+          if [ ! -d "$RUNNER_TEMP/Runner.xcarchive" ]; then
+            echo "=== XCODE ERROR OUTPUT ==="
+            grep -E "error:|❌|FAILED" xcodebuild.log | head -50
+            echo "=== FULL LOG TAIL ==="
+            tail -100 xcodebuild.log
+            exit 1
+          fi
           # Verify archive was created
           if [ ! -d "$RUNNER_TEMP/Runner.xcarchive" ]; then
             echo "ERROR: Archive was not created"
@@ -1379,7 +1387,7 @@ jobs:
           mkdir -p dist
           cp $RUNNER_TEMP/export/*.ipa dist/${FLAVOR_APP_NAME}-${VERSION}.ipa
           echo "✓ IPA created: dist/${FLAVOR_APP_NAME}-${VERSION}.ipa"
-          
+
       - name: Upload iOS artifacts
         uses: actions/upload-artifact@v4
         with:
