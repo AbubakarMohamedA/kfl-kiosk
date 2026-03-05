@@ -1,4 +1,4 @@
-name: Auto-Build Installers with Delta Updates
+name: Auto-Build Installers
 permissions:
   contents: write
   id-token: write
@@ -596,7 +596,7 @@ jobs:
           security import "$CERT_PATH" -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           
           # Add keychain to search list
-          security list-keychains -d user -s build.keychain $(security list-keychains -d user | xargs)
+          security list-keychains -d user -s build.keychain login.keychain-db
 
           # Set keychain settings
           security set-keychain-settings -lut 21600 build.keychain
@@ -614,6 +614,16 @@ jobs:
           fi
           
           echo "✓ Certificate imported successfully"
+      
+      - name: Verify certificate in keychain
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          echo "Looking for identity: $MACOS_SIGNING_IDENTITY"
+          security find-identity -v -p codesigning ~/Library/Keychains/build.keychain-db
+          security find-certificate -c "$MACOS_SIGNING_IDENTITY" ~/Library/Keychains/build.keychain-db
+
       - name: Build Flutter macOS app
         timeout-minutes: 60
         run: |
@@ -655,7 +665,7 @@ jobs:
           codesign --force --deep --sign "$MACOS_SIGNING_IDENTITY" \
             --options runtime \
             --entitlements macos/Runner/Release.entitlements \
-            --keychain build.keychain \
+            --keychain ~/Library/Keychains/build.keychain-db \   # <-- use full path
             "$APP_PATH"
           
           # Verify the signature
@@ -1196,31 +1206,53 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ env.IOS_PROVISIONING_PROFILE }}
           KEYCHAIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # create variables
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          # import certificate and provisioning profile from secrets
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
 
-          # create temporary keychain
+          # Verify files decoded correctly
+          if [ ! -s "$CERTIFICATE_PATH" ]; then
+            echo "ERROR: Certificate file is empty - check IOS_CERTIFICATE secret"
+            exit 1
+          fi
+          if [ ! -s "$PP_PATH" ]; then
+            echo "ERROR: Provisioning profile is empty - check profile secret"
+            exit 1
+          fi
+
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # import certificate to keychain
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          
-          # Add keychain to search list
-          security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | xargs)
 
-          # apply provisioning profile
+          # Add to search list - include system keychain too
+          security list-keychains -d user -s $KEYCHAIN_PATH login.keychain-db
+
+          # Install provisioning profile with its UUID as filename (required by Xcode)
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          PROFILE_UUID=$(security cms -D -i "$PP_PATH" | plutil -extract UUID raw -)
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
+          echo "✓ Profile installed as: ${PROFILE_UUID}.mobileprovision"
+          
+      - name: Verify iOS certificate in keychain
+        if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo "=== Identities in keychain ==="
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+          echo "=== Installed provisioning profiles ==="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "=== Profile details ==="
+          for f in ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision; do
+            echo "--- $f ---"
+            security cms -D -i "$f" | grep -E "Name|UUID|TeamName|application-identifier" | head -10
+          done
 
       - name: Build Signed iOS App (IPA)
         if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
