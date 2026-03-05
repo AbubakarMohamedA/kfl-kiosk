@@ -1334,45 +1334,39 @@ jobs:
           if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
           if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
 
-          # Get the provisioning profile UUID that was installed
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           security unlock-keychain -p "${{ secrets.GITHUB_TOKEN }}" $KEYCHAIN_PATH
 
-          # Find the installed profile UUID
+          # Find installed profile UUID
           PROFILE_UUID=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/ | head -1 | sed 's/.mobileprovision//')
           echo "Using profile UUID: $PROFILE_UUID"
 
-          # First run flutter pub get and pod install
+          # Create xcconfig to override signing ONLY for Runner target
+          cat > /tmp/signing_override.xcconfig << EOF
+          CODE_SIGN_STYLE = Manual
+          CODE_SIGN_IDENTITY = iPhone Distribution: TECHBIZ LIMITED (45XP48S67P)
+          DEVELOPMENT_TEAM = 45XP48S67P
+          PROVISIONING_PROFILE = $PROFILE_UUID
+          PROVISIONING_PROFILE_SPECIFIER = $PROFILE_UUID
+          EOF
+
           cd ios && pod install && cd ..
 
-          # Build archive with full manual signing override
-          set -o pipefail && xcodebuild -workspace ios/Runner.xcworkspace \
+          # Archive - use xcconfig only for Runner, Pods use their own settings
+          set -o pipefail && xcodebuild \
+            -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Runner.xcarchive \
-            archive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGNING_REQUIRED=YES \
-            CODE_SIGN_IDENTITY="iPhone Distribution: TECHBIZ LIMITED (45XP48S67P)" \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-            DEVELOPMENT_TEAM=45XP48S67P \
+            -destination "generic/platform=iOS" \
+            -xcconfig /tmp/signing_override.xcconfig \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             FLUTTER_TARGET=$ENTRY_FILE \
-            -destination "generic/platform=iOS" \
-            2>&1 | tee xcodebuild.log
-          
-          # Print last 100 lines if failed
+            archive 2>&1 | tee xcodebuild.log
+
           if [ ! -d "$RUNNER_TEMP/Runner.xcarchive" ]; then
-            echo "=== XCODE ERROR OUTPUT ==="
-            grep -E "error:|❌|FAILED" xcodebuild.log | head -50
-            echo "=== FULL LOG TAIL ==="
-            tail -100 xcodebuild.log
-            exit 1
-          fi
-          # Verify archive was created
-          if [ ! -d "$RUNNER_TEMP/Runner.xcarchive" ]; then
-            echo "ERROR: Archive was not created"
+            echo "=== BUILD ERRORS ==="
+            grep "error:" xcodebuild.log | head -30
             exit 1
           fi
           echo "✓ Archive created"
@@ -1382,12 +1376,13 @@ jobs:
             -archivePath $RUNNER_TEMP/Runner.xcarchive \
             -exportOptionsPlist ios/export_options/${{ matrix.flavor }}.plist \
             -exportPath $RUNNER_TEMP/export \
-            | xcpretty
+            2>&1 | tee export.log
 
           mkdir -p dist
           cp $RUNNER_TEMP/export/*.ipa dist/${FLAVOR_APP_NAME}-${VERSION}.ipa
-          echo "✓ IPA created: dist/${FLAVOR_APP_NAME}-${VERSION}.ipa"
+          echo "✓ IPA created"
 
+          
       - name: Upload iOS artifacts
         uses: actions/upload-artifact@v4
         with:
