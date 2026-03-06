@@ -593,7 +593,7 @@ jobs:
           echo "✓ Decoded file size: $(wc -c < $CERT_PATH) bytes"
 
           # Step 3: Verify it's actually a valid p12
-          if ! openssl pkcs12 -in "$CERT_PATH" -passin pass:"$CLEAN_PASSWORD" -nokeys -noout 2>&1; then
+          if ! openssl pkcs12 -in "$CERT_PATH" -passin pass:"$MACOS_CERTIFICATE_PASSWORD" -nokeys -noout 2>&1; then
             echo "ERROR: p12 file is invalid or password is wrong"
             exit 1
           fi
@@ -603,8 +603,8 @@ jobs:
           # Step 3b: Re-encode to legacy format (fixes security import on GitHub Actions runners)
           LEGACY_CERT_PATH="$CERT_DIR/cert_legacy.p12"
           openssl pkcs12 -in "$CERT_PATH" \
-            -passin pass:"$CLEAN_PASSWORD" \
-            -passout pass:"$CLEAN_PASSWORD" \
+            -passin pass:"$MACOS_CERTIFICATE_PASSWORD" \
+            -passout pass:"$MACOS_CERTIFICATE_PASSWORD" \
             -legacy \
             -out "$LEGACY_CERT_PATH"
           echo "✓ Re-encoded to legacy format: $(wc -c < $LEGACY_CERT_PATH) byt
@@ -618,7 +618,7 @@ jobs:
 
           # Step 5: Import certificate (use legacy p12)
           security import "$LEGACY_CERT_PATH" -k build.keychain \
-            -P "$CLEAN_PASSWORD" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
             -T /usr/bin/codesign \
             -T /usr/bin/security \
             -A
