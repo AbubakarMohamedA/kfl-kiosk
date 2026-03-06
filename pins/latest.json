@@ -1,12 +1,12 @@
 {
   "github_pins": {
-    "github.com": ["sha256/tt9RksdSBGiieTiyWkU8g3MOmCrfMcvXDGC4ZALs9rg="],
+    "github.com": ["sha256/0geBhxMKvJdElGzC+A41XQ9zBVeCLHIIEsb1qsIyL28="],
     "api.github.com": ["sha256/tt9RksdSBGiieTiyWkU8g3MOmCrfMcvXDGC4ZALs9rg="],
     "objects.githubusercontent.com": ["sha256/ccs02cz7WiIuRPsyJxR7Gs1f3flkG9wDnaPocSu+U+8="]
   },
   "metadata": {
-    "generated_at": "2026-03-06T09:51:49Z",
-    "valid_until": "2026-06-04T09:51:49Z",
+    "generated_at": "2026-03-06T11:44:51Z",
+    "valid_until": "2026-06-04T11:44:51Z",
     "source": "github-actions-auto-update",
     "repository": "AbubakarMohamedA/kfl-kiosk"
   }
