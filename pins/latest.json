@@ -5,8 +5,8 @@
     "objects.githubusercontent.com": ["sha256/ccs02cz7WiIuRPsyJxR7Gs1f3flkG9wDnaPocSu+U+8="]
   },
   "metadata": {
-    "generated_at": "2026-03-06T06:09:34Z",
-    "valid_until": "2026-06-04T06:09:34Z",
+    "generated_at": "2026-03-06T08:08:14Z",
+    "valid_until": "2026-06-04T08:08:14Z",
     "source": "github-actions-auto-update",
     "repository": "AbubakarMohamedA/kfl-kiosk"
   }
