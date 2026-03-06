@@ -610,8 +610,9 @@ jobs:
           echo "✓ Keychain created"
 
           # Step 5: Import certificate
+          CLEAN_PASSWORD=$(echo "$MACOS_CERTIFICATE_PASSWORD" | tr -d '[:space:]')
           security import "$CERT_PATH" -k build.keychain \
-            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -P "$CLEAN_PASSWORD" \
             -T /usr/bin/codesign \
             -T /usr/bin/security \
             -A
