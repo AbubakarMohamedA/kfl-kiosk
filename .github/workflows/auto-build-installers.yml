@@ -606,7 +606,7 @@ jobs:
             -passin pass:"$MACOS_CERTIFICATE_PASSWORD" \
             -passout pass:"$MACOS_CERTIFICATE_PASSWORD" \
             -out "$LEGACY_CERT_PATH"
-          echo "✓ Re-encoded to legacy format: $(wc -c < $LEGACY_CERT_PATH) byt
+          echo "✓ Re-encoded to legacy format: $(wc -c < $LEGACY_CERT_PATH) bytes"
 
           # Step 4: Create keychain
           security create-keychain -p "" build.keychain
