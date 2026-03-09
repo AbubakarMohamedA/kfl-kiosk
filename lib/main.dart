@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:kfm_kiosk/firebase_options.dart';
 import 'package:kfm_kiosk/core/services/cloud_heartbeat_service.dart';
@@ -38,9 +39,17 @@ Future<void> mainWithRole(AppRole role) async {
   
   // Initialize Firebase (Skip on Linux as it is not configured)
   if (!Platform.isLinux) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    // For flavors, native platforms (Android/iOS) should rely on their
+    // google-services.json / GoogleService-Info.plist which is parsed at build time
+    // to map the correct app ID per flavor.
+    if (TargetPlatform.android == defaultTargetPlatform || TargetPlatform.iOS == defaultTargetPlatform || TargetPlatform.macOS == defaultTargetPlatform) {
+      await Firebase.initializeApp();
+    } else {
+      // Web and Windows use the generated options
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
   }
 
   // Setup dependency injection
@@ -85,10 +94,11 @@ Future<void> mainWithRole(AppRole role) async {
     // ════════════════════════════════════════════════════════════════════
   // 5. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
   // ════════════════════════════════════════════════════════════════════
-  if (!Platform.isLinux) {
+  // 5. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
+  if (!Platform.isLinux && isConfigured && config.tenantId != null) {
     final heartbeat = getIt<CloudHeartbeatService>();
     // ignore: unawaited_futures
-    heartbeat.checkTenantStatus(); // Fire and forget on startup, will update state/UI later
+    heartbeat.checkTenantStatus(); // Fire and forget on startup
   }
 
   if (config.isConfigured && config.tenantId != null) {
@@ -96,11 +106,11 @@ Future<void> mainWithRole(AppRole role) async {
       bool shouldStartServer = false;
 
       if (isEnterprise) {
-        // Enterprise Tier: Staff role runs the server (formerly Branch/Manager)
-        shouldStartServer = (role == AppRole.staff);
+        // Enterprise Tier: Manager role runs the server
+        shouldStartServer = (role == AppRole.manager);
       } else {
-        // Standard/Premium/Alone: Kiosk or Staff can run the server
-        shouldStartServer = (role == AppRole.kiosk || role == AppRole.staff);
+        // Standard/Premium/Alone: Staff role runs the server
+        shouldStartServer = (role == AppRole.staff);
       }
 
       final serverService = getIt<LocalServerService>();

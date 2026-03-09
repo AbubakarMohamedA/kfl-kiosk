@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:kfm_kiosk/core/config/app_role.dart';
 import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
 import 'package:kfm_kiosk/di/injection.dart';
 import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel_desktop.dart';
+import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel.dart';
 
 import 'package:kfm_kiosk/core/presentation/widgets/responsive_wrapper.dart';
 import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_mobile.dart';
@@ -79,12 +81,40 @@ class HomeScreen extends StatelessWidget {
                }
                
                // Proceed with other checks if not expired
-               return _buildResponsiveOrMaintenance(context, config, tenantId, tenantService, isSuperAdmin);
+               return BlocBuilder<AuthBloc, AuthState>(
+                 builder: (context, authState) {
+                   // Ensure Staff/Manager are logged in
+                   if ((roleConfig.role == AppRole.staff || roleConfig.role == AppRole.manager) && 
+                       authState is AuthUnauthenticated) {
+                     return const LoginScreen();
+                   }
+                   
+                   if (authState is AuthLoading || authState is AuthInitial) {
+                     return _buildLoadingScreen();
+                   }
+                   
+                   return _buildResponsiveOrMaintenance(context, config, tenantId, tenantService, isSuperAdmin);
+                 },
+               );
              }
            );
         }
 
-        return _buildResponsiveOrMaintenance(context, config, tenantId, tenantService, isSuperAdmin);
+        return BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, authState) {
+            // Ensure Staff/Manager are logged in
+            if ((roleConfig.role == AppRole.staff || roleConfig.role == AppRole.manager) && 
+                authState is AuthUnauthenticated) {
+              return const LoginScreen();
+            }
+            
+            if (authState is AuthLoading || authState is AuthInitial) {
+              return _buildLoadingScreen();
+            }
+
+            return _buildResponsiveOrMaintenance(context, config, tenantId, tenantService, isSuperAdmin);
+          },
+        );
       },
     );
   }
@@ -158,7 +188,7 @@ class HomeScreen extends StatelessWidget {
         }
 
         if (roleConfig.role == AppRole.staff || roleConfig.role == AppRole.manager) {
-          return const StaffPanelDesktop();
+          return const StaffPanel();
         }
 
         // Default Kiosk Routing

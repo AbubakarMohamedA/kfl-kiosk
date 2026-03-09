@@ -7,7 +7,7 @@ import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
 import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel_desktop.dart';
+import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel.dart';
 import 'package:kfm_kiosk/features/dashboard/presentation/widgets/enterprise_charts.dart';
 import 'package:kfm_kiosk/features/dashboard/presentation/widgets/enterprise_feed.dart';
 import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
@@ -114,7 +114,7 @@ class _EnterpriseDashboardState extends State<EnterpriseDashboard> with SingleTi
     // 2. Navigate to StaffPanel
     if (mounted) {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+        MaterialPageRoute(builder: (_) => const StaffPanel()),
       ).then((_) async {
         // Clear branch context when returning to Enterprise Dashboard
         var exitConfig = await repo.getConfiguration();

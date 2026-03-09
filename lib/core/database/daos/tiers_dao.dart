@@ -37,6 +37,10 @@ class TiersDao extends DatabaseAccessor<AppDatabase> with _$TiersDaoMixin {
     await (delete(tiers)..where((tbl) => tbl.id.equals(id))).go();
   }
 
+  Future<void> deleteAllTiers() async {
+    await delete(tiers).go();
+  }
+
   entity.Tier _mapToEntity(Tier row) {
     return entity.Tier(
       id: row.id,

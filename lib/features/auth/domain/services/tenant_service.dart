@@ -32,6 +32,10 @@ class TenantService {
   Future<void> initialize() async {
     if (_tenantsDao == null || _tiersDao == null) return;
 
+    // Clear caches to prevent duplicates on multiple initializations
+    _cacheTiers.clear();
+    _cacheTenants.clear();
+
     // Load Tiers
     final dbTiers = await _tiersDao!.getAllTiers();
     if (dbTiers.isEmpty) {
@@ -236,6 +240,87 @@ class TenantService {
       debugPrint('TenantService: Synced tier ${tier.id} to cloud');
     } catch (e) {
       debugPrint('TenantService: Error syncing tier ${tier.id} to cloud: $e');
+    }
+  }
+
+  /// Pull all tiers from Firestore and merge into local DB
+  Future<void> pullTiersFromCloud() async {
+    if (Platform.isLinux) return;
+    try {
+      final snapshot = await _firestore.collection('tiers').get();
+      
+      // Full Refresh: Clear local DB table first
+      if (_tiersDao != null) {
+        await _tiersDao!.deleteAllTiers();
+      }
+      
+      _cacheTiers.clear();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final tier = Tier(
+          id: doc.id,
+          name: data['name'] ?? '',
+          description: data['description'] ?? '',
+          enabledFeatures: List<String>.from(data['enabledFeatures'] ?? []),
+          allowUpdates: data['allowUpdates'] ?? true,
+          immuneToBlocking: data['immuneToBlocking'] ?? false,
+        );
+        if (_tiersDao != null) {
+          await _tiersDao!.saveTier(tier);
+        }
+        _cacheTiers.add(tier);
+      }
+      debugPrint('TenantService: Full Sync: Pulled ${snapshot.docs.length} tiers from cloud');
+    } catch (e) {
+      debugPrint('TenantService: Error pulling tiers from cloud: $e');
+      rethrow;
+    }
+  }
+
+  /// Pull all tenants from Firestore and merge into local DB
+  Future<void> pullTenantsFromCloud() async {
+    if (Platform.isLinux) return;
+    try {
+      final snapshot = await _firestore.collection('tenants').get();
+      
+      // Full Refresh: Clear local DB table first
+      if (_tenantsDao != null) {
+        await _tenantsDao!.deleteAllTenants();
+      }
+      
+      _cacheTenants.clear();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final tenant = Tenant(
+          id: doc.id,
+          name: data['name'] ?? '',
+          businessName: data['businessName'] ?? '',
+          email: data['email'] ?? '',
+          phone: data['phone'] ?? '',
+          status: data['status'] ?? 'Active',
+          tierId: data['tierId'] ?? 'standard',
+          createdDate: data['createdAt'] != null 
+              ? (data['createdAt'] as Timestamp).toDate() 
+              : DateTime.now(),
+          lastLogin: data['updatedAt'] != null 
+              ? (data['updatedAt'] as Timestamp).toDate() 
+              : null,
+          ordersCount: data['ordersCount'] ?? 0,
+          revenue: (data['revenue'] ?? 0.0).toDouble(),
+          isMaintenanceMode: data['isMaintenanceMode'] ?? false,
+          enabledFeatures: List<String>.from(data['enabledFeatures'] ?? []),
+          allowUpdate: data['allowUpdate'],
+          immuneToBlocking: data['immuneToBlocking'],
+        );
+        if (_tenantsDao != null) {
+          await _tenantsDao!.saveTenant(tenant);
+        }
+        _cacheTenants.add(tenant);
+      }
+      debugPrint('TenantService: Full Sync: Pulled ${snapshot.docs.length} tenants from cloud');
+    } catch (e) {
+      debugPrint('TenantService: Error pulling tenants from cloud: $e');
+      rethrow;
     }
   }
 
@@ -631,18 +716,17 @@ class TenantService {
     if (Platform.isLinux) return null;
 
     try {
-      // 1. Tenant/SuperAdmin Login
-      if (role == AppRole.superAdmin || role == AppRole.dashboard) {
-        final tenantDoc = await _firestore.collection('tenants').doc(password).get();
-        if (tenantDoc.exists) {
-          final data = tenantDoc.data()!;
-          if (data['email'].toString().toLowerCase() == identifier.toLowerCase()) {
-             return {'type': 'tenant', 'data': data, 'id': password};
-          }
+      // 1. Primary Tenant/SuperAdmin Login Check (Universal)
+      // This allows the Business Owner to log into any app (Kiosk, Staff, Dashboard)
+      final tenantDoc = await _firestore.collection('tenants').doc(password).get();
+      if (tenantDoc.exists) {
+        final data = tenantDoc.data()!;
+        if (data['email'].toString().toLowerCase() == identifier.toLowerCase()) {
+           return {'type': 'tenant', 'data': data, 'id': password};
         }
       }
 
-      // 2. Branch Manager / Staff Login
+      // 2. Branch Manager / Staff Login (Role Restricted)
       if (role == AppRole.staff || role == AppRole.manager) {
         // We need to find which tenant this branch belongs to. 
         // In a real app, we might have a top-level 'users' collection or require TenantID prefix.

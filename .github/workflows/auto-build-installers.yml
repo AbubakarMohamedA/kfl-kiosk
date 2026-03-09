@@ -1734,12 +1734,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cyclonedx-cli || {
             echo "CycloneDX apt package not found, downloading binary..."
-            wget -q https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.25.0/cyclonedx-linux-x64
-            sudo mv cyclonedx-linux-x64 /usr/local/bin/cyclonedx
+            curl -sLo cyclonedx https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.25.0/cyclonedx-linux-x64
+            sudo mv cyclonedx /usr/local/bin/cyclonedx
             sudo chmod +x /usr/local/bin/cyclonedx
           }
-          wget -q https://github.com/aquasecurity/trivy/releases/download/v0.48.0/trivy_0.48.0_Linux-64bit.deb
-          sudo dpkg -i trivy_0.48.0_Linux-64bit.deb
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.48.0
           trivy fs --format table --output security-report.txt . || echo "Trivy scan failed or completed with warnings, continuing..."
           echo "✓ Security report generated"
       - name: Upload SBOM and Security Report

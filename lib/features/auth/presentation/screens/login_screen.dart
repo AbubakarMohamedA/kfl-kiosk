@@ -6,7 +6,7 @@ import 'package:kfm_kiosk/features/home/presentation/screens/home_screen.dart';
 import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
 import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
 import 'package:kfm_kiosk/core/services/local_server_service.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel_desktop.dart';
+import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel.dart';
 import 'package:kfm_kiosk/features/admin/presentation/screens/tenant_setup_screen.dart';
 import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +17,8 @@ import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_das
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
 import 'package:kfm_kiosk/di/injection.dart';
 import 'package:kfm_kiosk/core/config/app_role.dart';
+
+import '../../domain/repositories/auth_repository.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -51,10 +53,11 @@ class _LoginScreenState extends State<LoginScreen> {
       final roleConfig = getIt<RoleConfig>();
       final tenantService = TenantService();
 
-      // NEW: Primary Cloud Authentication with Linux Super Admin Fallback
+      // NEW: Primary Cloud Authentication with Local Super Admin Fallback (All Platforms)
       Map<String, dynamic>? cloudAuth;
+      final isSuperAdminEmail = email.toLowerCase() == 'admin@sss.com';
 
-      if (Platform.isLinux && email == 'admin@sss.com') {
+      if (isSuperAdminEmail) {
         final localTenant = tenantService.login(email, password);
         if (localTenant != null && localTenant.id == 'SUPER_ADMIN') {
           cloudAuth = {
@@ -161,6 +164,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     
     await repo.saveConfiguration(config);
+    // Persist Session
+    await getIt<AuthRepository>().saveSession(tenant);
+
     // Set Local Server context for syncing tablets
     getIt<LocalServerService>().setActiveTenantId(
       tenant.id, 
@@ -194,6 +200,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       
       await repo.saveConfiguration(config);
+      // Persist Session
+      await getIt<AuthRepository>().saveSession(tenant);
+
       // Notify Local Server (Desktop only)
       getIt<LocalServerService>().setActiveTenantId(
         tenant.id, 
@@ -204,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
       
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+          MaterialPageRoute(builder: (_) => const StaffPanel()),
         );
       }
   }
@@ -233,6 +242,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     
     await repo.saveConfiguration(config);
+    
+    // Persist Session
+    await getIt<AuthRepository>().saveSession(tenant);
     
     if (mounted) {
       if (tenant.id == 'SUPER_ADMIN') {
@@ -267,7 +279,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           if (!mounted) return;
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const StaffPanelDesktop()),
+            MaterialPageRoute(builder: (_) => const StaffPanel()),
           );
         }
       }

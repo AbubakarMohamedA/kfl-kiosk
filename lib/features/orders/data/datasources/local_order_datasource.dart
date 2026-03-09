@@ -38,6 +38,7 @@ class LocalOrderDataSource implements OrderDataSource {
 
   // Polling timer for sync
   Timer? _syncTimer;
+  bool _isSyncing = false;
 
   @override
   Stream<List<OrderModel>> watchOrders({String? tenantId}) {
@@ -193,24 +194,27 @@ class LocalOrderDataSource implements OrderDataSource {
   /// Start polling for server updates
   void _startSyncPolling() {
     _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+    _syncTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       await _syncWithServer();
     });
   }
 
   /// Sync orders with server
   Future<void> _syncWithServer() async {
+    if (_isSyncing) return;
+    
     final baseUrl = ApiConfig.baseUrl;
     if (baseUrl.isEmpty) {
       _isOnline = false;
       return;
     }
 
+    _isSyncing = true;
     try {
       // 1. Health check first
       final healthResp = await _httpClient.get(
         Uri.parse('$baseUrl/api/v1/health'),
-      ).timeout(const Duration(seconds: 2));
+      ).timeout(const Duration(seconds: 10));
       
       if (healthResp.statusCode != 200) {
          _isOnline = false;
@@ -221,7 +225,7 @@ class LocalOrderDataSource implements OrderDataSource {
       // 2. Sync orders
       final response = await _httpClient.get(
         Uri.parse('$baseUrl/api/v1/orders'),
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -245,8 +249,12 @@ class LocalOrderDataSource implements OrderDataSource {
         _isOnline = false;
       }
     } catch (e) {
-      debugPrint('[OrderDataSource] Sync error: $e');
+      if (e is! TimeoutException) {
+        debugPrint('[OrderDataSource] Sync error: $e');
+      }
       _isOnline = false;
+    } finally {
+      _isSyncing = false;
     }
   }
 
@@ -284,7 +292,7 @@ class LocalOrderDataSource implements OrderDataSource {
         Uri.parse('$baseUrl/api/v1/orders'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(order.toJson()),
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 10));
       
       if (resp.statusCode != 200) {
         debugPrint('[OrderDataSource] Server returned ${resp.statusCode} on order creation: ${resp.body}');
@@ -305,7 +313,7 @@ class LocalOrderDataSource implements OrderDataSource {
         Uri.parse('$baseUrl/api/v1/orders/$orderId'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(data),
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 10));
       
       if (resp.statusCode != 200) {
         debugPrint('[OrderDataSource] Server returned ${resp.statusCode} on order update: ${resp.body}');
@@ -412,7 +420,7 @@ class LocalOrderDataSource implements OrderDataSource {
       try {
         final resp = await _httpClient.get(
           Uri.parse('$baseUrl/api/v1/orders/counter/$key'),
-        ).timeout(const Duration(seconds: 2));
+        ).timeout(const Duration(seconds: 10));
         
         if (resp.statusCode == 200) {
           final data = jsonDecode(resp.body);
@@ -452,7 +460,7 @@ class LocalOrderDataSource implements OrderDataSource {
             'key': key,
             'counter': count + 1
           }),
-        ).timeout(const Duration(seconds: 3));
+        ).timeout(const Duration(seconds: 10));
       } catch (e) {
         // Sync error
       }
@@ -486,7 +494,7 @@ class LocalOrderDataSource implements OrderDataSource {
       try {
         await _httpClient.delete(
           Uri.parse('$baseUrl/api/v1/orders/$orderId'),
-        ).timeout(const Duration(seconds: 3));
+        ).timeout(const Duration(seconds: 10));
       } catch (e) {
         // Ignore
       }
@@ -542,7 +550,7 @@ class LocalOrderDataSource implements OrderDataSource {
       try {
         await _httpClient.delete(
           Uri.parse('$baseUrl/api/v1/orders'),
-        ).timeout(const Duration(seconds: 3));
+        ).timeout(const Duration(seconds: 10));
       } catch (e) {
         // Ignore
       }

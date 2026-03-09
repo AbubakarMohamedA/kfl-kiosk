@@ -88,7 +88,12 @@ class CloudHeartbeatService {
 
           // Fetch current local tenant state
           final tenants = _tenantService.getTenants();
-          final currentTenant = tenants.firstWhere((t) => t.id == tenantId);
+          final index = tenants.indexWhere((t) => t.id == tenantId);
+          if (index == -1) {
+            debugPrint('Firebase Heartbeat: Tenant $tenantId not registered locally yet.');
+            return;
+          }
+          final currentTenant = tenants[index];
         
         // Check if any critical field changed
         final hasChanged = currentTenant.status != status || 

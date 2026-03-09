@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:kfm_kiosk/core/configuration/data/datasources/local_configuration_datasource.dart';
 import 'package:kfm_kiosk/core/database/daos/orders_dao.dart';
@@ -54,6 +55,10 @@ import 'package:kfm_kiosk/core/repositories/image_repository.dart';
 final getIt = GetIt.instance;
 
 Future<void> setupDependencies() async {
+  // SharedPreferences
+  final sharedPreferences = await SharedPreferences.getInstance();
+  getIt.registerSingleton<SharedPreferences>(sharedPreferences);
+
   // Database
   final database = AppDatabase();
   getIt.registerSingleton<AppDatabase>(database);
@@ -81,6 +86,14 @@ Future<void> setupDependencies() async {
   
   getIt.registerLazySingleton<SyncService>(() => SyncService(getIt<ConfigurationRepository>())); // NEW
   
+  // Initialize TenantService with DAOs FIRST, as other services depend on it
+  final tenantService = TenantService();
+  tenantService.setBranchesDao(getIt<BranchesDao>());
+  tenantService.setTenantsDao(getIt<TenantsDao>());
+  tenantService.setTiersDao(getIt<TiersDao>());
+  await tenantService.initialize();
+  getIt.registerSingleton<TenantService>(tenantService);
+
   getIt.registerLazySingleton<CloudHeartbeatService>(() => CloudHeartbeatService(
     getIt<ConfigurationRepository>(),
     getIt<TenantService>(),
@@ -89,13 +102,6 @@ Future<void> setupDependencies() async {
     getIt<LocalServerService>(),
   ));
 
-  // Initialize TenantService with DAOs
-  final tenantService = TenantService();
-  tenantService.setBranchesDao(getIt<BranchesDao>());
-  tenantService.setTenantsDao(getIt<TenantsDao>());
-  tenantService.setTiersDao(getIt<TiersDao>());
-  await tenantService.initialize();
-  
   // External
   getIt.registerLazySingleton(() => http.Client());
 
@@ -137,6 +143,8 @@ Future<void> setupDependencies() async {
   getIt.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(
     mockDataSource: getIt<AuthMockDataSource>(),
     remoteDataSource: getIt<AuthRemoteDataSource>(),
+    sharedPreferences: getIt<SharedPreferences>(),
+    tenantService: getIt<TenantService>(),
   ));
 
 // getIt.registerLazySingleton<LocalConfigurationDataSource>(() => LocalConfigurationDataSource(getIt<AppDatabase>()));

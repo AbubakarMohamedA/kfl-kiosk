@@ -46,6 +46,10 @@ class TenantsDao extends DatabaseAccessor<AppDatabase> with _$TenantsDaoMixin {
     await (delete(tenants)..where((tbl) => tbl.id.equals(id))).go();
   }
 
+  Future<void> deleteAllTenants() async {
+    await delete(tenants).go();
+  }
+
   entity.Tenant _mapToEntity(Tenant row) {
     return entity.Tenant(
       id: row.id,

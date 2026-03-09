@@ -158,19 +158,20 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
           const SizedBox(width: 24),
         ],
       ),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Left Panel: Configuration Form
-          Expanded(
-            flex: 2,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Panel: Configuration Form
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Card(
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -178,7 +179,10 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
                       children: [
                         const Text(
                           'Branding & customization',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 24),
                         
@@ -198,28 +202,7 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Center(child: Text('Tap to change Logo')),
-                        // const SizedBox(height: 24),
-
-                        // TextFormField(
-                        //   controller: _appNameController,
-                        //   decoration: const InputDecoration(
-                        //     labelText: 'App Name',
-                        //     border: OutlineInputBorder(),
-                        //     prefixIcon: Icon(Icons.smartphone),
-                        //   ),
-                        //   onChanged: (value) => setState(() {}),
-                        // ),
-                        // const SizedBox(height: 16),
-                        // TextFormField(
-                        //   controller: _welcomeController,
-                        //   decoration: const InputDecoration(
-                        //     labelText: 'Welcome Message',
-                        //     border: OutlineInputBorder(),
-                        //     prefixIcon: Icon(Icons.message),
-                        //   ),
-                        //   onChanged: (value) => setState(() {}),
-                        // ),
-                        // const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
                         const Text('Theme Colors', style: TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 16),
@@ -230,8 +213,6 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
                             _buildColorPicker('Secondary', _secondaryColor, (c) => setState(() => _secondaryColor = c)),
                           ],
                         ),
-                        
-                        
                         
                         const SizedBox(height: 40),
                         SizedBox(
@@ -253,13 +234,10 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
                 ),
               ),
             ),
-          ),
-          
-          // Right Panel: Connection Info & Preview
-          Expanded(
-            flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 24, right: 24, bottom: 24),
+            
+            // Bottom Panel: Connection Info & Preview
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
                 children: [
                   // Server Info Card
@@ -269,6 +247,7 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.wifi_tethering, color: Colors.white, size: 48),
                           const SizedBox(height: 16),
@@ -306,7 +285,8 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
                   const SizedBox(height: 24),
                   
                   // Live Preview
-                  Expanded(
+                  SizedBox(
+                    height: 400,
                     child: Card(
                       clipBehavior: Clip.antiAlias,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -408,11 +388,12 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

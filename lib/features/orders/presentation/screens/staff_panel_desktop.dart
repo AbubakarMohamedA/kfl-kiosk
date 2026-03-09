@@ -32,6 +32,10 @@ import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
+import '../../../../core/config/app_role.dart';
+import '../../../../core/services/local_server_service.dart';
+import '../../../../di/injection.dart';
+
 class StaffPanelDesktop extends StatefulWidget {
   const StaffPanelDesktop({super.key});
 
@@ -59,7 +63,8 @@ enum ScreenType {
 class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _historySearchController = TextEditingController();
+  final TextEditingController _historySearchController =
+      TextEditingController();
   DateTime _selectedHistoryDate = DateTime.now();
   DateTime _selectedActiveDate = DateTime.now();
   late TabController _tabController;
@@ -72,7 +77,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   bool _isDarkMode = false;
   DateTime _currentTime = DateTime.now();
   int _paidOrdersCount = 0;
-  
+
   // ✅ NEW: Configuration tracking for mode awareness
   AppConfiguration _currentConfig = AppConfiguration();
   bool _isConfigLoading = true;
@@ -82,14 +87,19 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   double _averagePrepTime = 0.0;
   List<Map<String, dynamic>> _hourlyData = [];
 
+  // Role & Tier helpers
+  bool get isEnterprise => _currentConfig.tierId == 'enterprise';
+  bool get isManager => getIt<RoleConfig>().role == AppRole.manager;
+  bool get isStaff => getIt<RoleConfig>().role == AppRole.staff;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    
+
     // ✅ NEW: Load configuration on startup
     _loadConfiguration();
-    
+
     // Silent auto-refresh every 30 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted && !_showHistory) {
@@ -98,7 +108,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         setState(() {}); // Force check for maintenance updates
       }
     });
-    
+
     // Update clock every second
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
@@ -107,7 +117,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         });
       }
     });
-    
+
     _generateMockAnalytics();
   }
 
@@ -118,7 +128,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           .read<OrderBloc>()
           .configurationRepository
           .getConfiguration();
-      
+
       if (mounted && config != _currentConfig) {
         setState(() {
           _currentConfig = config;
@@ -144,10 +154,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         'revenue': (math.Random().nextDouble() * 5000) + 1000,
       };
     });
-    _peakHourOrders = _hourlyData.map((e) => e['orders'] as int).fold(
-      0,
-      (prev, current) => math.max(prev, current),
-    );
+    _peakHourOrders = _hourlyData
+        .map((e) => e['orders'] as int)
+        .fold(0, (prev, current) => math.max(prev, current));
     _averagePrepTime = 8.5 + (math.Random().nextDouble() * 6);
   }
 
@@ -166,7 +175,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.build_circle_outlined, size: 80, color: Colors.orange[300]),
+          Icon(
+            Icons.build_circle_outlined,
+            size: 80,
+            color: Colors.orange[300],
+          ),
           const SizedBox(height: 24),
           Text(
             '$moduleName Under Maintenance',
@@ -184,11 +197,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   }
 
   // ─── MODE-AWARE ORDER HELPERS ────────────────────────────────────────────
-  
+
   // ⚠️ CRITICAL FULFILLMENT PERSISTENCE LOGIC ⚠️
   //
   // These helper methods implement a key business rule:
-  // "Once an order reaches 100% completion (all items fulfilled), it MUST 
+  // "Once an order reaches 100% completion (all items fulfilled), it MUST
   // remain completed regardless of tracking mode switches."
   //
   // WHY THIS MATTERS:
@@ -205,7 +218,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   //   * Order-level status field value
   //   * Any other configuration
   // - This ensures orders stay completed once customers have picked them up
-  
+
   // ✅ FIXED: Use configuration-aware active check with fulfillment persistence
   bool _isOrderActive(Order order) {
     // CRITICAL: If ALL items are fulfilled, the order is permanently complete
@@ -213,13 +226,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     // from reappearing when switching between tracking modes.
     if (order.items.isNotEmpty) {
       final allItemsFulfilled = order.items.every(
-        (item) => item.status == AppConstants.statusFulfilled
+        (item) => item.status == AppConstants.statusFulfilled,
       );
       if (allItemsFulfilled) {
         return false; // Order was 100% complete - stays inactive forever
       }
     }
-    
+
     // If not all items are fulfilled, use mode-specific active check
     return order.isActive(_currentConfig);
   }
@@ -230,18 +243,18 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     // regardless of tracking mode
     if (order.items.isNotEmpty) {
       final allItemsFulfilled = order.items.every(
-        (item) => item.status == AppConstants.statusFulfilled
+        (item) => item.status == AppConstants.statusFulfilled,
       );
       if (allItemsFulfilled) {
         return 100.0;
       }
     }
-    
+
     if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
       // Order-level: 0% if not fulfilled, 100% if fulfilled
       return order.status == AppConstants.statusFulfilled ? 100.0 : 0.0;
     }
-    
+
     // Item-level: Calculate based on fulfilled items
     if (order.items.isEmpty) return 0.0;
     final fulfilled = order.items
@@ -263,7 +276,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
       return _getOrderCompletionPercent(order); // Use order-level percent
     }
-    
+
     final items = order.items
         .where((i) => i.product.category == category)
         .toList();
@@ -280,13 +293,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     // regardless of what the order-level status says or current tracking mode
     if (order.items.isNotEmpty) {
       final allItemsFulfilled = order.items.every(
-        (item) => item.status == AppConstants.statusFulfilled
+        (item) => item.status == AppConstants.statusFulfilled,
       );
       if (allItemsFulfilled) {
         return AppConstants.statusFulfilled;
       }
     }
-    
+
     return order.getEffectiveStatus(_currentConfig);
   }
 
@@ -311,70 +324,89 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
   Color _warehouseColor(String category) {
     switch (category) {
-      case 'Flour': return Colors.brown;
-      case 'Premium Flour': return Colors.amber;
-      case 'Bakers Flour': return Colors.orange;
-      case 'Cooking Oil': return Colors.yellow.shade700;
-      default: return Colors.blueGrey;
+      case 'Flour':
+        return Colors.brown;
+      case 'Premium Flour':
+        return Colors.amber;
+      case 'Bakers Flour':
+        return Colors.orange;
+      case 'Cooking Oil':
+        return Colors.yellow.shade700;
+      default:
+        return Colors.blueGrey;
     }
   }
 
   IconData _warehouseIcon(String category) {
     switch (category) {
-      case 'Flour': return Icons.grain;
-      case 'Premium Flour': return Icons.grade;
-      case 'Bakers Flour': return Icons.bakery_dining;
-      case 'Cooking Oil': return Icons.water_drop;
-      default: return Icons.inventory_2;
+      case 'Flour':
+        return Icons.grain;
+      case 'Premium Flour':
+        return Icons.grade;
+      case 'Bakers Flour':
+        return Icons.bakery_dining;
+      case 'Cooking Oil':
+        return Icons.water_drop;
+      default:
+        return Icons.inventory_2;
     }
   }
 
   Color _statusColor(String status) {
     switch (status) {
-      case AppConstants.statusPaid: return Colors.blue;
-      case AppConstants.statusPreparing: return Colors.orange;
-      case AppConstants.statusReadyForPickup: return Colors.purple;
-      case AppConstants.statusFulfilled: return Colors.green;
-      default: return Colors.grey;
+      case AppConstants.statusPaid:
+        return Colors.blue;
+      case AppConstants.statusPreparing:
+        return Colors.orange;
+      case AppConstants.statusReadyForPickup:
+        return Colors.purple;
+      case AppConstants.statusFulfilled:
+        return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 
   IconData _statusIcon(String status) {
     switch (status) {
-      case AppConstants.statusPaid: return Icons.payment;
-      case AppConstants.statusPreparing: return Icons.autorenew;
-      case AppConstants.statusReadyForPickup: return Icons.inventory_2;
-      case AppConstants.statusFulfilled: return Icons.check_circle;
-      default: return Icons.circle;
+      case AppConstants.statusPaid:
+        return Icons.payment;
+      case AppConstants.statusPreparing:
+        return Icons.autorenew;
+      case AppConstants.statusReadyForPickup:
+        return Icons.inventory_2;
+      case AppConstants.statusFulfilled:
+        return Icons.check_circle;
+      default:
+        return Icons.circle;
     }
   }
 
   String _statusLabel(String status) {
     switch (status) {
-      case AppConstants.statusPaid: return 'PAID';
-      case AppConstants.statusPreparing: return 'PREPARING';
-      case AppConstants.statusReadyForPickup: return 'READY';
-      case AppConstants.statusFulfilled: return 'PICKED UP';
-      default: return status.toUpperCase();
+      case AppConstants.statusPaid:
+        return 'PAID';
+      case AppConstants.statusPreparing:
+        return 'PREPARING';
+      case AppConstants.statusReadyForPickup:
+        return 'READY';
+      case AppConstants.statusFulfilled:
+        return 'PICKED UP';
+      default:
+        return status.toUpperCase();
     }
   }
 
   // ✅ NEW: Get appropriate status update event based on mode
   void _updateOrderStatus(Order order, String newStatus) {
     final bloc = context.read<OrderBloc>();
-    
+
     if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
       // Order-level mode: Update entire order status
-      bloc.add(UpdateOrderStatus(
-        orderId: order.id,
-        status: newStatus,
-      ));
+      bloc.add(UpdateOrderStatus(orderId: order.id, status: newStatus));
     } else {
       // Item-level mode: Update all items to new status
-      bloc.add(UpdateOrderStatus(
-        orderId: order.id,
-        status: newStatus,
-      ));
+      bloc.add(UpdateOrderStatus(orderId: order.id, status: newStatus));
       // Note: In item-level mode, warehouse stations handle per-category updates
       // The main dashboard provides order-level actions as fallback
     }
@@ -404,14 +436,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
 
     if (confirmed == true && mounted) {
-      // Clear configuration (Logout)
-      // final repo = context.read<OrderBloc>().configurationRepository;
-      // await repo.saveConfiguration(AppConfiguration()); // Reset to default
+      // Stop local server and clear active tenant
+      getIt<LocalServerService>().setActiveTenantId('');
 
       // ✅ NEW: Clear orders from state to prevent data bleeding
-      // if (mounted) {
-      //   context.read<OrderBloc>().add(const ClearOrders());
-      // }
+      if (mounted) {
+        context.read<OrderBloc>().add(const ClearOrders());
+      }
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -435,24 +466,25 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     // We allow access to SuperAdmin screen even in maintenance mode to allow turning it off
     // SUPER ADMIN BYPASS: If the user is a super admin, they should circumvent this screen
     final isSuperAdmin = tenantService.isSuperAdmin(tenantId);
-    
+
     // Check tenant specific maintenance
     bool isTenantMaintenance = false;
     try {
-      final tenant = tenantService.getTenants().firstWhere((t) => t.id == tenantId);
+      final tenant = tenantService.getTenants().firstWhere(
+        (t) => t.id == tenantId,
+      );
       isTenantMaintenance = tenant.isMaintenanceMode;
     } catch (_) {}
-    
+
     // Check immunity
     final isImmune = tenantService.isTenantImmune(
       tenantId,
       fallbackTierId: _currentConfig.tierId,
     );
-    
-
 
     if ((tenantService.isMaintenanceMode || isTenantMaintenance) &&
-        !isSuperAdmin && !isImmune &&
+        !isSuperAdmin &&
+        !isImmune &&
         _currentScreen != ScreenType.superAdmin) {
       return MaintenanceScreen(
         onAdminAccess: () {
@@ -498,11 +530,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     child: Builder(
                       builder: (context) {
                         final tenantId = _currentConfig.tenantId ?? '';
-                        final isSuperAdmin = TenantService().isSuperAdmin(tenantId);
-                        
+                        final isSuperAdmin = TenantService().isSuperAdmin(
+                          tenantId,
+                        );
+
                         String? maintenanceKey;
                         String moduleName = '';
-                        
+
                         if (_currentScreen == ScreenType.dashboard) {
                           if (_showHistory) {
                             maintenanceKey = 'history';
@@ -511,32 +545,34 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                             maintenanceKey = 'orders';
                             moduleName = 'Orders Module';
                           }
-                        } else if (_currentScreen == ScreenType.warehouseSelector || 
-                                  _currentScreen == ScreenType.warehouseView) {
+                        } else if (_currentScreen ==
+                                ScreenType.warehouseSelector ||
+                            _currentScreen == ScreenType.warehouseView) {
                           maintenanceKey = 'warehouse';
                           moduleName = 'Warehouse Stations';
-                        } else if (_currentScreen == ScreenType.businessInsights) {
+                        } else if (_currentScreen ==
+                            ScreenType.businessInsights) {
                           maintenanceKey = 'insights';
                           moduleName = 'Business Insights';
                         }
-                        
+
                         final isImmune = TenantService().isTenantImmune(
                           tenantId,
                           fallbackTierId: _currentConfig.tierId,
                         );
-                        
-                        if (maintenanceKey != null) {
-                           final isMaintenance = TenantService().isModuleUnderMaintenance(maintenanceKey);
 
-                           
-                           if (isMaintenance && !isSuperAdmin && !isImmune) {
-                             return _buildMaintenancePlaceholder(moduleName);
-                           }
+                        if (maintenanceKey != null) {
+                          final isMaintenance = TenantService()
+                              .isModuleUnderMaintenance(maintenanceKey);
+
+                          if (isMaintenance && !isSuperAdmin && !isImmune) {
+                            return _buildMaintenancePlaceholder(moduleName);
+                          }
                         }
 
                         return _currentScreen == ScreenType.dashboard
                             ? _buildDashboardContent()
-                        : _currentScreen == ScreenType.warehouseSelector
+                            : _currentScreen == ScreenType.warehouseSelector
                             ? WarehouseSelectorScreen(
                                 branchId: _currentConfig.branchId,
                                 onWarehouseSelected: (warehouse) {
@@ -546,32 +582,42 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                   });
                                 },
                               )
-                              : _currentScreen == ScreenType.warehouseView &&
-                                    _selectedWarehouse != null
-                                ? StaffPanelWarehouse(warehouse: _selectedWarehouse!)
-                                : _currentScreen == ScreenType.warehouseManagement // ✅ NEW
-                                    ? const WarehouseManagementScreen()
-                                : _currentScreen == ScreenType.productManagement // ✅ NEW
-                                    ? const ProductManagementScreen()
-                                // : _currentScreen == ScreenType.staffManagement
-                                //             ? const StaffManagementScreen() // Keep routed just in case, though unreachable from sidebar
-                                            : _currentScreen == ScreenType.businessInsights
-                                                ? (TenantService().canAccessFeature(
-                                                        _currentConfig.tenantId ?? '',
-                                                        'insights')
-                                                    ? const BusinessInsightsScreen()
-                                                    : const PremiumUpgradeScreen())
-                                                : _currentScreen == ScreenType.superAdmin
-                                                    ? const SuperAdminScreen()
-                                                    : _currentScreen == ScreenType.mobileConfig // ✅ NEW
-                                                        ? const MobileConfigScreen()
-                                                        : const SettingsScreen();
+                            : _currentScreen == ScreenType.warehouseView &&
+                                  _selectedWarehouse != null
+                            ? StaffPanelWarehouse(
+                                warehouse: _selectedWarehouse!,
+                              )
+                            : _currentScreen ==
+                                  ScreenType
+                                      .warehouseManagement // ✅ NEW
+                            ? const WarehouseManagementScreen()
+                            : _currentScreen ==
+                                  ScreenType
+                                      .productManagement // ✅ NEW
+                            ? const ProductManagementScreen()
+                            // : _currentScreen == ScreenType.staffManagement
+                            //             ? const StaffManagementScreen() // Keep routed just in case, though unreachable from sidebar
+                            : _currentScreen == ScreenType.businessInsights
+                            ? (TenantService().canAccessFeature(
+                                    _currentConfig.tenantId ?? '',
+                                    'insights',
+                                  )
+                                  ? const BusinessInsightsScreen()
+                                  : const PremiumUpgradeScreen())
+                            : _currentScreen == ScreenType.superAdmin
+                            ? const SuperAdminScreen()
+                            : _currentScreen ==
+                                  ScreenType
+                                      .mobileConfig // ✅ NEW
+                            ? const MobileConfigScreen()
+                            : const SettingsScreen();
                       },
                     ),
                   ),
                   // ✅ FIXED: Only show right panel in dashboard view AND item-level mode
                   if (_currentScreen == ScreenType.dashboard &&
-                      _currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
+                      _currentConfig.statusTrackingMode ==
+                          StatusTrackingMode.itemLevel)
                     _buildRightPanel(),
                 ],
               ),
@@ -633,14 +679,41 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  DateFormat('EEEE, MMMM d, yyyy').format(_currentTime),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontWeight: FontWeight.w400,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: (isEnterprise ? isManager : isStaff)
+                            ? Colors.greenAccent
+                            : Colors.blueAccent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isEnterprise ? isManager : isStaff)
+                                ? Colors.greenAccent.withValues(alpha: 0.5)
+                                : Colors.blueAccent.withValues(alpha: 0.5),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      (isEnterprise ? isManager : isStaff)
+                          ? 'Local Server: Online'
+                          : 'Remote Client: Connected',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -655,8 +728,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             ),
             child: Row(
               children: [
-                Icon(Icons.access_time_rounded,
-                    color: Colors.white.withValues(alpha: 0.9), size: 20),
+                Icon(
+                  Icons.access_time_rounded,
+                  color: Colors.white.withValues(alpha: 0.9),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   DateFormat('HH:mm:ss').format(_currentTime),
@@ -696,7 +772,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             icon: Icons.settings_outlined,
             tooltip: 'Settings',
 
-            onPressed: () => setState(() => _currentScreen = ScreenType.settings),
+            onPressed: () =>
+                setState(() => _currentScreen = ScreenType.settings),
           ),
           const SizedBox(width: 12),
           _buildHeaderIconButton(
@@ -743,10 +820,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   color: Colors.red,
                   shape: BoxShape.circle,
                 ),
-                constraints: const BoxConstraints(
-                  minWidth: 18,
-                  minHeight: 18,
-                ),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                 child: Text(
                   badge,
                   style: const TextStyle(
@@ -764,17 +838,18 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   }
 
   Widget _buildSidebar() {
+    final roleConfig = getIt<RoleConfig>();
     final tenantId = _currentConfig.tenantId ?? '';
     final tenantService = TenantService();
-    // Super admins always see everything
     final isSuperAdmin = tenantService.isSuperAdmin(tenantId);
-    
-    // Feature checks
-    final canViewOrders = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'orders');
-    final canViewHistory = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'history');
-    // final canViewWarehouse = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'warehouse'); // Config based check used instead in build
-    final canViewInsights = isSuperAdmin || tenantService.canAccessFeature(tenantId, 'insights'); 
 
+    // Feature checks
+    final canViewOrders =
+        isSuperAdmin || tenantService.canAccessFeature(tenantId, 'orders');
+    final canViewHistory =
+        isSuperAdmin || tenantService.canAccessFeature(tenantId, 'history');
+    final canViewInsights =
+        isSuperAdmin || tenantService.canAccessFeature(tenantId, 'insights');
 
     return Container(
       width: 280,
@@ -782,7 +857,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           right: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+            color: _isDarkMode
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.grey[200]!,
           ),
         ),
       ),
@@ -790,20 +867,21 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         children: [
           const SizedBox(height: 20),
           // ✅ NEW: Branch Indicator (Only for Enterprise Tier or Branch Managers)
-          // Since Branch Managers inherit the Enterprise Tier ID configuration, 
+          // Since Branch Managers inherit the Enterprise Tier ID configuration,
           // checking for 'enterprise' tier and presence of branchId covers both.
-          if (_currentConfig.branchId != null && _currentConfig.tierId == 'enterprise')
+          if (_currentConfig.branchId != null && isEnterprise && isManager)
             _buildBranchIndicator(),
-            
-          if (_currentConfig.branchId != null && _currentConfig.tierId == 'enterprise')
-             const SizedBox(height: 20),
-             
+
+          if (_currentConfig.branchId != null && isEnterprise && isManager)
+            const SizedBox(height: 20),
+
           if (canViewOrders)
             _buildSidebarItem(
               icon: Icons.dashboard_rounded,
               label: 'Dashboard',
               maintenanceKey: 'orders',
-              isSelected: _currentScreen == ScreenType.dashboard && !_showHistory,
+              isSelected:
+                  _currentScreen == ScreenType.dashboard && !_showHistory,
               onTap: () {
                 setState(() {
                   _currentScreen = ScreenType.dashboard;
@@ -816,7 +894,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               icon: Icons.history_rounded,
               label: 'Order History',
               maintenanceKey: 'history',
-              isSelected: _currentScreen == ScreenType.dashboard && _showHistory,
+              isSelected:
+                  _currentScreen == ScreenType.dashboard && _showHistory,
               onTap: () {
                 setState(() {
                   _currentScreen = ScreenType.dashboard;
@@ -839,8 +918,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               },
             ),
           // ✅ NEW: Warehouse Management for Branch Managers
-          if (_currentConfig.branchId != null && _currentConfig.tierId == 'enterprise')
-             _buildSidebarItem(
+          if (_currentConfig.branchId != null && isEnterprise && isManager)
+            _buildSidebarItem(
               icon: Icons.warehouse_rounded,
               label: 'Manage Warehouses',
               isSelected: _currentScreen == ScreenType.warehouseManagement,
@@ -854,7 +933,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
           // ✅ NEW: Product Management
           // Visible to all tenants as per requirement (if feature enabled)
-          if (_currentConfig.tenantId != null && TenantService().canAccessFeature(_currentConfig.tenantId!, 'products'))
+          if (_currentConfig.tenantId != null &&
+              TenantService().canAccessFeature(
+                _currentConfig.tenantId!,
+                'products',
+              ))
             _buildSidebarItem(
               icon: Icons.inventory_2_rounded,
               label: 'Products',
@@ -867,16 +950,16 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 });
               },
             ),
-            
-           // ✅ NEW: Mobile App Config Item
-           _buildSidebarItem(
-             icon: Icons.phonelink_setup,
-             label: 'Terminal',
-             isSelected: _currentScreen == ScreenType.mobileConfig,
-             onTap: () {
-               setState(() => _currentScreen = ScreenType.mobileConfig);
-             },
-           ),
+
+          // ✅ NEW: Mobile App Config Item
+          _buildSidebarItem(
+            icon: Icons.phonelink_setup,
+            label: 'Terminal',
+            isSelected: _currentScreen == ScreenType.mobileConfig,
+            onTap: () {
+              setState(() => _currentScreen = ScreenType.mobileConfig);
+            },
+          ),
 
           // Always show Business Insights (Gated by Paywall) - BUT hide if disabled in features
           if (canViewInsights)
@@ -894,7 +977,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             ),
 
           const Divider(height: 20),
-          
+
           // Only show Admin/Kiosk for Super Admin
           if (TenantService().isSuperAdmin(_currentConfig.tenantId ?? '')) ...[
             _buildSidebarItem(
@@ -974,21 +1057,23 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
     // FutureBuilder handles the async list fetching
     return FutureBuilder<List<Branch>>(
-      future: TenantService().getBranchesForTenant(_currentConfig.tenantId ?? ''),
+      future: TenantService().getBranchesForTenant(
+        _currentConfig.tenantId ?? '',
+      ),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
-        
+
         final branches = snapshot.data!;
         Branch? branch;
         try {
           branch = branches.firstWhere((b) => b.id == branchId);
         } catch (_) {
           branch = const Branch(
-            id: '', 
-            tenantId: '', 
-            name: 'Unknown Branch', 
-            location: '', 
-            contactPhone: '', 
+            id: '',
+            tenantId: '',
+            name: 'Unknown Branch',
+            location: '',
+            contactPhone: '',
             managerName: '',
             loginUsername: '',
             loginPassword: '',
@@ -1001,7 +1086,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           decoration: BoxDecoration(
             color: const Color(0xFF1a237e).withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF1a237e).withValues(alpha: 0.1)),
+            border: Border.all(
+              color: const Color(0xFF1a237e).withValues(alpha: 0.1),
+            ),
           ),
           child: Row(
             children: [
@@ -1018,7 +1105,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     ),
                   ],
                 ),
-                child: const Icon(Icons.store_rounded, color: Color(0xFF1a237e), size: 20),
+                child: const Icon(
+                  Icons.store_rounded,
+                  color: Color(0xFF1a237e),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1051,7 +1142,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             ],
           ),
         );
-      }
+      },
     );
   }
 
@@ -1065,16 +1156,17 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   }) {
     final tenantId = _currentConfig.tenantId ?? '';
     final isSuperAdmin = TenantService().isSuperAdmin(tenantId);
-    
+
     // Check immunity
     final isImmune = TenantService().isTenantImmune(
       tenantId,
       fallbackTierId: _currentConfig.tierId,
     );
 
-    final isUnderMaintenance = maintenanceKey != null &&
+    final isUnderMaintenance =
+        maintenanceKey != null &&
         TenantService().isModuleUnderMaintenance(maintenanceKey);
-        
+
     // Locked if under maintenance AND not super admin AND not immune
     final isLocked = isUnderMaintenance && !isSuperAdmin && !isImmune;
 
@@ -1090,7 +1182,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               ? () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('This module is currently under maintenance'),
+                      content: Text(
+                        'This module is currently under maintenance',
+                      ),
                       backgroundColor: Colors.orange,
                     ),
                   );
@@ -1107,8 +1201,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   color: isLocked
                       ? Colors.grey
                       : isSelected
-                          ? const Color(AppColors.primaryBlue)
-                          : (_isDarkMode ? Colors.white70 : Colors.grey[600]),
+                      ? const Color(AppColors.primaryBlue)
+                      : (_isDarkMode ? Colors.white70 : Colors.grey[600]),
                 ),
                 const SizedBox(width: 14),
                 Text(
@@ -1119,8 +1213,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     color: isLocked
                         ? Colors.grey
                         : isSelected
-                            ? const Color(AppColors.primaryBlue)
-                            : (_isDarkMode ? Colors.white70 : Colors.grey[700]),
+                        ? const Color(AppColors.primaryBlue)
+                        : (_isDarkMode ? Colors.white70 : Colors.grey[700]),
                   ),
                 ),
               ],
@@ -1131,7 +1225,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
-/*
+  /*
   Widget _buildSidebarStat(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -1167,7 +1261,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           left: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+            color: _isDarkMode
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.grey[200]!,
           ),
         ),
       ),
@@ -1178,7 +1274,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+                  color: _isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.grey[200]!,
                 ),
               ),
             ),
@@ -1204,8 +1302,12 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             child: BlocBuilder<OrderBloc, OrderState>(
               builder: (context, state) {
                 if (state is OrdersLoaded) {
-                  final completedToday = state.orders.where((o) =>
-                      o.status == AppConstants.statusFulfilled && _isToday(o.timestamp))
+                  final completedToday = state.orders
+                      .where(
+                        (o) =>
+                            o.status == AppConstants.statusFulfilled &&
+                            _isToday(o.timestamp),
+                      )
                       .length;
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
@@ -1217,10 +1319,26 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           Icons.waterfall_chart,
                           Colors.blue,
                           [
-                            _buildInsightRow('Paid', state.paidCount, Colors.blue),
-                            _buildInsightRow('Preparing', state.preparingCount, Colors.orange),
-                            _buildInsightRow('Ready', state.readyCount, Colors.purple),
-                            _buildInsightRow('Completed', completedToday, Colors.green),
+                            _buildInsightRow(
+                              'Paid',
+                              state.paidCount,
+                              Colors.blue,
+                            ),
+                            _buildInsightRow(
+                              'Preparing',
+                              state.preparingCount,
+                              Colors.orange,
+                            ),
+                            _buildInsightRow(
+                              'Ready',
+                              state.readyCount,
+                              Colors.purple,
+                            ),
+                            _buildInsightRow(
+                              'Completed',
+                              completedToday,
+                              Colors.green,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -1238,8 +1356,15 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                               Colors.green,
                             ),
                             _buildInsightRow(
-                                'Avg Prep Time', '${_averagePrepTime.toStringAsFixed(1)} min', Colors.teal),
-                            _buildInsightRow('Peak Hour', '$_peakHourOrders orders', Colors.indigo),
+                              'Avg Prep Time',
+                              '${_averagePrepTime.toStringAsFixed(1)} min',
+                              Colors.teal,
+                            ),
+                            _buildInsightRow(
+                              'Peak Hour',
+                              '$_peakHourOrders orders',
+                              Colors.indigo,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -1250,7 +1375,10 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           Colors.green,
                           [
                             _buildInsightRow(
-                                'Today', 'KSh ${state.todaysSales.toStringAsFixed(0)}', Colors.green),
+                              'Today',
+                              'KSh ${state.todaysSales.toStringAsFixed(0)}',
+                              Colors.green,
+                            ),
                             _buildInsightRow(
                               'Avg Order',
                               state.todaysOrderCount > 0
@@ -1258,7 +1386,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                   : 'KSh 0',
                               Colors.blue,
                             ),
-                            _buildInsightRow('Orders', '${state.todaysOrderCount}', Colors.purple),
+                            _buildInsightRow(
+                              'Orders',
+                              '${state.todaysOrderCount}',
+                              Colors.purple,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -1289,7 +1421,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+          color: _isDarkMode
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.grey[200]!,
         ),
       ),
       child: Column(
@@ -1381,7 +1515,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+          color: _isDarkMode
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.grey[200]!,
         ),
       ),
       child: Column(
@@ -1389,11 +1525,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         children: [
           Row(
             children: [
-              Icon(
-                Icons.trending_up,
-                color: Colors.green,
-                size: 20,
-              ),
+              Icon(Icons.trending_up, color: Colors.green, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Hourly Trends',
@@ -1428,7 +1560,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+            color: _isDarkMode
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.grey[200]!,
           ),
         ),
       ),
@@ -1441,7 +1575,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           ),
           const SizedBox(width: 12),
           Text(
-            _showHistory ? 'Order History' : 'Active Orders',
+            _showHistory
+                ? 'Order History'
+                : (getIt<RoleConfig>().role == AppRole.manager
+                      ? 'Manager Control Panel'
+                      : 'Staff Dashboard'),
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -1454,12 +1592,16 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                color:
+                    _currentConfig.statusTrackingMode ==
+                        StatusTrackingMode.orderLevel
                     ? Colors.blue[50]
                     : Colors.green[50],
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                  color:
+                      _currentConfig.statusTrackingMode ==
+                          StatusTrackingMode.orderLevel
                       ? Colors.blue[300]!
                       : Colors.green[300]!,
                 ),
@@ -1468,23 +1610,29 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                    _currentConfig.statusTrackingMode ==
+                            StatusTrackingMode.orderLevel
                         ? Icons.list_alt
                         : Icons.view_module,
                     size: 16,
-                    color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                    color:
+                        _currentConfig.statusTrackingMode ==
+                            StatusTrackingMode.orderLevel
                         ? Colors.blue
                         : Colors.green,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                    _currentConfig.statusTrackingMode ==
+                            StatusTrackingMode.orderLevel
                         ? 'Order-Level Tracking'
                         : 'Item-Level Tracking',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: _currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel
+                      color:
+                          _currentConfig.statusTrackingMode ==
+                              StatusTrackingMode.orderLevel
                           ? Colors.blue[900]
                           : Colors.green[900],
                     ),
@@ -1504,7 +1652,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+            color: _isDarkMode
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.grey[200]!,
           ),
         ),
       ),
@@ -1517,7 +1667,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+                  color: _isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.grey[300]!,
                 ),
               ),
               child: TextField(
@@ -1542,12 +1694,17 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           icon: const Icon(Icons.clear_rounded),
                           onPressed: () {
                             _searchController.clear();
-                            context.read<OrderBloc>().add(const SearchOrders(''));
+                            context.read<OrderBloc>().add(
+                              const SearchOrders(''),
+                            );
                           },
                         )
                       : null,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ),
@@ -1561,7 +1718,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+                  color: _isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.grey[300]!,
                 ),
               ),
               child: DropdownButton<String>(
@@ -1577,7 +1736,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   fontWeight: FontWeight.w500,
                   color: _isDarkMode ? Colors.white70 : Colors.grey[700],
                 ),
-                dropdownColor: _isDarkMode ? const Color(0xFF252b3b) : Colors.white,
+                dropdownColor: _isDarkMode
+                    ? const Color(0xFF252b3b)
+                    : Colors.white,
                 items: [
                   const DropdownMenuItem(
                     value: 'all',
@@ -1635,7 +1796,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+                color: _isDarkMode
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.grey[300]!,
               ),
             ),
             child: BlocBuilder<OrderBloc, OrderState>(
@@ -1648,16 +1811,27 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     if (state is OrdersLoaded) {
                       activeDates = state.orders
                           .where((o) => _isOrderActive(o))
-                          .map((o) => DateTime(
-                              o.timestamp.year, o.timestamp.month, o.timestamp.day))
+                          .map(
+                            (o) => DateTime(
+                              o.timestamp.year,
+                              o.timestamp.month,
+                              o.timestamp.day,
+                            ),
+                          )
                           .toSet()
                           .toList();
                     }
-                    
+
                     final now = DateTime.now();
                     final today = DateTime(now.year, now.month, now.day);
-                    final initialDate = _selectedActiveDate.isAfter(now) ? now : _selectedActiveDate;
-                    final initialDay = DateTime(initialDate.year, initialDate.month, initialDate.day);
+                    final initialDate = _selectedActiveDate.isAfter(now)
+                        ? now
+                        : _selectedActiveDate;
+                    final initialDay = DateTime(
+                      initialDate.year,
+                      initialDate.month,
+                      initialDate.day,
+                    );
 
                     final picked = await showDatePicker(
                       context: context,
@@ -1665,8 +1839,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                       firstDate: DateTime(2000),
                       lastDate: now,
                       selectableDayPredicate: (day) {
-                        final checkDate = DateTime(day.year, day.month, day.day);
-                        if (checkDate == initialDay || checkDate == today) return true;
+                        final checkDate = DateTime(
+                          day.year,
+                          day.month,
+                          day.day,
+                        );
+                        if (checkDate == initialDay || checkDate == today)
+                          return true;
                         return activeDates.contains(checkDate);
                       },
                     );
@@ -1677,7 +1856,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     }
                   },
                 );
-              }
+              },
             ),
           ),
         ],
@@ -1690,15 +1869,17 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     return BlocBuilder<OrderBloc, OrderState>(
       builder: (context, state) {
         if (state is OrdersLoaded) {
-          var activeOrders = state.orders.where((o) => _isOrderActive(o)).toList();
-          
+          var activeOrders = state.orders
+              .where((o) => _isOrderActive(o))
+              .toList();
+
           // Apply active orders date filter
           activeOrders = activeOrders.where((o) {
             return o.timestamp.year == _selectedActiveDate.year &&
-                   o.timestamp.month == _selectedActiveDate.month &&
-                   o.timestamp.day == _selectedActiveDate.day;
+                o.timestamp.month == _selectedActiveDate.month &&
+                o.timestamp.day == _selectedActiveDate.day;
           }).toList();
-          
+
           if (activeOrders.isEmpty) {
             return _buildEmptyState(
               icon: Icons.check_circle_outline,
@@ -1730,7 +1911,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     // ✅ For order-level tracking: Use simple StaffOrderCard
     if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel) {
       final effectiveStatus = _getEffectiveOrderStatus(order);
-      
+
       return StaffOrderCard(
         order: order,
         config: _currentConfig, // ✅ Pass config for proper status detection
@@ -1745,12 +1926,12 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             : null,
       );
     }
-    
+
     // ✅ For item-level tracking: Use detailed warehouse card
     final percent = _getOrderCompletionPercent(order);
     final categories = _getOrderWarehouseCategories(order);
     final _ = _getEffectiveOrderStatus(order);
-    
+
     return GestureDetector(
       onTap: () => _showOrderDetailBottomSheet(order),
       child: Container(
@@ -1758,11 +1939,15 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(AppColors.primaryBlue).withValues(alpha: _isDarkMode ? 0.3 : 0.18),
+            color: const Color(
+              AppColors.primaryBlue,
+            ).withValues(alpha: _isDarkMode ? 0.3 : 0.18),
           ),
           boxShadow: [
             BoxShadow(
-              color: (_isDarkMode ? Colors.black : Colors.black).withValues(alpha: 0.06),
+              color: (_isDarkMode ? Colors.black : Colors.black).withValues(
+                alpha: 0.06,
+              ),
               blurRadius: 12,
               offset: const Offset(0, 3),
             ),
@@ -1781,8 +1966,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(AppColors.primaryBlue)
-                              .withValues(alpha: _isDarkMode ? 0.2 : 0.1),
+                          color: const Color(
+                            AppColors.primaryBlue,
+                          ).withValues(alpha: _isDarkMode ? 0.2 : 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(
@@ -1807,7 +1993,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                             'Phone: ${order.phone}  •  ${DateFormat('dd MMM, HH:mm').format(order.timestamp)}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                              color: _isDarkMode
+                                  ? Colors.white70
+                                  : Colors.grey[600],
                             ),
                           ),
                         ],
@@ -1818,20 +2006,30 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 ],
               ),
               const SizedBox(height: 14),
-              
+
               if (categories.isNotEmpty)
                 Wrap(
                   spacing: 8,
                   children: categories.map((cat) {
-                    final whPercent = _getWarehouseCompletionPercent(order, cat);
+                    final whPercent = _getWarehouseCompletionPercent(
+                      order,
+                      cat,
+                    );
                     final whColor = _warehouseColor(cat);
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: whColor.withValues(alpha: _isDarkMode ? 0.25 : 0.12),
+                        color: whColor.withValues(
+                          alpha: _isDarkMode ? 0.25 : 0.12,
+                        ),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: whColor.withValues(alpha: _isDarkMode ? 0.4 : 0.3),
+                          color: whColor.withValues(
+                            alpha: _isDarkMode ? 0.4 : 0.3,
+                          ),
                         ),
                       ),
                       child: Row(
@@ -1861,21 +2059,25 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                     );
                   }).toList(),
                 ),
-              
+
               if (categories.isNotEmpty) const SizedBox(height: 14),
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: LinearProgressIndicator(
                   value: percent / 100.0,
                   minHeight: 8,
-                  backgroundColor: _isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                  backgroundColor: _isDarkMode
+                      ? Colors.grey[800]
+                      : Colors.grey[200],
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    percent >= 100 ? Colors.green : const Color(AppColors.primaryBlue),
+                    percent >= 100
+                        ? Colors.green
+                        : const Color(AppColors.primaryBlue),
                   ),
                 ),
               ),
               const SizedBox(height: 8),
-              
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1894,7 +2096,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                         'Tap for details',
                         style: TextStyle(
                           fontSize: 11,
-                          color: _isDarkMode ? Colors.white60 : Colors.grey[500],
+                          color: _isDarkMode
+                              ? Colors.white60
+                              : Colors.grey[500],
                         ),
                       ),
                     ],
@@ -1913,7 +2117,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     final categories = _getOrderWarehouseCategories(order);
     final totalPercent = _getOrderCompletionPercent(order);
     final effectiveStatus = _getEffectiveOrderStatus(order);
-    
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1963,7 +2167,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                         'Phone: ${order.phone}  •  KSh ${order.total.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 13,
-                          color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                          color: _isDarkMode
+                              ? Colors.white70
+                              : Colors.grey[600],
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1971,41 +2177,55 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                         'Ordered: ${DateFormat('EEEE, MMMM d, yyyy HH:mm').format(order.timestamp)}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: _isDarkMode ? Colors.white60 : Colors.grey[500],
+                          color: _isDarkMode
+                              ? Colors.white60
+                              : Colors.grey[500],
                         ),
                       ),
                     ],
                   ),
                   // ✅ FIXED: Mode-aware header display
-                  if (_currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
+                  if (_currentConfig.statusTrackingMode ==
+                      StatusTrackingMode.itemLevel)
                     _buildCompletionRing(totalPercent, 56)
                   else
                     _buildStatusBadge(effectiveStatus),
                 ],
               ),
               const SizedBox(height: 24),
-              
+
               // ✅ FIXED: Mode-aware content rendering
-              if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel)
+              if (_currentConfig.statusTrackingMode ==
+                  StatusTrackingMode.orderLevel)
                 _buildOrderLevelDetail(order, effectiveStatus)
               else
                 Column(
                   children: categories.map((category) {
                     final whStatus = _getWarehouseStatus(order, category);
-                    final whPercent = _getWarehouseCompletionPercent(order, category);
+                    final whPercent = _getWarehouseCompletionPercent(
+                      order,
+                      category,
+                    );
                     final whItems = order.items
                         .where((i) => i.product.category == category)
                         .toList();
-                    final whTotal = whItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+                    final whTotal = whItems.fold<double>(
+                      0.0,
+                      (sum, item) => sum + item.subtotal,
+                    );
                     final color = _warehouseColor(category);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: color.withValues(alpha: _isDarkMode ? 0.15 : 0.04),
+                          color: color.withValues(
+                            alpha: _isDarkMode ? 0.15 : 0.04,
+                          ),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: color.withValues(alpha: _isDarkMode ? 0.4 : 0.22),
+                            color: color.withValues(
+                              alpha: _isDarkMode ? 0.4 : 0.22,
+                            ),
                           ),
                         ),
                         child: Column(
@@ -2018,15 +2238,22 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                   Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: color.withValues(alpha: _isDarkMode ? 0.25 : 0.15),
+                                      color: color.withValues(
+                                        alpha: _isDarkMode ? 0.25 : 0.15,
+                                      ),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                    child: Icon(_warehouseIcon(category), color: color, size: 22),
+                                    child: Icon(
+                                      _warehouseIcon(category),
+                                      color: color,
+                                      size: 22,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           category,
@@ -2040,7 +2267,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                           '${whItems.length} item${whItems.length > 1 ? 's' : ''}  •  KSh ${whTotal.toStringAsFixed(2)}',
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                                            color: _isDarkMode
+                                                ? Colors.white70
+                                                : Colors.grey[600],
                                           ),
                                         ),
                                       ],
@@ -2051,7 +2280,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -2060,7 +2291,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                     child: LinearProgressIndicator(
                                       value: whPercent / 100.0,
                                       minHeight: 6,
-                                      backgroundColor: _isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                                      backgroundColor: _isDarkMode
+                                          ? Colors.grey[800]
+                                          : Colors.grey[200],
                                       valueColor: AlwaysStoppedAnimation<Color>(
                                         whPercent >= 100 ? Colors.green : color,
                                       ),
@@ -2112,7 +2345,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             children: [
               Row(
                 children: [
-                  Icon(_statusIcon(effectiveStatus), color: _statusColor(effectiveStatus), size: 24),
+                  Icon(
+                    _statusIcon(effectiveStatus),
+                    color: _statusColor(effectiveStatus),
+                    size: 24,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -2133,7 +2370,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _updateOrderStatus(order, AppConstants.statusPreparing),
+                    onPressed: () =>
+                        _updateOrderStatus(order, AppConstants.statusPreparing),
                     icon: const Icon(Icons.autorenew),
                     label: const Text('Start Preparing Order'),
                     style: ElevatedButton.styleFrom(
@@ -2146,7 +2384,10 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _updateOrderStatus(order, AppConstants.statusReadyForPickup),
+                    onPressed: () => _updateOrderStatus(
+                      order,
+                      AppConstants.statusReadyForPickup,
+                    ),
                     icon: const Icon(Icons.inventory_2),
                     label: const Text('Mark as Ready for Pickup'),
                     style: ElevatedButton.styleFrom(
@@ -2159,7 +2400,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _updateOrderStatus(order, AppConstants.statusFulfilled),
+                    onPressed: () =>
+                        _updateOrderStatus(order, AppConstants.statusFulfilled),
                     icon: const Icon(Icons.check_circle),
                     label: const Text('Mark as Fulfilled (Picked Up)'),
                     style: ElevatedButton.styleFrom(
@@ -2286,7 +2528,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       builder: (context, state) {
         List<Order> historyOrders = [];
         if (state is OrdersLoaded) {
-          historyOrders = state.orders.where((o) => !_isOrderActive(o)).toList();
+          historyOrders = state.orders
+              .where((o) => !_isOrderActive(o))
+              .toList();
         }
 
         return Container(
@@ -2295,7 +2539,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
             border: Border(
               bottom: BorderSide(
-                color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!,
+                color: _isDarkMode
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.grey[200]!,
               ),
             ),
           ),
@@ -2321,10 +2567,14 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 width: 300,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
+                    color: _isDarkMode
+                        ? const Color(0xFF252b3b)
+                        : Colors.grey[50],
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+                      color: _isDarkMode
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.grey[300]!,
                     ),
                   ),
                   child: TextField(
@@ -2352,7 +2602,10 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -2361,10 +2614,14 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               // Calendar Button
               Container(
                 decoration: BoxDecoration(
-                  color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
+                  color: _isDarkMode
+                      ? const Color(0xFF252b3b)
+                      : Colors.grey[50],
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!,
+                    color: _isDarkMode
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.grey[300]!,
                   ),
                 ),
                 child: IconButton(
@@ -2373,15 +2630,26 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   onPressed: () async {
                     // Extract unique dates with history
                     final activeDates = historyOrders
-                        .map((o) => DateTime(
-                            o.timestamp.year, o.timestamp.month, o.timestamp.day))
+                        .map(
+                          (o) => DateTime(
+                            o.timestamp.year,
+                            o.timestamp.month,
+                            o.timestamp.day,
+                          ),
+                        )
                         .toSet()
                         .toList();
 
                     final now = DateTime.now();
                     final today = DateTime(now.year, now.month, now.day);
-                    final initialDate = _selectedHistoryDate.isAfter(now) ? now : _selectedHistoryDate;
-                    final initialDay = DateTime(initialDate.year, initialDate.month, initialDate.day);
+                    final initialDate = _selectedHistoryDate.isAfter(now)
+                        ? now
+                        : _selectedHistoryDate;
+                    final initialDay = DateTime(
+                      initialDate.year,
+                      initialDate.month,
+                      initialDate.day,
+                    );
 
                     final picked = await showDatePicker(
                       context: context,
@@ -2389,8 +2657,13 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                       firstDate: DateTime(2000),
                       lastDate: now,
                       selectableDayPredicate: (day) {
-                        final checkDate = DateTime(day.year, day.month, day.day);
-                        if (checkDate == initialDay || checkDate == today) return true;
+                        final checkDate = DateTime(
+                          day.year,
+                          day.month,
+                          day.day,
+                        );
+                        if (checkDate == initialDay || checkDate == today)
+                          return true;
                         return activeDates.contains(checkDate);
                       },
                     );
@@ -2414,30 +2687,37 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
       builder: (context, state) {
         if (state is OrdersLoaded) {
           final query = _historySearchController.text.trim().toLowerCase();
-          
+
           // 1. Get raw history orders
-          var historyOrders = state.orders.where((o) => !_isOrderActive(o)).toList();
+          var historyOrders = state.orders
+              .where((o) => !_isOrderActive(o))
+              .toList();
 
           // 2. Filter by Search Query OR Date
           if (query.isNotEmpty) {
             // Search mode: ignore date filter
             historyOrders = historyOrders.where((o) {
-              return o.id.toLowerCase().contains(query) || o.phone.contains(query);
+              return o.id.toLowerCase().contains(query) ||
+                  o.phone.contains(query);
             }).toList();
           } else {
             // Date Filter mode
             historyOrders = historyOrders.where((o) {
               return o.timestamp.year == _selectedHistoryDate.year &&
-                     o.timestamp.month == _selectedHistoryDate.month &&
-                     o.timestamp.day == _selectedHistoryDate.day;
+                  o.timestamp.month == _selectedHistoryDate.month &&
+                  o.timestamp.day == _selectedHistoryDate.day;
             }).toList();
           }
 
           if (historyOrders.isEmpty) {
             return _buildEmptyState(
               icon: Icons.history,
-              title: query.isNotEmpty ? 'No Results Found' : 'No Order History for Selected Date',
-              subtitle: query.isNotEmpty ? 'Try a different search query' : 'Try selecting another day from the calendar',
+              title: query.isNotEmpty
+                  ? 'No Results Found'
+                  : 'No Order History for Selected Date',
+              subtitle: query.isNotEmpty
+                  ? 'Try a different search query'
+                  : 'Try selecting another day from the calendar',
             );
           }
           final grouped = <String, List<Order>>{};
@@ -2457,7 +2737,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 children: [
                   _buildDateDivider(date, ordersForDate.length),
                   const SizedBox(height: 12),
-                  ...ordersForDate.map((order) => _buildHistoryOrderCard(order)),
+                  ...ordersForDate.map(
+                    (order) => _buildHistoryOrderCard(order),
+                  ),
                   const SizedBox(height: 20),
                 ],
               );
@@ -2471,16 +2753,18 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
   Widget _buildDateDivider(DateTime date, int count) {
     final now = DateTime.now();
-    final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+    final isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
     final yesterday = now.subtract(const Duration(days: 1));
-    final isYesterday = date.year == yesterday.year &&
+    final isYesterday =
+        date.year == yesterday.year &&
         date.month == yesterday.month &&
         date.day == yesterday.day;
     final label = isToday
         ? 'Today'
         : isYesterday
-            ? 'Yesterday'
-            : DateFormat('EEEE, MMMM d, yyyy').format(date);
+        ? 'Yesterday'
+        : DateFormat('EEEE, MMMM d, yyyy').format(date);
     return Row(
       children: [
         Text(
@@ -2520,7 +2804,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   Widget _buildHistoryOrderCard(Order order) {
     final categories = _getOrderWarehouseCategories(order);
     final effectiveStatus = _getEffectiveOrderStatus(order);
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -2531,7 +2815,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
         ),
         boxShadow: [
           BoxShadow(
-            color: (_isDarkMode ? Colors.black : Colors.grey).withValues(alpha: 0.05),
+            color: (_isDarkMode ? Colors.black : Colors.grey).withValues(
+              alpha: 0.05,
+            ),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -2547,10 +2833,16 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: _isDarkMode ? 0.2 : 0.12),
+                    color: Colors.green.withValues(
+                      alpha: _isDarkMode ? 0.2 : 0.12,
+                    ),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 24),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.green,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -2569,12 +2861,19 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           ),
                           const SizedBox(width: 10),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: _isDarkMode ? 0.2 : 0.1),
+                              color: Colors.green.withValues(
+                                alpha: _isDarkMode ? 0.2 : 0.1,
+                              ),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: Colors.green.withValues(alpha: _isDarkMode ? 0.4 : 0.3),
+                                color: Colors.green.withValues(
+                                  alpha: _isDarkMode ? 0.4 : 0.3,
+                                ),
                               ),
                             ),
                             child: const Text(
@@ -2592,7 +2891,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                         'Phone: ${order.phone}  •  ${DateFormat('dd MMM yyyy, HH:mm').format(order.timestamp)}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: _isDarkMode ? Colors.white70 : Colors.grey[600],
+                          color: _isDarkMode
+                              ? Colors.white70
+                              : Colors.grey[600],
                         ),
                       ),
                     ],
@@ -2606,7 +2907,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: _isDarkMode ? Colors.white : const Color(AppColors.primaryBlue),
+                        color: _isDarkMode
+                            ? Colors.white
+                            : const Color(AppColors.primaryBlue),
                       ),
                     ),
                     Text(
@@ -2623,9 +2926,10 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
             const SizedBox(height: 16),
             const Divider(height: 1),
             const SizedBox(height: 14),
-            
+
             // ✅ FIXED: Mode-aware history content
-            if (_currentConfig.statusTrackingMode == StatusTrackingMode.orderLevel)
+            if (_currentConfig.statusTrackingMode ==
+                StatusTrackingMode.orderLevel)
               _buildOrderLevelHistoryDetail(order, effectiveStatus)
             else
               Column(
@@ -2633,7 +2937,10 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                   final whItems = order.items
                       .where((i) => i.product.category == category)
                       .toList();
-                  final whTotal = whItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+                  final whTotal = whItems.fold<double>(
+                    0.0,
+                    (sum, item) => sum + item.subtotal,
+                  );
                   final color = _warehouseColor(category);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
@@ -2645,7 +2952,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           children: [
                             Row(
                               children: [
-                                Icon(_warehouseIcon(category), size: 18, color: color),
+                                Icon(
+                                  _warehouseIcon(category),
+                                  size: 18,
+                                  color: color,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   category,
@@ -2659,7 +2970,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                             ),
                             Row(
                               children: [
-                                const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 14,
+                                  color: Colors.green,
+                                ),
                                 const SizedBox(width: 4),
                                 const Text(
                                   'All picked up',
@@ -2683,41 +2998,53 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           ],
                         ),
                         const SizedBox(height: 10),
-                        ...whItems.map((item) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 5),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      '${item.product.name} (${item.product.size})',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: _isDarkMode ? Colors.white : Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    'x${item.quantity}',
+                        ...whItems.map(
+                          (item) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 16,
+                                  color: Colors.green,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '${item.product.name} (${item.product.size})',
                                     style: TextStyle(
                                       fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: _isDarkMode ? Colors.white : Colors.black,
+                                      color: _isDarkMode
+                                          ? Colors.white
+                                          : Colors.black,
                                     ),
                                   ),
-                                  const SizedBox(width: 16),
-                                  Text(
-                                    'KSh ${item.subtotal.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: _isDarkMode ? Colors.white : Colors.black,
-                                    ),
+                                ),
+                                Text(
+                                  'x${item.quantity}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: _isDarkMode
+                                        ? Colors.white
+                                        : Colors.black,
                                   ),
-                                ],
-                              ),
-                            )),
+                                ),
+                                const SizedBox(width: 16),
+                                Text(
+                                  'KSh ${item.subtotal.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: _isDarkMode
+                                        ? Colors.white
+                                        : Colors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -2762,32 +3089,34 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        ...order.items.map((item) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '${item.product.name} (${item.product.size}) × ${item.quantity}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _isDarkMode ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    'KSh ${item.subtotal.toStringAsFixed(2)}',
-                    style: const TextStyle(
+        ...order.items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${item.product.name} (${item.product.size}) × ${item.quantity}',
+                    style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(AppColors.primaryBlue),
+                      color: _isDarkMode ? Colors.white : Colors.black,
                     ),
                   ),
-                ],
-              ),
-            )),
+                ),
+                Text(
+                  'KSh ${item.subtotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(AppColors.primaryBlue),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -2797,8 +3126,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     final color = percent >= 100
         ? Colors.green
         : percent >= 50
-            ? Colors.orange
-            : const Color(AppColors.primaryBlue);
+        ? Colors.orange
+        : const Color(AppColors.primaryBlue);
     return SizedBox(
       width: size,
       height: size,
@@ -2860,7 +3189,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey[100],
+              color: _isDarkMode
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.grey[100],
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -2891,10 +3222,11 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     );
   }
 
-
   bool _isToday(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   Widget _buildDashboardContent() {
@@ -2907,7 +3239,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
           _buildHistoryHeader(),
         ],
         Expanded(
-          child: _showHistory ? _buildEnhancedHistoryView() : _buildEnhancedOrdersView(),
+          child: _showHistory
+              ? _buildEnhancedHistoryView()
+              : _buildEnhancedOrdersView(),
         ),
       ],
     );
@@ -2924,13 +3258,15 @@ class SimpleTrendChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
-    final maxValue = data.map((e) => e['orders'] as int).fold(
-      0,
-      (prev, current) => math.max(prev, current),
-    ).toDouble();
+    final maxValue = data
+        .map((e) => e['orders'] as int)
+        .fold(0, (prev, current) => math.max(prev, current))
+        .toDouble();
     // Draw grid lines
     final gridPaint = Paint()
-      ..color = (isDarkMode ? Colors.white : Colors.grey[300]!).withValues(alpha: 0.3)
+      ..color = (isDarkMode ? Colors.white : Colors.grey[300]!).withValues(
+        alpha: 0.3,
+      )
       ..strokeWidth = 1;
     for (int i = 1; i <= 4; i++) {
       final y = size.height * (i / 4);
