@@ -728,17 +728,22 @@ class TenantService {
 
       // 2. Branch Manager / Staff Login (Role Restricted)
       if (role == AppRole.staff || role == AppRole.manager) {
-        // We need to find which tenant this branch belongs to. 
-        // In a real app, we might have a top-level 'users' collection or require TenantID prefix.
-        // For this implementation, we assume the user provides TenantEmail + password (BranchID).
         final tenantsSnapshot = await _firestore.collection('tenants').get();
         for (final tDoc in tenantsSnapshot.docs) {
-          final branchDoc = await tDoc.reference.collection('branches').doc(password).get();
-          if (branchDoc.exists) {
-            final bData = branchDoc.data()!;
-            if (bData['loginUsername'] == identifier) {
-               return {'type': 'branch', 'data': bData, 'id': password, 'tenantId': tDoc.id};
-            }
+          final branchesSnapshot = await tDoc.reference.collection('branches')
+              .where('loginUsername', isEqualTo: identifier)
+              .where('loginPassword', isEqualTo: password)
+              .get();
+              
+          if (branchesSnapshot.docs.isNotEmpty) {
+             final bDoc = branchesSnapshot.docs.first;
+             return {
+               'type': 'branch', 
+               'data': bDoc.data(), 
+               'id': bDoc.id, 
+               'tenantId': tDoc.id, 
+               'tenantData': tDoc.data()
+             };
           }
         }
       }
@@ -749,18 +754,21 @@ class TenantService {
         for (final tDoc in tenantsSnapshot.docs) {
           final branchesSnapshot = await tDoc.reference.collection('branches').get();
           for (final bDoc in branchesSnapshot.docs) {
-             final whDoc = await bDoc.reference.collection('warehouses').doc(password).get();
-             if (whDoc.exists) {
-                final whData = whDoc.data()!;
-                if (whData['loginUsername'] == identifier) {
-                   return {
-                     'type': 'warehouse', 
-                     'data': whData, 
-                     'id': password, 
-                     'tenantId': tDoc.id, 
-                     'branchId': bDoc.id
-                   };
-                }
+             final whSnapshot = await bDoc.reference.collection('warehouses')
+                 .where('loginUsername', isEqualTo: identifier)
+                 .where('loginPassword', isEqualTo: password)
+                 .get();
+             if (whSnapshot.docs.isNotEmpty) {
+                final whDoc = whSnapshot.docs.first;
+                return {
+                  'type': 'warehouse', 
+                  'data': whDoc.data(), 
+                  'id': whDoc.id, 
+                  'tenantId': tDoc.id, 
+                  'tenantData': tDoc.data(),
+                  'branchId': bDoc.id,
+                  'branchData': bDoc.data()
+                };
              }
           }
         }
@@ -795,6 +803,56 @@ class TenantService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Unified Local Login Fallback
+  Future<Map<String, dynamic>?> localLogin(String identifier, String password, AppRole role) async {
+    // 1. Primary Tenant/SuperAdmin Login
+    try {
+      final tenant = _cacheTenants.firstWhere(
+        (t) => t.email.toLowerCase() == identifier.toLowerCase() && t.id == password,
+      );
+      return {
+        'type': 'tenant',
+        'id': tenant.id,
+        'data': {
+          'email': tenant.email,
+          'businessName': tenant.businessName,
+          'phone': tenant.phone,
+          'status': tenant.status,
+          'tierId': tenant.tierId,
+        }
+      };
+    } catch (_) {}
+
+    // 2. Branch Login
+    if (role == AppRole.staff || role == AppRole.manager) {
+      if (_branchesDao != null) {
+        for (final tenant in _cacheTenants) {
+          final branches = await _branchesDao!.getBranchesForTenant(tenant.id);
+          try {
+            final branch = branches.firstWhere(
+              (b) => b.loginUsername == identifier && b.loginPassword == password
+            );
+            return {
+               'type': 'branch', 
+               'data': {
+                  'name': branch.name,
+                  'location': branch.location,
+                  'contactPhone': branch.contactPhone,
+                  'managerName': branch.managerName,
+                  'loginUsername': branch.loginUsername,
+                  'loginPassword': branch.loginPassword,
+               }, 
+               'id': branch.id, 
+               'tenantId': tenant.id
+            };
+          } catch (_) {}
+        }
+      }
+    }
+    
+    return null;
   }
 }
 

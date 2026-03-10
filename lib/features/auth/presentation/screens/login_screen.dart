@@ -74,6 +74,9 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         cloudAuth = await tenantService.cloudLogin(email, password, roleConfig.role);
+
+        // Fallback: try from local DB if cloud is unavailable
+        cloudAuth ??= await tenantService.localLogin(email, password, roleConfig.role);
       }
       
       if (cloudAuth != null) {
@@ -95,17 +98,47 @@ class _LoginScreenState extends State<LoginScreen> {
             await _onAuthSuccess(tenant);
             return;
          } else if (type == 'branch') {
-            final tenant = tenantService.getTenants().firstWhere((t) => t.id == cloudAuth?['tenantId']);
+            final tenantId = cloudAuth['tenantId'];
+            final tData = cloudAuth['tenantData'] as Map<String, dynamic>?;
+            
+            Tenant? tenant;
+            try {
+              tenant = tenantService.getTenants().firstWhere((t) => t.id == tenantId);
+            } catch (e) {
+              if (tData != null) {
+                tenant = Tenant(
+                  id: tenantId,
+                  name: tData['name'] ?? tData['businessName'] ?? 'Admin',
+                  email: tData['email'] ?? '',
+                  phone: tData['phone'] ?? '',
+                  businessName: tData['businessName'] ?? '',
+                  tierId: tData['tierId'] ?? 'enterprise',
+                  status: tData['status'] ?? 'Active',
+                  createdDate: DateTime.now(),
+                  enabledFeatures: List<String>.from(tData['enabledFeatures'] ?? []),
+                );
+                await tenantService.addTenant(tenant);
+              }
+            }
+
+            if (tenant == null) {
+              _showError('Configuration Error: Associated Tenant not found.');
+              return;
+            }
+
             final branch = Branch(
               id: id,
-              tenantId: cloudAuth['tenantId'],
-              name: data['name'],
-              location: data['location'],
+              tenantId: tenantId,
+              name: data['name'] ?? '',
+              location: data['location'] ?? '',
               contactPhone: data['contactPhone'] ?? '',
               managerName: data['managerName'] ?? '',
-              loginUsername: data['loginUsername'],
-              loginPassword: data['loginPassword'],
+              loginUsername: data['loginUsername'] ?? '',
+              loginPassword: data['loginPassword'] ?? '',
             );
+            
+            await tenantService.addBranch(branch);
+
             _onBranchAuthSuccess(tenant, branch);
             return;
          } else if (type == 'warehouse') {
@@ -113,12 +146,12 @@ class _LoginScreenState extends State<LoginScreen> {
                id: id,
                tenantId: cloudAuth['tenantId'],
                branchId: cloudAuth['branchId'],
-               name: data['name'],
+               name: data['name'] ?? '',
                categories: List<String>.from((data['categories'] as List<dynamic>?) ?? []),
-               loginUsername: data['loginUsername'],
-               loginPassword: data['loginPassword'],
+               loginUsername: data['loginUsername'] ?? '',
+               loginPassword: data['loginPassword'] ?? '',
              );
-             await _onWarehouseAuthSuccess(warehouse);
+             await _onWarehouseAuthSuccess(warehouse, cloudAuth);
              return;
          }
       }
@@ -138,13 +171,53 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  Future<void> _onWarehouseAuthSuccess(Warehouse warehouse) async {
+  Future<void> _onWarehouseAuthSuccess(Warehouse warehouse, Map<String, dynamic> cloudAuth) async {
     final tenantService = TenantService();
-    final tenant = await tenantService.getTenantForBranch(warehouse.branchId);
+    final tenantId = warehouse.tenantId;
+    final branchId = warehouse.branchId;
     
+    Tenant? tenant;
+    try {
+      tenant = tenantService.getTenants().firstWhere((t) => t.id == tenantId);
+    } catch (_) {
+      final tData = cloudAuth['tenantData'] as Map<String, dynamic>?;
+      if (tData != null) {
+        tenant = Tenant(
+          id: tenantId,
+          name: tData['name'] ?? tData['businessName'] ?? 'Admin',
+          email: tData['email'] ?? '',
+          phone: tData['phone'] ?? '',
+          businessName: tData['businessName'] ?? '',
+          tierId: tData['tierId'] ?? 'enterprise',
+          status: tData['status'] ?? 'Active',
+          createdDate: DateTime.now(),
+          enabledFeatures: List<String>.from(tData['enabledFeatures'] ?? []),
+        );
+        await tenantService.addTenant(tenant);
+      }
+    }
+
     if (tenant == null) {
        _showError('Configuration Error: Associated Tenant not found.');
        return;
+    }
+    
+    Branch? branch = await tenantService.getBranchById(branchId);
+    if (branch == null) {
+      final bData = cloudAuth['branchData'] as Map<String, dynamic>?;
+      if (bData != null) {
+        branch = Branch(
+          id: branchId,
+          tenantId: tenantId,
+          name: bData['name'] ?? '',
+          location: bData['location'] ?? '',
+          contactPhone: bData['contactPhone'] ?? '',
+          managerName: bData['managerName'] ?? '',
+          loginUsername: bData['loginUsername'] ?? '',
+          loginPassword: bData['loginPassword'] ?? '',
+        );
+        await tenantService.addBranch(branch);
+      }
     }
 
     if (!mounted) return;
