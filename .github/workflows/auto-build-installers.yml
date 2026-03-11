@@ -1401,291 +1401,303 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
+
       - name: Debug - Show artifact structure
         run: |
           echo "=== Artifacts Directory Structure ==="
-          ls -laR artifacts/
+          find artifacts -type f | sort
           echo ""
-          echo "=== Deltas Directory Structure ==="
-          ls -laR deltas/ 2>/dev/null || echo "No deltas directory found"
-      
+          echo "Total files: $(find artifacts -type f | wc -l)"
+
       - name: Organize release files
         run: |
           set -e
           echo "Organizing release files..."
           mkdir -p release_files
-          
-          # Copy files in priority order (AppImage before tarball for Linux)
+
           echo "Copying mobile artifacts..."
-          find artifacts -type f -name "*.apk" -exec cp {} release_files/ \; 2>/dev/null || true
-          find artifacts -type f -name "*-ios-*.tar.gz" -exec cp {} release_files/ \; 2>/dev/null || true
-          find artifacts -type f -name "*.ipa" -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.apk"            -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*-ios-*.tar.gz"   -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.ipa"            -exec cp {} release_files/ \; 2>/dev/null || true
 
           echo "Copying installers and packages..."
-          
-          # Windows
-          find artifacts -type f -name "*-Setup.exe" -exec cp {} release_files/ \; 2>/dev/null || true
-          
-          # macOS
-          find artifacts -type f -name "*.dmg" -exec cp {} release_files/ \; 2>/dev/null || true
-          
-          # Linux - AppImage FIRST (more user-friendly)
-          find artifacts -type f -name "*.AppImage" -exec cp {} release_files/ \; 2>/dev/null || true
-          
-          # Linux - Tarball SECOND (for advanced users)
-          find artifacts -type f -name "*.tar.gz" -exec cp {} release_files/ \; 2>/dev/null || true
-          
+          find artifacts -type f -name "*-Setup.exe"      -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.dmg"            -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.AppImage"       -exec cp {} release_files/ \; 2>/dev/null || true
+
+          # Exclude ios tarballs already copied above
+          find artifacts -type f -name "*.tar.gz" ! -name "*-ios-*" -exec cp {} release_files/ \; 2>/dev/null || true
+
           echo "Copying checksums..."
-          find artifacts -type f -name "*.sha256" -exec cp {} release_files/ \; 2>/dev/null || true
-          
-          echo "Copying update manifest..."
-          find artifacts -type f -name "update-manifest.json" -exec cp {} release_files/ \; 2>/dev/null || true
-          
-          # Copy delta patches if they exist
-          if [ -d "deltas" ]; then
-            echo "Copying delta patches..."
-            find deltas -type f -name "*.patch" -exec cp {} release_files/ \; 2>/dev/null || true
-          fi
-          
+          find artifacts -type f -name "*.sha256"         -exec cp {} release_files/ \; 2>/dev/null || true
+
           echo ""
-          echo "=== Files to be released (in order) ==="
+          echo "=== Files to be released ==="
           ls -lh release_files/
-          echo ""
           echo "Total files: $(ls -1 release_files/ | wc -l)"
+
+      # ---------------------------------------------------------------
+      # Delta updates
+      # ---------------------------------------------------------------
       - name: Get previous release artifacts
+        id: prev_release
         run: |
           set -e
           echo "Getting previous release artifacts for delta generation..."
-          # Get the previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 $(git describe --tags --abbrev=0)^ 2>/dev/null || echo "")
+
+          CURRENT_TAG=$(git describe --tags --abbrev=0)
+          PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+
           if [ -z "$PREV_TAG" ]; then
             echo "No previous tag found, skipping delta updates"
             echo "HAS_PREVIOUS_RELEASE=false" >> $GITHUB_ENV
             exit 0
           fi
-          echo "HAS_PREVIOUS_RELEASE=true" >> $GITHUB_ENV
-          echo "PREVIOUS_TAG=$PREV_TAG" >> $GITHUB_ENV
-          # Create directory for previous release
+
+          echo "Previous tag: $PREV_TAG"
+          echo "HAS_PREVIOUS_RELEASE=true"  >> $GITHUB_ENV
+          echo "PREV_TAG=$PREV_TAG"         >> $GITHUB_ENV   # <-- exported so next step can use it
+
           mkdir -p previous_release
-          # Download previous release assets using GitHub API
+
           REPO_OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f1)
-          REPO_NAME=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f2)
-          echo "Fetching assets from previous release: $PREV_TAG"
-          ASSETS_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${PREV_TAG}"
-          # Get release ID and assets
-          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$ASSETS_URL")
+          REPO_NAME=$(echo "$GITHUB_REPOSITORY"  | cut -d'/' -f2)
+
+          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${PREV_TAG}")
+
           RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
-          if [ "$RELEASE_ID" = "null" ]; then
-            echo "Previous release not found, skipping delta updates"
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "Previous release not found in GitHub, skipping delta updates"
             echo "HAS_PREVIOUS_RELEASE=false" >> $GITHUB_ENV
             exit 0
           fi
-          # Get asset download URLs
-          echo "$RESPONSE" | jq -r '.assets[] | select(.name | contains("Setup.exe") or contains(".dmg") or contains(".AppImage")) | "\(.name) \(.browser_download_url)"' > asset_urls.txt
-          # Download previous release assets
-          while read -r line; do
-            ASSET_NAME=$(echo "$line" | cut -d' ' -f1)
-            URL=$(echo "$line" | cut -d' ' -f2-)
-            if [ -n "$ASSET_NAME" ] && [ -n "$URL" ]; then
-              echo "Downloading previous $ASSET_NAME"
-              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -L -o "previous_release/$ASSET_NAME" "$URL"
-            fi
+
+          echo "$RESPONSE" | jq -r \
+            '.assets[] | select(.name | test("Setup\\.exe$|\\.dmg$|\\.AppImage$")) | "\(.name) \(.browser_download_url)"' \
+            > asset_urls.txt
+
+          while IFS=' ' read -r ASSET_NAME URL; do
+            [ -z "$ASSET_NAME" ] && continue
+            echo "Downloading previous: $ASSET_NAME"
+            curl -s -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -o "previous_release/$ASSET_NAME" "$URL"
           done < asset_urls.txt
-          # Verify downloads
+
           echo "Previous release assets:"
-          ls -la previous_release/
+          ls -lh previous_release/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
+
+      - name: Install bsdiff
+        if: env.HAS_PREVIOUS_RELEASE == 'true'
+        run: sudo apt-get install -y bsdiff
+
       - name: Generate delta updates
         if: env.HAS_PREVIOUS_RELEASE == 'true'
         run: |
           set -e
-          echo "Generating delta updates..."
+          echo "Generating delta updates (PREV_TAG=${PREV_TAG})..."
           mkdir -p deltas
-          # Windows delta
-          if [ -f "previous_release/${APP_NAME}-${PREV_TAG#v}-Setup.exe" ] && [ -f "artifacts/windows/${APP_NAME}-${VERSION}-Setup.exe" ]; then
-            echo "Generating Windows delta update..."
-            bsdiff "previous_release/${APP_NAME}-${PREV_TAG#v}-Setup.exe" \
-              "artifacts/windows/${APP_NAME}-${VERSION}-Setup.exe" \
-              "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-windows.patch"
+
+          PREV_VER="${PREV_TAG#v}"
+
+          # We have one patch per platform (not per flavor) — pick the first matching file
+          # Windows
+          PREV_WIN=$(find previous_release -name "*-Setup.exe" | head -1)
+          NEW_WIN=$(find artifacts -name "*-Setup.exe" | head -1)
+          if [ -n "$PREV_WIN" ] && [ -n "$NEW_WIN" ]; then
+            echo "Generating Windows delta..."
+            bsdiff "$PREV_WIN" "$NEW_WIN" "deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-windows.patch"
             echo "✓ Windows delta generated"
           fi
-          # macOS delta
-          if [ -f "previous_release/${APP_NAME}-${PREV_TAG#v}.dmg" ] && [ -f "artifacts/macos/${APP_NAME}-${VERSION}.dmg" ]; then
-            echo "Generating macOS delta update..."
-            bsdiff "previous_release/${APP_NAME}-${PREV_TAG#v}.dmg" \
-              "artifacts/macos/${APP_NAME}-${VERSION}.dmg" \
-              "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-macos.patch"
+
+          # macOS
+          PREV_DMG=$(find previous_release -name "*.dmg" | head -1)
+          NEW_DMG=$(find artifacts -name "*.dmg" | head -1)
+          if [ -n "$PREV_DMG" ] && [ -n "$NEW_DMG" ]; then
+            echo "Generating macOS delta..."
+            bsdiff "$PREV_DMG" "$NEW_DMG" "deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-macos.patch"
             echo "✓ macOS delta generated"
           fi
-          # Linux delta (AppImage)
-          if [ -f "previous_release/${APP_NAME}-${PREV_TAG#v}-x86_64.AppImage" ] && [ -f "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" ]; then
-            echo "Generating Linux delta update..."
-            bsdiff "previous_release/${APP_NAME}-${PREV_TAG#v}-x86_64.AppImage" \
-              "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" \
-              "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-linux.patch"
+
+          # Linux AppImage
+          PREV_AI=$(find previous_release -name "*.AppImage" | head -1)
+          NEW_AI=$(find artifacts -name "*.AppImage" | head -1)
+          if [ -n "$PREV_AI" ] && [ -n "$NEW_AI" ]; then
+            echo "Generating Linux AppImage delta..."
+            bsdiff "$PREV_AI" "$NEW_AI" "deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-linux.patch"
             echo "✓ Linux delta generated"
           fi
-          echo "Delta updates generated:"
-          ls -la deltas/
+
+          echo "Delta files:"
+          ls -lh deltas/ || echo "(none generated)"
+
+          # Copy patches into release_files for upload
+          find deltas -name "*.patch" -exec cp {} release_files/ \; 2>/dev/null || true
         continue-on-error: true
+
+      # ---------------------------------------------------------------
+      # Update manifest  (plain JSON — no subshells inside heredoc)
+      # ---------------------------------------------------------------
       - name: Generate update manifest
         run: |
           set -e
-          echo "Generating auto-updater manifest with delta support..."
-          # Read checksums
+          echo "Generating auto-updater manifest..."
+
+          PREV_VER="${PREV_TAG#v}"
+
+          # ---- checksums (pick first matching file per platform) ----
           WINDOWS_CHECKSUM=""
           MACOS_CHECKSUM=""
-          LINUX_APPIMAGE_CHECKSUM=""
-          LINUX_TARBALL_CHECKSUM=""
-          if [ -f "artifacts/windows/${APP_NAME}-${VERSION}-Setup.exe.sha256" ]; then
-            WINDOWS_CHECKSUM=$(cat "artifacts/windows/${APP_NAME}-${VERSION}-Setup.exe.sha256")
+          LINUX_AI_CHECKSUM=""
+          LINUX_TGZ_CHECKSUM=""
+
+          WIN_SHA=$(find artifacts -name "*-Setup.exe.sha256" | head -1)
+          MAC_SHA=$(find artifacts -name "*.dmg.sha256"       | head -1)
+          AI_SHA=$(find artifacts  -name "*.AppImage.sha256"  | head -1)
+          TGZ_SHA=$(find artifacts -name "*.tar.gz.sha256" ! -name "*-ios-*" | head -1)
+
+          [ -f "$WIN_SHA"  ] && WINDOWS_CHECKSUM=$(cat "$WIN_SHA")
+          [ -f "$MAC_SHA"  ] && MACOS_CHECKSUM=$(cat "$MAC_SHA")
+          [ -f "$AI_SHA"   ] && LINUX_AI_CHECKSUM=$(cat "$AI_SHA")
+          [ -f "$TGZ_SHA"  ] && LINUX_TGZ_CHECKSUM=$(cat "$TGZ_SHA")
+
+          # ---- file sizes ----
+          WIN_FILE=$(find artifacts  -name "*-Setup.exe"            | head -1)
+          MAC_FILE=$(find artifacts  -name "*.dmg"                  | head -1)
+          AI_FILE=$(find artifacts   -name "*.AppImage"             | head -1)
+          TGZ_FILE=$(find artifacts  -name "*.tar.gz" ! -name "*-ios-*" | head -1)
+
+          WINDOWS_SIZE=0; MACOS_SIZE=0; LINUX_AI_SIZE=0; LINUX_TGZ_SIZE=0
+          [ -f "$WIN_FILE"  ] && WINDOWS_SIZE=$(stat -c%s "$WIN_FILE")
+          [ -f "$MAC_FILE"  ] && MACOS_SIZE=$(stat -c%s "$MAC_FILE")
+          [ -f "$AI_FILE"   ] && LINUX_AI_SIZE=$(stat -c%s "$AI_FILE")
+          [ -f "$TGZ_FILE"  ] && LINUX_TGZ_SIZE=$(stat -c%s "$TGZ_FILE")
+
+          WIN_FNAME=$(basename "$WIN_FILE"  2>/dev/null || echo "")
+          MAC_FNAME=$(basename "$MAC_FILE"  2>/dev/null || echo "")
+          AI_FNAME=$(basename "$AI_FILE"    2>/dev/null || echo "")
+          TGZ_FNAME=$(basename "$TGZ_FILE"  2>/dev/null || echo "")
+
+          # ---- delta info ----
+          WIN_PATCH="deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-windows.patch"
+          MAC_PATCH="deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-macos.patch"
+          AI_PATCH="deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-linux.patch"
+
+          WIN_DELTA_JSON="null"
+          MAC_DELTA_JSON="null"
+          AI_DELTA_JSON="null"
+
+          if [ "$HAS_PREVIOUS_RELEASE" = "true" ] && [ -f "$WIN_PATCH" ]; then
+            WIN_PATCH_CHECKSUM=$(shasum -a 256 "$WIN_PATCH" | awk '{print $1}')
+            WIN_PATCH_SIZE=$(stat -c%s "$WIN_PATCH")
+            WIN_PATCH_FNAME=$(basename "$WIN_PATCH")
+            WIN_DELTA_JSON="{\"url\":\"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${WIN_PATCH_FNAME}\",\"checksum\":\"${WIN_PATCH_CHECKSUM}\",\"checksum_algorithm\":\"sha256\",\"size_bytes\":${WIN_PATCH_SIZE},\"base_version\":\"${PREV_VER}\"}"
           fi
-          if [ -f "artifacts/macos/${APP_NAME}-${VERSION}.dmg.sha256" ]; then
-            MACOS_CHECKSUM=$(cat "artifacts/macos/${APP_NAME}-${VERSION}.dmg.sha256")
+
+          if [ "$HAS_PREVIOUS_RELEASE" = "true" ] && [ -f "$MAC_PATCH" ]; then
+            MAC_PATCH_CHECKSUM=$(shasum -a 256 "$MAC_PATCH" | awk '{print $1}')
+            MAC_PATCH_SIZE=$(stat -c%s "$MAC_PATCH")
+            MAC_PATCH_FNAME=$(basename "$MAC_PATCH")
+            MAC_DELTA_JSON="{\"url\":\"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${MAC_PATCH_FNAME}\",\"checksum\":\"${MAC_PATCH_CHECKSUM}\",\"checksum_algorithm\":\"sha256\",\"size_bytes\":${MAC_PATCH_SIZE},\"base_version\":\"${PREV_VER}\"}"
           fi
-          if [ -f "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage.sha256" ]; then
-            LINUX_APPIMAGE_CHECKSUM=$(cat "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage.sha256")
+
+          if [ "$HAS_PREVIOUS_RELEASE" = "true" ] && [ -f "$AI_PATCH" ]; then
+            AI_PATCH_CHECKSUM=$(shasum -a 256 "$AI_PATCH" | awk '{print $1}')
+            AI_PATCH_SIZE=$(stat -c%s "$AI_PATCH")
+            AI_PATCH_FNAME=$(basename "$AI_PATCH")
+            AI_DELTA_JSON="{\"url\":\"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${AI_PATCH_FNAME}\",\"checksum\":\"${AI_PATCH_CHECKSUM}\",\"checksum_algorithm\":\"sha256\",\"size_bytes\":${AI_PATCH_SIZE},\"base_version\":\"${PREV_VER}\"}"
           fi
-          if [ -f "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz.sha256" ]; then
-            LINUX_TARBALL_CHECKSUM=$(cat "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz.sha256")
-          fi
-          # Get file sizes
-          WINDOWS_SIZE=0
-          MACOS_SIZE=0
-          LINUX_APPIMAGE_SIZE=0
-          LINUX_TARBALL_SIZE=0
-          if [ -f "artifacts/windows/${APP_NAME}-${VERSION}-Setup.exe" ]; then
-            WINDOWS_SIZE=$(stat -c%s "artifacts/windows/${APP_NAME}-${VERSION}-Setup.exe")
-          fi
-          if [ -f "artifacts/macos/${APP_NAME}-${VERSION}.dmg" ]; then
-            MACOS_SIZE=$(stat -c%s "artifacts/macos/${APP_NAME}-${VERSION}.dmg")
-          fi
-          if [ -f "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" ]; then
-            LINUX_APPIMAGE_SIZE=$(stat -c%s "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage")
-          fi
-          if [ -f "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" ]; then
-            LINUX_TARBALL_SIZE=$(stat -c%s "artifacts/linux/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz")
-          fi
-          # Create manifest with delta support
-          cat > artifacts/update-manifest.json << EOF
-          {
-            "version": "${VERSION}",
-            "release_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-            "release_notes_url": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${VERSION}",
-            "platforms": {
-              "windows": {
-                "full": {
-                  "url": "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${APP_NAME}-${VERSION}-Setup.exe",
-                  "checksum": "${WINDOWS_CHECKSUM}",
-                  "checksum_algorithm": "sha256",
-                  "size_bytes": ${WINDOWS_SIZE}
-                }
-                $(if [ -f "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-windows.patch" ] && [ "$HAS_PREVIOUS_RELEASE" = "true" ]; then
-                  echo ","
-                  echo "\"delta\": {"
-                  echo "  \"url\": \"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-windows.patch\","
-                  echo "  \"checksum\": \"$(shasum -a 256 \"deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-windows.patch\" | awk '{print $1}')\","
-                  echo "  \"checksum_algorithm\": \"sha256\","
-                  echo "  \"size_bytes\": $(stat -c%s "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-windows.patch"),"
-                  echo "  \"base_version\": \"${PREV_TAG#v}\""
-                  echo "}"
-                fi)
-              },
-              "macos": {
-                "full": {
-                  "url": "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${APP_NAME}-${VERSION}.dmg",
-                  "checksum": "${MACOS_CHECKSUM}",
-                  "checksum_algorithm": "sha256",
-                  "size_bytes": ${MACOS_SIZE}
-                }
-                $(if [ -f "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-macos.patch" ] && [ "$HAS_PREVIOUS_RELEASE" = "true" ]; then
-                  echo ","
-                  echo "\"delta\": {"
-                  echo "  \"url\": \"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-macos.patch\","
-                  echo "  \"checksum\": \"$(shasum -a 256 \"deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-macos.patch\" | awk '{print $1}')\","
-                  echo "  \"checksum_algorithm\": \"sha256\","
-                  echo "  \"size_bytes\": $(stat -c%s "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-macos.patch"),"
-                  echo "  \"base_version\": \"${PREV_TAG#v}\""
-                  echo "}"
-                fi)
-              },
-              "linux": {
-                "appimage": {
-                  "full": {
-                    "url": "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage",
-                    "checksum": "${LINUX_APPIMAGE_CHECKSUM}",
-                    "checksum_algorithm": "sha256",
-                    "size_bytes": ${LINUX_APPIMAGE_SIZE}
-                  }
-                  $(if [ -f "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-linux.patch" ] && [ "$HAS_PREVIOUS_RELEASE" = "true" ]; then
-                    echo ","
-                    echo "\"delta\": {"
-                    echo "  \"url\": \"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-linux.patch\","
-                    echo "  \"checksum\": \"$(shasum -a 256 \"deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-linux.patch\" | awk '{print $1}')\","
-                    echo "  \"checksum_algorithm\": \"sha256\","
-                    echo "  \"size_bytes\": $(stat -c%s "deltas/${APP_NAME}-${PREV_TAG#v}-to-${VERSION}-linux.patch"),"
-                    echo "  \"base_version\": \"${PREV_TAG#v}\""
-                    echo "}"
-                  fi)
+
+          # ---- write manifest using jq (guarantees valid JSON) ----
+          jq -n \
+            --arg  version           "$VERSION" \
+            --arg  release_date      "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+            --arg  release_notes_url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${VERSION}" \
+            --arg  win_url           "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${WIN_FNAME}" \
+            --arg  win_checksum      "$WINDOWS_CHECKSUM" \
+            --argjson win_size       "$WINDOWS_SIZE" \
+            --argjson win_delta      "$WIN_DELTA_JSON" \
+            --arg  mac_url           "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${MAC_FNAME}" \
+            --arg  mac_checksum      "$MACOS_CHECKSUM" \
+            --argjson mac_size       "$MACOS_SIZE" \
+            --argjson mac_delta      "$MAC_DELTA_JSON" \
+            --arg  ai_url            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${AI_FNAME}" \
+            --arg  ai_checksum       "$LINUX_AI_CHECKSUM" \
+            --argjson ai_size        "$LINUX_AI_SIZE" \
+            --argjson ai_delta       "$AI_DELTA_JSON" \
+            --arg  tgz_url           "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${TGZ_FNAME}" \
+            --arg  tgz_checksum      "$LINUX_TGZ_CHECKSUM" \
+            --argjson tgz_size       "$LINUX_TGZ_SIZE" \
+            '{
+              version: $version,
+              release_date: $release_date,
+              release_notes_url: $release_notes_url,
+              platforms: {
+                windows: {
+                  full:  { url: $win_url,  checksum: $win_checksum,  checksum_algorithm: "sha256", size_bytes: $win_size },
+                  delta: $win_delta
                 },
-                "tarball": {
-                  "full": {
-                    "url": "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz",
-                    "checksum": "${LINUX_TARBALL_CHECKSUM}",
-                    "checksum_algorithm": "sha256",
-                    "size_bytes": ${LINUX_TARBALL_SIZE}
+                macos: {
+                  full:  { url: $mac_url,  checksum: $mac_checksum,  checksum_algorithm: "sha256", size_bytes: $mac_size },
+                  delta: $mac_delta
+                },
+                linux: {
+                  appimage: {
+                    full:  { url: $ai_url,  checksum: $ai_checksum,  checksum_algorithm: "sha256", size_bytes: $ai_size },
+                    delta: $ai_delta
+                  },
+                  tarball: {
+                    full:  { url: $tgz_url, checksum: $tgz_checksum, checksum_algorithm: "sha256", size_bytes: $tgz_size }
                   }
                 }
-              }
-            },
-            "minimum_version": "${VERSION}",
-            "force_update": false
-          }
-          EOF
+              },
+              minimum_version: $version,
+              force_update: false
+            }' > release_files/update-manifest.json
+
           echo "✓ Update manifest created"
-          cat artifacts/update-manifest.json
+          cat release_files/update-manifest.json
+
+      # ---------------------------------------------------------------
+      # Release notes
+      # ---------------------------------------------------------------
       - name: Generate Release Notes
         id: release_notes
         timeout-minutes: 5
         run: |
           set -e
+          USE_AUTO="true"
+
           if [ -f "CHANGELOG.md" ] && [ -s "CHANGELOG.md" ]; then
-            echo "Using CHANGELOG.md for release notes"
             VERSION_TO_FIND="${VERSION_TAG}"
             if grep -qi "## \[?${VERSION_TO_FIND}\]?" CHANGELOG.md; then
               sed -n "/## \[?${VERSION_TO_FIND}\]?/,/^## /p" CHANGELOG.md | sed '$d' > release_notes.txt
               if [ -s release_notes.txt ]; then
                 echo "Found changelog section for v${VERSION_TAG}"
                 USE_AUTO="false"
-              else
-                echo "Changelog section empty, using auto-generated notes"
-                USE_AUTO="true"
               fi
-            else
-              echo "No changelog section found for v${VERSION_TAG}, using auto-generated notes"
-              USE_AUTO="true"
             fi
-          else
-            echo "No CHANGELOG.md found or it's empty, using auto-generated notes"
-            USE_AUTO="true"
           fi
+
           echo "use_auto_notes=$USE_AUTO" >> $GITHUB_OUTPUT
+
           if [ "$USE_AUTO" = "true" ]; then
-            echo "Generating auto release notes..."
-            PREV_TAG=$(git describe --tags --abbrev=0 $(git describe --tags --abbrev=0)^ 2>/dev/null || echo "")
-            if [ -n "$PREV_TAG" ]; then
-              git log ${PREV_TAG}..HEAD --pretty=format:"- %s" > auto_notes.txt
+            PREV_TAG_FOR_NOTES=$(git describe --tags --abbrev=0 "$(git describe --tags --abbrev=0)^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG_FOR_NOTES" ]; then
+              git log "${PREV_TAG_FOR_NOTES}..HEAD" --pretty=format:"- %s" > auto_notes.txt
             else
               git log --pretty=format:"- %s" -10 > auto_notes.txt
             fi
           fi
+
       - name: Create GitHub Release with CHANGELOG
         if: steps.release_notes.outputs.use_auto_notes == 'false'
         uses: softprops/action-gh-release@v2
@@ -1700,6 +1712,7 @@ jobs:
           discussion_category_name: Announcements
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create GitHub Release with Auto Notes
         if: steps.release_notes.outputs.use_auto_notes == 'true'
         uses: softprops/action-gh-release@v2
@@ -1707,46 +1720,43 @@ jobs:
           files: release_files/*
           tag_name: ${{ github.ref_name }}
           name: ${{ env.APP_NAME }} v${{ env.VERSION_TAG }}
-          body: |
-            ## Release Notes
-            This release was automatically generated. Here are the recent changes:
-            $(cat auto_notes.txt || echo "- No recent commits found")
-            
-            ## Auto-Update Support
-            Desktop applications now support automatic background updates with **delta updates** (differential updates) to minimize download sizes. The app will check for updates and download only the changes needed.
-            
-            **Delta update savings:**
-            - Windows: Only download changed portions of the installer
-            - macOS: Only download changed portions of the DMG
-            - Linux: Only download changed portions of the AppImage
-            
-            You'll be notified when an update is ready to install.
+          body_path: auto_notes.txt
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
           discussion_category_name: Announcements
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Generate SBOM and Security Report
+
+      # ---------------------------------------------------------------
+      # Security scan  (Trivy via apt repo — reliable, no version pinning)
+      # ---------------------------------------------------------------
+      - name: Generate Security Report
         timeout-minutes: 10
         run: |
           set -e
+
+          # Install Trivy via the official apt repository
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
           sudo apt-get update
-          sudo apt-get install -y cyclonedx-cli || {
-            echo "CycloneDX apt package not found, downloading binary..."
-            curl -sLo cyclonedx https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.25.0/cyclonedx-linux-x64
-            sudo mv cyclonedx /usr/local/bin/cyclonedx
-            sudo chmod +x /usr/local/bin/cyclonedx
-          }
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.48.0
-          trivy fs --format table --output security-report.txt . || echo "Trivy scan failed or completed with warnings, continuing..."
+          sudo apt-get install -y trivy
+
+          trivy fs --format table --output security-report.txt . \
+            || echo "Trivy scan completed with warnings, continuing..."
+
           echo "✓ Security report generated"
-      - name: Upload SBOM and Security Report
+          cat security-report.txt
+
+      - name: Upload Security Report
         uses: actions/upload-artifact@v4
         with:
           name: security-reports-${{ env.VERSION_TAG }}
-          path: |
-            security-report.txt
+          path: security-report.txt
           retention-days: 90
 
   auto-update-cert-pins:

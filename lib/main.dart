@@ -1,14 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:kfm_kiosk/firebase_options.dart';
 import 'package:kfm_kiosk/core/services/cloud_heartbeat_service.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:kfm_kiosk/core/config/api_config.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/server_connection_screen.dart'; 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
 import 'package:kfm_kiosk/di/injection.dart';
 import 'package:kfm_kiosk/core/services/local_server_service.dart';
 import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_bloc.dart';
@@ -21,9 +23,7 @@ import 'package:kfm_kiosk/features/payment/presentation/bloc/payment/payment_blo
 import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
 import 'package:kfm_kiosk/features/home/presentation/screens/home_screen.dart';
 import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:kfm_kiosk/core/services/license_service.dart';
 import 'package:kfm_kiosk/core/configuration/data/datasources/local_configuration_datasource.dart';
-import 'package:kfm_kiosk/features/settings/presentation/screens/configuration_screen.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 
 import 'package:kfm_kiosk/core/config/app_role.dart';
@@ -36,6 +36,42 @@ void main() async {
 
 Future<void> mainWithRole(AppRole role) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Lock orientation to portrait for mobile platforms
+  if (Platform.isAndroid || Platform.isIOS) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
+  // Window size constraints for Desktop platforms
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    try {
+      await windowManager.ensureInitialized();
+      WindowOptions windowOptions = const WindowOptions(
+        size: Size(1280, 800),
+        minimumSize: Size(1024, 768),
+        center: true,
+        backgroundColor: Colors.transparent,
+        skipTaskbar: false,
+        titleBarStyle: TitleBarStyle.normal,
+      );
+      await windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.setMinimumSize(const Size(1024, 768));
+        await windowManager.show();
+        await windowManager.focus();
+        
+        // Final enforcement after a short delay for Linux window managers
+        Future.delayed(const Duration(milliseconds: 600), () async {
+          await windowManager.setMinimumSize(const Size(1024, 768));
+        });
+      });
+      debugPrint('DEBUG: Window Manager initialized successfully');
+    } catch (e) {
+      debugPrint('DEBUG: Error initializing Window Manager: $e');
+    }
+  }
   
   // Initialize Firebase (Skip on Linux as it is not configured)
   if (!Platform.isLinux) {
@@ -52,8 +88,6 @@ Future<void> mainWithRole(AppRole role) async {
     }
   }
 
-  // Setup dependency injection
-  await setupDependencies();
 
   final roleConfig = RoleConfig.forRole(role);
   // Register RoleConfig so any screen, like LoginScreen, can enforce the role
@@ -61,12 +95,15 @@ Future<void> mainWithRole(AppRole role) async {
     getIt.registerSingleton<RoleConfig>(roleConfig);
   }
   
-  // 1. Check License
-  final isLicensed = await getIt<LicenseService>().isLicensed();
+  // 1. Setup DI & Load Config
+  await setupDependencies();
   
-  // 2. Check Configuration
+  // 2. Check Configuration & Session
   final config = await getIt<LocalConfigurationDataSource>().getConfiguration();
   final isConfigured = config.isConfigured;
+  final authRepo = getIt<AuthRepository>();
+  final currentTenant = await authRepo.getCurrentTenant();
+  final isAuthenticated = currentTenant != null;
 
   // 3. Determine Start Screen
   Widget startScreen;
@@ -79,22 +116,19 @@ Future<void> mainWithRole(AppRole role) async {
   }
 
   // Unified Start Screen Logic (Regardless of platform)
-  if (role == AppRole.superAdmin) {
-    // Super Admin ALWAYS starts at Login Screen for security
-    startScreen = const LoginScreen();
-  } else if (role == AppRole.kiosk) {
-    // Kiosk ALWAYS starts at HomeScreen
+  if (isAuthenticated || role == AppRole.kiosk) {
+    // If authenticated OR in Kiosk mode, always start at Home (which handles internal routing)
     startScreen = const HomeScreen();
+  } else if (role == AppRole.superAdmin) {
+    // Unauthenticated Super Admin goes to Login
+    startScreen = const LoginScreen();
   } else {
-    // Other roles start at Home if licensed & configured, else Login
-    startScreen = (isLicensed && isConfigured) 
-        ? const HomeScreen() 
-        : const LoginScreen();
+    // Other roles: Go to Home only if configured (to allow staff login), else Setup/Login
+    startScreen = isConfigured ? const HomeScreen() : const LoginScreen();
   }
     // ════════════════════════════════════════════════════════════════════
-  // 5. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
+  // 3. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
   // ════════════════════════════════════════════════════════════════════
-  // 5. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
   if (!Platform.isLinux && isConfigured && config.tenantId != null) {
     final heartbeat = getIt<CloudHeartbeatService>();
     // ignore: unawaited_futures

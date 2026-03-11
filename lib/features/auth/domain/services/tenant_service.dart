@@ -12,6 +12,8 @@ import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
 import 'package:kfm_kiosk/core/config/app_role.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
 
+import 'package:kfm_kiosk/core/models/update_info.dart';
+
 class TenantService {
   // Singleton pattern for simple state management in this phase
   static final TenantService _instance = TenantService._internal();
@@ -442,6 +444,36 @@ class TenantService {
       }
     } catch (e) {
       debugPrint('TenantService: Error fetching global config: $e');
+    }
+  }
+
+  /// Push update manifest to Firestore for real-time update management
+  Future<void> pushUpdateManifest(UpdateInfo updateInfo) async {
+    if (Platform.isLinux) return;
+    try {
+      await _firestore.collection('system_config').doc('updates').set({
+        ...updateInfo.toJson(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint('TenantService: Pushed update manifest to cloud');
+    } catch (e) {
+      debugPrint('TenantService: Error pushing update manifest: $e');
+      rethrow;
+    }
+  }
+
+  /// Get latest update manifest from Firestore
+  Future<UpdateInfo?> getLatestUpdateManifest() async {
+    if (Platform.isLinux) return null;
+    try {
+      final doc = await _firestore.collection('system_config').doc('updates').get();
+      if (doc.exists && doc.data() != null) {
+        return UpdateInfo.fromJson(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('TenantService: Error fetching update manifest: $e');
+      return null;
     }
   }
 

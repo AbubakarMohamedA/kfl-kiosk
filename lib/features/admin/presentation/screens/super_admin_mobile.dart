@@ -15,6 +15,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 
+import 'package:kfm_kiosk/core/models/update_info.dart';
+
+import '../../../../core/services/github_update_service.dart';
+
 class SuperAdminMobile extends StatefulWidget {
   const SuperAdminMobile({super.key});
 
@@ -29,12 +33,30 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
   final TenantService _tenantService = TenantService();
   String _searchQuery = '';
   List<Tenant> _tenants = [];
+  UpdateInfo? _currentUpdateManifest;
+  bool _isLoadingUpdate = false;
+  bool _isPublishingUpdate = false;
+
+  final _versionController = TextEditingController();
+  final _urlController = TextEditingController();
+  final _checksumController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _minVersionController = TextEditingController();
+  final _githubOwnerController = TextEditingController();
+  final _githubRepoController = TextEditingController();
+  final _githubTokenController = TextEditingController();
+
+  bool _isMandatory = false;
+  bool _isMaintenance = false;
+  List<String> _allowedFlavors = [];
+  List<String> _allowedTenants = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _loadTenants();
+    _loadUpdateManifest();
     _tenantService.syncGlobalConfig().then((_) {
       if (mounted) setState(() {});
     });
@@ -91,7 +113,8 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
               children: [
                 _buildTenantListTab(true),
                 _buildTierListTab(true),
-                _buildLicensesTab(true), // New Tab
+                _buildLicensesTab(true),
+                _buildUpdatesTab(true),
                 _buildAnalyticsTab(true),
                 _buildSettingsTab(true),
               ],
@@ -131,8 +154,9 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
                 _buildDrawerItem(0, Icons.people_outline, 'Tenants'),
                 _buildDrawerItem(1, Icons.layers_outlined, 'Tiers'),
                 _buildDrawerItem(2, Icons.vpn_key_outlined, 'Licenses'),
-                _buildDrawerItem(3, Icons.analytics_outlined, 'Analytics'),
-                _buildDrawerItem(4, Icons.settings_outlined, 'Settings'),
+                _buildDrawerItem(3, Icons.system_update_alt, 'Updates'),
+                _buildDrawerItem(4, Icons.analytics_outlined, 'Analytics'),
+                _buildDrawerItem(5, Icons.settings_outlined, 'Settings'),
               ],
             ),
           ),
@@ -146,6 +170,37 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
             },
           ),
           const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  void _handleLogout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text('Are you sure you want to log out of the Super Admin Panel?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<AuthBloc>().add(LogoutRequested());
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Logout'),
+          ),
         ],
       ),
     );
@@ -238,9 +293,10 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
         children: [
           _buildSidebarItem(0, Icons.people_outline, 'Tenants'),
           _buildSidebarItem(1, Icons.layers_outlined, 'Tiers'),
-          _buildSidebarItem(2, Icons.vpn_key_outlined, 'Licenses'), // New Item
-          _buildSidebarItem(3, Icons.analytics_outlined, 'Analytics'),
-          _buildSidebarItem(4, Icons.settings_outlined, 'Settings'),
+          _buildSidebarItem(2, Icons.vpn_key_outlined, 'Licenses'),
+          _buildSidebarItem(3, Icons.system_update_alt, 'Updates'),
+          _buildSidebarItem(4, Icons.analytics_outlined, 'Analytics'),
+          _buildSidebarItem(5, Icons.settings_outlined, 'Settings'),
           const Spacer(),
           const Divider(),
           ListTile(
@@ -249,37 +305,6 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
             onTap: () => _handleLogout(),
           ),
           const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  void _handleLogout() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Logout'),
-        content: const Text('Are you sure you want to log out of the Super Admin Panel?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<AuthBloc>().add(LogoutRequested());
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Logout'),
-          ),
         ],
       ),
     );
@@ -959,6 +984,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
 
   Widget _buildAnalyticsCard(
       String title, String value, IconData icon, Color color, bool isMobile) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -975,10 +1001,13 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-              padding: const EdgeInsets.all(6),
+              constraints: const BoxConstraints(maxHeight: 150),
+              width: double.maxFinite,
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8)),
+                color: theme.dividerColor.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Icon(icon, color: color, size: 18)),
           const Spacer(),
           Text(value,
@@ -2201,7 +2230,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
                 }
 
                 final newBranch = Branch(
-                  id: isEditing ? branch.id : 'BR${DateTime.now().millisecondsSinceEpoch}',
+                  id: isEditing ? branch!.id : 'BR${DateTime.now().millisecondsSinceEpoch}',
                   tenantId: tenant.id,
                   name: nameController.text,
                   location: locationController.text,
@@ -2390,6 +2419,317 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
       },
     );
   }
+
+  Future<void> _loadUpdateManifest() async {
+    setState(() => _isLoadingUpdate = true);
+    try {
+      final manifest = await _tenantService.getLatestUpdateManifest();
+      setState(() {
+        _currentUpdateManifest = manifest;
+        if (manifest != null) {
+          _versionController.text = manifest.latestVersion;
+          _urlController.text = manifest.updateUrl;
+          _checksumController.text = manifest.checksum ?? '';
+          _notesController.text = manifest.releaseNotes;
+          _minVersionController.text = manifest.minimumSupportedVersion ?? '';
+          _githubOwnerController.text = manifest.githubOwner ?? '';
+          _githubRepoController.text = manifest.githubRepo ?? '';
+          _githubTokenController.text = manifest.githubToken ?? '';
+          _isMandatory = manifest.isMandatory;
+          _isMaintenance = manifest.isMaintenanceMode;
+          _allowedFlavors = List.from(manifest.allowedFlavors);
+          _allowedTenants = List.from(manifest.allowedTenants);
+        }
+        _isLoadingUpdate = false;
+      });
+    } catch (e) {
+      debugPrint('SuperAdmin: Error loading update manifest: $e');
+      setState(() => _isLoadingUpdate = false);
+    }
+  }
+
+  Widget _buildUpdatesTab(bool isMobile) {
+    if (_isLoadingUpdate) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final List<String> availableFlavors = ['kiosk', 'staff', 'manager', 'warehouse', 'dashboard', 'superadmin'];
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('System Update Management',
+                        style: TextStyle(fontSize: isMobile ? 18 : 20, fontWeight: FontWeight.bold)),
+                    Text('Control global app versions and targeting',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              ),
+              if (_currentUpdateManifest != null)
+                Chip(
+                  label: Text('v${_currentUpdateManifest!.latestVersion}'),
+                  backgroundColor: Colors.green.withValues(alpha: 0.1),
+                  labelStyle: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildUpdateCard('Version Information', [
+            TextField(
+              controller: _versionController,
+              decoration: const InputDecoration(
+                labelText: 'Latest Version (e.g., 1.1.0)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.history, size: 20),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _minVersionController,
+              decoration: const InputDecoration(
+                labelText: 'Min Supported (e.g., 1.0.0)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.security_update_warning, size: 20),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildUpdateCard('Strategy', [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Mandatory Update'),
+              value: _isMandatory,
+              onChanged: (val) => setState(() => _isMandatory = val),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Maintenance Mode'),
+              value: _isMaintenance,
+              onChanged: (val) => setState(() => _isMaintenance = val),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildUpdateCard('GitHub Release Info (Integrated)', [
+             Text('Default Repo: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
+               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+          ]),
+          const SizedBox(height: 20),
+          _buildUpdateCard('Release Notes', [
+            TextField(
+              controller: _notesController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Notes (Markdown supported)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildUpdateCard('Targeting', [
+            const Text('Flavors', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: availableFlavors.map((flavor) {
+                final isSelected = _allowedFlavors.contains(flavor);
+                return FilterChip(
+                  label: Text(flavor.toUpperCase(), style: const TextStyle(fontSize: 10)),
+                  selected: isSelected,
+                  onSelected: (val) {
+                    setState(() {
+                      if (val) {
+                        _allowedFlavors.add(flavor);
+                      } else {
+                        _allowedFlavors.remove(flavor);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            const Text('Targeting Mode', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _allowedTenants.isEmpty ? 'all' : 'specific',
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All Tenants')),
+                DropdownMenuItem(value: 'specific', child: Text('Specific Tenants')),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  if (val == 'all') {
+                    _allowedTenants = [];
+                  }
+                });
+              },
+            ),
+            if (_allowedTenants.isNotEmpty || true) ...[
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                hint: const Text('Add Tenant...'),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                items: _tenants
+                    .where((t) => !_allowedTenants.contains(t.id))
+                    .map((t) => DropdownMenuItem(
+                          value: t.id,
+                          child: Text(t.name, style: const TextStyle(fontSize: 12)),
+                        ))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      if (!_allowedTenants.contains(val)) {
+                        _allowedTenants.add(val);
+                      }
+                    });
+                  }
+                },
+              ),
+              if (_allowedTenants.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: _allowedTenants.map((id) {
+                    final tenant = _tenants.firstWhere((t) => t.id == id, orElse: () => _tenants.first);
+                    return InputChip(
+                      label: Text(tenant.name, style: const TextStyle(fontSize: 10)),
+                      onDeleted: () => setState(() => _allowedTenants.remove(id)),
+                      backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                      deleteIcon: const Icon(Icons.close, size: 14),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ]),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _isPublishingUpdate ? null : _handlePublishUpdate,
+              icon: _isPublishingUpdate 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.publish),
+              label: Text(_isPublishingUpdate ? 'Publishing...' : 'Publish Update'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1a237e),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 48),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpdateCard(String title, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 5, offset: const Offset(0, 2))
+        ],
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1a237e))),
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handlePublishUpdate() async {
+    if (_versionController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Version required'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final confirmed = await showGeneralDialog<bool>(
+      context: context,
+      pageBuilder: (context, anim1, anim2) => AlertDialog(
+        title: const Text('Confirm Update'),
+        content: Text('Publish v${_versionController.text} globally?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Publish'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isPublishingUpdate = true);
+    try {
+      final manifest = UpdateInfo(
+        requiresUpdate: true,
+        isMandatory: _isMandatory,
+        isMaintenanceMode: _isMaintenance,
+        updateUrl: _urlController.text,
+        currentVersion: _currentUpdateManifest?.latestVersion ?? '1.0.0',
+        latestVersion: _versionController.text,
+        releaseNotes: _notesController.text,
+        checksum: _checksumController.text.isEmpty ? null : _checksumController.text,
+        minimumSupportedVersion: _minVersionController.text.isNotEmpty ? _minVersionController.text : null,
+        allowedFlavors: _allowedFlavors,
+        allowedTenants: _allowedTenants,
+        githubOwner: _githubOwnerController.text.isNotEmpty ? _githubOwnerController.text : null,
+        githubRepo: _githubRepoController.text.isNotEmpty ? _githubRepoController.text : null,
+        githubToken: _githubTokenController.text.isNotEmpty ? _githubTokenController.text : null,
+        releaseDate: DateTime.now(),
+      );
+
+      await _tenantService.pushUpdateManifest(manifest);
+      await _loadUpdateManifest();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Published!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPublishingUpdate = false);
+    }
+  }
 }
 
 class _LicenseGeneratorForm extends StatefulWidget {
@@ -2429,8 +2769,11 @@ class _LicenseGeneratorFormState extends State<_LicenseGeneratorForm> {
               ),
             );
           }).toList(),
-          onChanged: (value) {
-            setState(() => selectedTenant = value);
+          initialValue: selectedTenant,
+          onChanged: (Tenant? value) {
+            setState(() {
+              selectedTenant = value;
+            });
           },
         ),
         const SizedBox(height: 16),

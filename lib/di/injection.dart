@@ -7,6 +7,7 @@ import 'package:kfm_kiosk/core/services/license_service.dart';
 import 'package:kfm_kiosk/core/services/local_server_service.dart';
 import 'package:kfm_kiosk/core/services/sync_service.dart';
 import 'package:kfm_kiosk/core/services/cloud_heartbeat_service.dart';
+import 'package:kfm_kiosk/core/services/update_service.dart';
 import 'package:kfm_kiosk/features/products/data/datasources/local_product_datasource.dart';
 import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
 import 'package:kfm_kiosk/features/products/data/datasources/sap_product_datasource.dart';
@@ -42,8 +43,6 @@ import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:kfm_kiosk/core/database/app_database.dart';
 import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
 import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
-import 'package:http/http.dart' as http;
-
 import 'package:kfm_kiosk/core/database/daos/branches_dao.dart';
 import 'package:kfm_kiosk/core/database/daos/tenants_dao.dart';
 import 'package:kfm_kiosk/core/database/daos/tiers_dao.dart';
@@ -52,9 +51,13 @@ import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart'; // NEW
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
 import 'package:kfm_kiosk/core/repositories/image_repository.dart';
 
+import '../core/config/app_role.dart';
+
 final getIt = GetIt.instance;
 
 Future<void> setupDependencies() async {
+  if (getIt.isRegistered<SharedPreferences>()) return;
+  
   // SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();
   getIt.registerSingleton<SharedPreferences>(sharedPreferences);
@@ -100,6 +103,12 @@ Future<void> setupDependencies() async {
     getIt<LicenseService>(),
     getIt<AuthRepository>(),
     getIt<LocalServerService>(),
+  ));
+
+  getIt.registerLazySingleton<UpdateService>(() => UpdateService(
+    getIt<ConfigurationRepository>(),
+    getIt<RoleConfig>(),
+    getIt<TenantService>(),
   ));
 
   // External

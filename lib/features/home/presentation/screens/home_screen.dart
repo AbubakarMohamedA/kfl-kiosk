@@ -23,8 +23,27 @@ import 'package:kfm_kiosk/core/database/app_database.dart';
 import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
 import 'package:kfm_kiosk/features/admin/presentation/screens/super_admin_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+import 'package:kfm_kiosk/core/services/update_service.dart';
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkUpdates();
+  }
+
+  void _checkUpdates() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      getIt<UpdateService>().checkAndPrompt(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

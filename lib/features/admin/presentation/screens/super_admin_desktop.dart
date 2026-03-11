@@ -15,6 +15,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
 
+import '../../../../core/models/update_info.dart';
+import '../../../../core/services/github_update_service.dart';
+
 class SuperAdminDesktop extends StatefulWidget {
   const SuperAdminDesktop({super.key});
 
@@ -29,12 +32,30 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
   final TenantService _tenantService = TenantService();
   String _searchQuery = '';
   List<Tenant> _tenants = [];
+  UpdateInfo? _currentUpdateManifest;
+  bool _isLoadingUpdate = false;
+  bool _isPublishingUpdate = false;
+  
+  final _versionController = TextEditingController();
+  final _urlController = TextEditingController();
+  final _checksumController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _minVersionController = TextEditingController();
+  final _githubOwnerController = TextEditingController();
+  final _githubRepoController = TextEditingController();
+  final _githubTokenController = TextEditingController();
+  
+  bool _isMandatory = false;
+  bool _isMaintenance = false;
+  List<String> _allowedFlavors = [];
+  List<String> _allowedTenants = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _loadTenants();
+    _loadUpdateManifest();
     _tenantService.syncGlobalConfig().then((_) {
       if (mounted) setState(() {});
     });
@@ -51,6 +72,34 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUpdateManifest() async {
+    setState(() => _isLoadingUpdate = true);
+    try {
+      final manifest = await _tenantService.getLatestUpdateManifest();
+      setState(() {
+        _currentUpdateManifest = manifest;
+        if (manifest != null) {
+          _versionController.text = manifest.latestVersion;
+          _urlController.text = manifest.updateUrl;
+          _checksumController.text = manifest.checksum ?? '';
+          _notesController.text = manifest.releaseNotes;
+          _minVersionController.text = manifest.minimumSupportedVersion ?? '';
+          _githubOwnerController.text = manifest.githubOwner ?? '';
+          _githubRepoController.text = manifest.githubRepo ?? '';
+          _githubTokenController.text = manifest.githubToken ?? '';
+          _isMandatory = manifest.isMandatory;
+          _isMaintenance = manifest.isMaintenanceMode;
+          _allowedFlavors = List.from(manifest.allowedFlavors);
+          _allowedTenants = List.from(manifest.allowedTenants);
+        }
+        _isLoadingUpdate = false;
+      });
+    } catch (e) {
+      debugPrint('SuperAdmin: Error loading update manifest: $e');
+      setState(() => _isLoadingUpdate = false);
+    }
   }
 
   List<Tenant> get _filteredTenants {
@@ -83,6 +132,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
                       _buildTenantListTab(),
                       _buildTierListTab(),
                       _buildLicensesTab(), // New Tab
+                      _buildUpdatesTab(), // NEW
                       _buildAnalyticsTab(),
                       _buildSettingsTab(),
                     ],
@@ -205,8 +255,9 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
           _buildSidebarItem(0, Icons.people_outline, 'Tenants'),
           _buildSidebarItem(1, Icons.layers_outlined, 'Tiers'),
           _buildSidebarItem(2, Icons.vpn_key_outlined, 'Licenses'), // New Item
-          _buildSidebarItem(3, Icons.analytics_outlined, 'Analytics'),
-          _buildSidebarItem(4, Icons.settings_outlined, 'Settings'),
+          _buildSidebarItem(3, Icons.system_update_alt, 'Updates'), // NEW Item
+          _buildSidebarItem(4, Icons.analytics_outlined, 'Analytics'),
+          _buildSidebarItem(5, Icons.settings_outlined, 'Settings'),
           const Spacer(),
           const Divider(),
           ListTile(
@@ -2402,6 +2453,322 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
       },
     );
   }
+
+  Widget _buildUpdatesTab() {
+    if (_isLoadingUpdate) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final List<String> availableFlavors = ['kiosk', 'staff', 'manager', 'warehouse', 'dashboard', 'superadmin'];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('System Update Management',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text('Control global app versions and target updates to specific tenants/flavors',
+                      style: TextStyle(fontSize: 13, color: Colors.grey)),
+                ],
+              ),
+              if (_currentUpdateManifest != null)
+                Chip(
+                  label: Text('Current: v${_currentUpdateManifest!.latestVersion}'),
+                  backgroundColor: Colors.green.withValues(alpha: 0.1),
+                  labelStyle: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildUpdateCard('Version Information', [
+                  TextField(
+                    controller: _versionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Latest Version (e.g., 1.1.0)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.history, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _minVersionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Min Supported Version (e.g., 1.0.0)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.security_update_warning, size: 20),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _buildUpdateCard('Strategy & Status', [
+                  SwitchListTile(
+                    title: const Text('Mandatory Update'),
+                    subtitle: const Text('Forces users to update before proceeding'),
+                    value: _isMandatory,
+                    onChanged: (val) => setState(() => _isMandatory = val),
+                  ),
+                  const Divider(),
+                  SwitchListTile(
+                    title: const Text('Maintenance Mode'),
+                    subtitle: const Text('Blocks all app interactions globally if enabled in manifest'),
+                    value: _isMaintenance,
+                    onChanged: (val) => setState(() => _isMaintenance = val),
+                  ),
+                ]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildUpdateCard('GitHub Release Info (Automatically Integrated)', [
+             Row(
+               children: [
+                 const Icon(Icons.check_circle, color: Colors.green),
+                 const SizedBox(width: 8),
+                 Text('Default Repository: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
+                   style: const TextStyle(fontWeight: FontWeight.bold)),
+               ],
+             ),
+             const SizedBox(height: 12),
+             const Text(
+               'The system is configured to automatically fetch the latest release from the official repository. You only need to specify targeting and maintenance options.',
+               style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontStyle: FontStyle.italic),
+             ),
+          ]),
+          const SizedBox(height: 24),
+          _buildUpdateCard('Release Notes', [
+            TextField(
+              controller: _notesController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Release Notes (Markdown supported)',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 24),
+          _buildUpdateCard('Targeting & Filtering', [
+            const Text('Allowed Flavors', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              children: availableFlavors.map((flavor) {
+                final isSelected = _allowedFlavors.contains(flavor);
+                return FilterChip(
+                  label: Text(flavor.toUpperCase()),
+                  selected: isSelected,
+                  onSelected: (val) {
+                    setState(() {
+                      if (val) {
+                        _allowedFlavors.add(flavor);
+                      } else {
+                        _allowedFlavors.remove(flavor);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+            const Text('Targeting Mode', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _allowedTenants.isEmpty ? 'all' : 'specific',
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.people_alt),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('Target All Tenants')),
+                DropdownMenuItem(value: 'specific', child: Text('Target Specific Tenants')),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  if (val == 'all') {
+                    _allowedTenants = [];
+                  }
+                });
+              },
+            ),
+            if (_allowedTenants.isNotEmpty || (_allowedTenants.isEmpty && /* dummy to allow first selection */ true)) ...[
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      hint: const Text('Add Tenant...'),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: _tenants
+                          .where((t) => !_allowedTenants.contains(t.id))
+                          .map((t) => DropdownMenuItem(
+                                value: t.id,
+                                child: Text('${t.name} (${t.id})'),
+                              ))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            if (!_allowedTenants.contains(val)) {
+                              _allowedTenants.add(val);
+                            }
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _allowedTenants = []),
+                    icon: const Icon(Icons.clear_all),
+                    label: const Text('Clear All'),
+                  ),
+                ],
+              ),
+              if (_allowedTenants.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _allowedTenants.map((id) {
+                    final tenant = _tenants.firstWhere((t) => t.id == id, orElse: () => _tenants.first);
+                    return InputChip(
+                      label: Text('${tenant.name} ($id)', style: const TextStyle(fontSize: 11)),
+                      onDeleted: () => setState(() => _allowedTenants.remove(id)),
+                      backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                      deleteIconColor: Colors.red,
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ]),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: _isPublishingUpdate ? null : _handlePublishUpdate,
+              icon: _isPublishingUpdate 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.publish),
+              label: Text(_isPublishingUpdate ? 'Publishing...' : 'Publish Real-Time Update'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1a237e),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 48),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpdateCard(String title, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2))
+        ],
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1a237e))),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handlePublishUpdate() async {
+    if (_versionController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Version is required'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Update Publication'),
+        content: Text('Publishing v${_versionController.text} will notify all targeted clients immediately. Are you sure?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1a237e), foregroundColor: Colors.white),
+            child: const Text('Confirm & Publish'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isPublishingUpdate = true);
+    try {
+      final manifest = UpdateInfo(
+        requiresUpdate: true,
+        isMandatory: _isMandatory,
+        isMaintenanceMode: _isMaintenance,
+        updateUrl: _urlController.text,
+        currentVersion: _currentUpdateManifest?.latestVersion ?? '1.0.0', // Reference point
+        latestVersion: _versionController.text,
+        releaseNotes: _notesController.text,
+        checksum: _checksumController.text.isEmpty ? null : _checksumController.text,
+        minimumSupportedVersion: _minVersionController.text.isNotEmpty ? _minVersionController.text : null,
+        allowedFlavors: _allowedFlavors,
+        allowedTenants: _allowedTenants,
+        githubOwner: _githubOwnerController.text.isNotEmpty ? _githubOwnerController.text : null,
+        githubRepo: _githubRepoController.text.isNotEmpty ? _githubRepoController.text : null,
+        githubToken: _githubTokenController.text.isNotEmpty ? _githubTokenController.text : null,
+        releaseDate: DateTime.now(),
+      );
+
+      await _tenantService.pushUpdateManifest(manifest);
+      await _loadUpdateManifest(); // Reload
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Update published successfully!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to publish update: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPublishingUpdate = false);
+    }
+  }
 }
 
 class _LicenseGeneratorForm extends StatefulWidget {
@@ -2525,9 +2892,9 @@ class _LicenseGeneratorFormState extends State<_LicenseGeneratorForm> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
+              color: Colors.green.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
             ),
             child: Column(
               children: [

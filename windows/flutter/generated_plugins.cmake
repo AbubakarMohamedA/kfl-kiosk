@@ -4,9 +4,16 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   cloud_firestore
+  connectivity_plus
   file_selector_windows
   firebase_core
+  firebase_remote_config
+  flutter_secure_storage_windows
+  permission_handler_windows
+  screen_retriever_windows
   sqlite3_flutter_libs
+  url_launcher_windows
+  window_manager
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
