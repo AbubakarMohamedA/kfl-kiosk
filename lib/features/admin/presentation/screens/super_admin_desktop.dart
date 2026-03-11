@@ -82,7 +82,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
         _currentUpdateManifest = manifest;
         if (manifest != null) {
           _versionController.text = manifest.latestVersion;
-          _urlController.text = manifest.updateUrl;
+          _urlController.text = manifest.updateUrl ?? '';
           _checksumController.text = manifest.checksum ?? '';
           _notesController.text = manifest.releaseNotes;
           _minVersionController.text = manifest.minimumSupportedVersion ?? '';
@@ -1506,7 +1506,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
                   ),
                   const SizedBox(height: 12),
                    DropdownButtonFormField<bool?>(
-                    value: immuneToBlocking,
+                    initialValue: immuneToBlocking,
                     decoration: const InputDecoration(
                       labelText: 'Immune to Blocking',
                       border: OutlineInputBorder(),
@@ -1749,7 +1749,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
                   ),
                   const SizedBox(height: 12),
                    DropdownButtonFormField<bool?>(
-                    value: immuneToBlocking,
+                    initialValue: immuneToBlocking,
                     decoration: const InputDecoration(
                       labelText: 'Immune to Blocking',
                       border: OutlineInputBorder(),
@@ -2510,6 +2510,24 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
                       prefixIcon: Icon(Icons.security_update_warning, size: 20),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _urlController,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom Download URL (Optional: Overrides GitHub)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.link, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _checksumController,
+                    decoration: const InputDecoration(
+                      labelText: 'SHA-256 Checksum (Optional: Auto-resolved from GitHub)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.fingerprint, size: 20),
+                    ),
+                  ),
                 ]),
               ),
               const SizedBox(width: 24),
@@ -2533,19 +2551,50 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
             ],
           ),
           const SizedBox(height: 24),
-          _buildUpdateCard('GitHub Release Info (Automatically Integrated)', [
+          _buildUpdateCard('GitHub Release Configuration (Optional Overrides)', [
              Row(
                children: [
                  const Icon(Icons.check_circle, color: Colors.green),
                  const SizedBox(width: 8),
-                 Text('Default Repository: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
+                 Text('Default: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
                    style: const TextStyle(fontWeight: FontWeight.bold)),
                ],
              ),
-             const SizedBox(height: 12),
-             const Text(
-               'The system is configured to automatically fetch the latest release from the official repository. You only need to specify targeting and maintenance options.',
-               style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontStyle: FontStyle.italic),
+             const SizedBox(height: 16),
+             Row(
+               children: [
+                 Expanded(
+                   child: TextField(
+                     controller: _githubOwnerController,
+                     decoration: const InputDecoration(
+                       labelText: 'GitHub Owner (Override)',
+                       border: OutlineInputBorder(),
+                       hintText: GitHubUpdateService.DEFAULT_OWNER,
+                     ),
+                   ),
+                 ),
+                 const SizedBox(width: 16),
+                 Expanded(
+                   child: TextField(
+                     controller: _githubRepoController,
+                     decoration: const InputDecoration(
+                       labelText: 'GitHub Repo (Override)',
+                       border: OutlineInputBorder(),
+                       hintText: GitHubUpdateService.DEFAULT_REPO,
+                     ),
+                   ),
+                 ),
+               ],
+             ),
+             const SizedBox(height: 16),
+             TextField(
+               controller: _githubTokenController,
+               decoration: const InputDecoration(
+                 labelText: 'GitHub Personal Access Token (For private repos)',
+                 border: OutlineInputBorder(),
+                 helperText: 'Leave blank for public repositories',
+               ),
+               obscureText: true,
              ),
           ]),
           const SizedBox(height: 24),
@@ -2562,7 +2611,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
           ]),
           const SizedBox(height: 24),
           _buildUpdateCard('Targeting & Filtering', [
-            const Text('Allowed Flavors', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('App Flavors (Select none to target ALL apps)', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 12,
@@ -2587,7 +2636,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
             const Text('Targeting Mode', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _allowedTenants.isEmpty ? 'all' : 'specific',
+              initialValue: _allowedTenants.isEmpty ? 'all' : 'specific',
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.people_alt),
@@ -2737,7 +2786,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
         requiresUpdate: true,
         isMandatory: _isMandatory,
         isMaintenanceMode: _isMaintenance,
-        updateUrl: _urlController.text,
+        updateUrl: _urlController.text.isNotEmpty ? _urlController.text : null,
         currentVersion: _currentUpdateManifest?.latestVersion ?? '1.0.0', // Reference point
         latestVersion: _versionController.text,
         releaseNotes: _notesController.text,
@@ -2745,8 +2794,12 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
         minimumSupportedVersion: _minVersionController.text.isNotEmpty ? _minVersionController.text : null,
         allowedFlavors: _allowedFlavors,
         allowedTenants: _allowedTenants,
-        githubOwner: _githubOwnerController.text.isNotEmpty ? _githubOwnerController.text : null,
-        githubRepo: _githubRepoController.text.isNotEmpty ? _githubRepoController.text : null,
+        githubOwner: _githubOwnerController.text.isNotEmpty 
+            ? _githubOwnerController.text 
+            : GitHubUpdateService.DEFAULT_OWNER,
+        githubRepo: _githubRepoController.text.isNotEmpty 
+            ? _githubRepoController.text 
+            : GitHubUpdateService.DEFAULT_REPO,
         githubToken: _githubTokenController.text.isNotEmpty ? _githubTokenController.text : null,
         releaseDate: DateTime.now(),
       );

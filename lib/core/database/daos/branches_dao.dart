@@ -6,7 +6,7 @@ part 'branches_dao.g.dart';
 
 @DriftAccessor(tables: [Branches])
 class BranchesDao extends DatabaseAccessor<AppDatabase> with _$BranchesDaoMixin {
-  BranchesDao(AppDatabase db) : super(db);
+  BranchesDao(super.db);
 
   // Get all branches for a specific tenant
   Future<List<Branch>> getBranchesForTenant(String tenantId) async {

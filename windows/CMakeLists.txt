@@ -1,5 +1,19 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
+# CMP0091 MUST be set before project() so CMAKE_MSVC_RUNTIME_LIBRARY is honoured.
+# Without this, MSVC ignores the variable and injects /MDd in Debug configs,
+# causing LNK2001 errors when linking Firebase's Release-compiled prebuilt libs
+# (__imp__CrtDbgReport, __imp__calloc_dbg, std::_Crt_new_delete).
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
+
+# Force Release CRT (/MD = MultiThreadedDLL) for ALL configurations.
+# Firebase Windows prebuilt .lib files are compiled with /MD, so this must
+# match to avoid unresolved external symbol linker errors.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL" CACHE STRING "" FORCE)
+
 project(kflkiosk LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
@@ -50,6 +64,7 @@ else()
       "Debug" "Profile" "Release")
   endif()
 endif()
+
 # Define settings for the Profile build mode.
 set(CMAKE_EXE_LINKER_FLAGS_PROFILE "${CMAKE_EXE_LINKER_FLAGS_RELEASE}")
 set(CMAKE_SHARED_LINKER_FLAGS_PROFILE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")
@@ -79,11 +94,9 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
-
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
-
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can

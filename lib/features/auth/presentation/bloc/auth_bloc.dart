@@ -4,9 +4,6 @@ import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
 import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
 import 'package:kfm_kiosk/core/services/local_server_service.dart';
 
-import '../../../../core/configuration/domain/entities/app_configuration.dart';
-import '../../../../core/configuration/domain/repositories/configuration_repository.dart';
-import '../../../../di/injection.dart';
 
 // Events
 abstract class AuthEvent extends Equatable {

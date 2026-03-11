@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
 import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
 import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';

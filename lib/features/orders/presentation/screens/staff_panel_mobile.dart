@@ -3025,9 +3025,9 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
               value: 'refresh',
               child: Row(
                 children: [
-                  const Icon(Icons.refresh_rounded, color: Colors.blue, size: 20),
-                  const SizedBox(width: 12),
-                  const Text('Refresh Data'),
+                  Icon(Icons.refresh_rounded, color: Colors.blue, size: 20),
+                  SizedBox(width: 12),
+                  Text('Refresh Data'),
                 ],
               ),
             ),
@@ -3036,9 +3036,9 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
               value: 'logout',
               child: Row(
                 children: [
-                  const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
-                  const SizedBox(width: 12),
-                  const Text('Logout', style: TextStyle(color: Colors.red)),
+                  Icon(Icons.logout_rounded, color: Colors.red, size: 20),
+                  SizedBox(width: 12),
+                  Text('Logout', style: TextStyle(color: Colors.red)),
                 ],
               ),
             ),

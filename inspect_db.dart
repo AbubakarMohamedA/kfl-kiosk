@@ -1,6 +1,3 @@
-import 'dart:io';
-import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
 // Note: This script assumes the database file is in the current directory or specified path
 // and that we can access the Products table.
 // Since I can't easily import the generated classes and run them directly without a build environment,

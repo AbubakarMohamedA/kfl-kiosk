@@ -1447,7 +1447,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
                   ),
                   const SizedBox(height: 12),
                    DropdownButtonFormField<bool?>(
-                    value: immuneToBlocking,
+                    initialValue: immuneToBlocking,
                     decoration: const InputDecoration(
                       labelText: 'Immune to Blocking',
                       border: OutlineInputBorder(),
@@ -1690,7 +1690,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
                   ),
                   const SizedBox(height: 12),
                    DropdownButtonFormField<bool?>(
-                    value: immuneToBlocking,
+                    initialValue: immuneToBlocking,
                     decoration: const InputDecoration(
                       labelText: 'Immune to Blocking',
                       border: OutlineInputBorder(),
@@ -2230,7 +2230,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
                 }
 
                 final newBranch = Branch(
-                  id: isEditing ? branch!.id : 'BR${DateTime.now().millisecondsSinceEpoch}',
+                  id: isEditing ? branch.id : 'BR${DateTime.now().millisecondsSinceEpoch}',
                   tenantId: tenant.id,
                   name: nameController.text,
                   location: locationController.text,
@@ -2428,7 +2428,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
         _currentUpdateManifest = manifest;
         if (manifest != null) {
           _versionController.text = manifest.latestVersion;
-          _urlController.text = manifest.updateUrl;
+          _urlController.text = manifest.updateUrl ?? '';
           _checksumController.text = manifest.checksum ?? '';
           _notesController.text = manifest.releaseNotes;
           _minVersionController.text = manifest.minimumSupportedVersion ?? '';
@@ -2501,6 +2501,24 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
                 prefixIcon: Icon(Icons.security_update_warning, size: 20),
               ),
             ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _urlController,
+              decoration: const InputDecoration(
+                labelText: 'Download URL (Optional: Overrides GitHub)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.link, size: 20),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _checksumController,
+              decoration: const InputDecoration(
+                labelText: 'Checksum (Optional: GitHub-Resolved)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.fingerprint, size: 20),
+              ),
+            ),
           ]),
           const SizedBox(height: 20),
           _buildUpdateCard('Strategy', [
@@ -2518,9 +2536,31 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
             ),
           ]),
           const SizedBox(height: 20),
-          _buildUpdateCard('GitHub Release Info (Integrated)', [
-             Text('Default Repo: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
-               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+          _buildUpdateCard('GitHub Configuration (Optional)', [
+             TextField(
+               controller: _githubOwnerController,
+               decoration: const InputDecoration(
+                 labelText: 'GitHub Owner (Default if blank)',
+                 border: OutlineInputBorder(),
+               ),
+             ),
+             const SizedBox(height: 12),
+             TextField(
+               controller: _githubRepoController,
+               decoration: const InputDecoration(
+                 labelText: 'GitHub Repo (Default if blank)',
+                 border: OutlineInputBorder(),
+               ),
+             ),
+             const SizedBox(height: 12),
+             TextField(
+               controller: _githubTokenController,
+               decoration: const InputDecoration(
+                 labelText: 'GitHub Token (Optional)',
+                 border: OutlineInputBorder(),
+               ),
+               obscureText: true,
+             ),
           ]),
           const SizedBox(height: 20),
           _buildUpdateCard('Release Notes', [
@@ -2535,7 +2575,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
           ]),
           const SizedBox(height: 20),
           _buildUpdateCard('Targeting', [
-            const Text('Flavors', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('App Flavors (None = ALL Apps)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -2561,7 +2601,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
             const Text('Targeting Mode', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _allowedTenants.isEmpty ? 'all' : 'specific',
+              initialValue: _allowedTenants.isEmpty ? 'all' : 'specific',
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 isDense: true,
@@ -2698,7 +2738,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
         requiresUpdate: true,
         isMandatory: _isMandatory,
         isMaintenanceMode: _isMaintenance,
-        updateUrl: _urlController.text,
+        updateUrl: _urlController.text.isNotEmpty ? _urlController.text : null,
         currentVersion: _currentUpdateManifest?.latestVersion ?? '1.0.0',
         latestVersion: _versionController.text,
         releaseNotes: _notesController.text,
@@ -2706,8 +2746,12 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
         minimumSupportedVersion: _minVersionController.text.isNotEmpty ? _minVersionController.text : null,
         allowedFlavors: _allowedFlavors,
         allowedTenants: _allowedTenants,
-        githubOwner: _githubOwnerController.text.isNotEmpty ? _githubOwnerController.text : null,
-        githubRepo: _githubRepoController.text.isNotEmpty ? _githubRepoController.text : null,
+        githubOwner: _githubOwnerController.text.isNotEmpty 
+            ? _githubOwnerController.text 
+            : GitHubUpdateService.DEFAULT_OWNER,
+        githubRepo: _githubOwnerController.text.isNotEmpty 
+            ? _githubRepoController.text 
+            : GitHubUpdateService.DEFAULT_REPO,
         githubToken: _githubTokenController.text.isNotEmpty ? _githubTokenController.text : null,
         releaseDate: DateTime.now(),
       );

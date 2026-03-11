@@ -52,7 +52,7 @@ class CloudHeartbeatService {
           immuneToBlocking: data['immuneToBlocking'] as bool? ?? false,
           description: data['description'] as String? ?? '',
         );
-        await _tenantService.updateTier(tier as Tier);
+        await _tenantService.updateTier(tier);
       }
     } catch (e) {
       debugPrint('CloudHeartbeatService: Error syncing tiers: $e');

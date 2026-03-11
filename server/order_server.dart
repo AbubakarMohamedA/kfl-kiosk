@@ -41,7 +41,7 @@ void main() async {
   print('║                                                              ║');
   print('║ Connect your devices using one of these addresses:          ║');
   for (final ip in ips) {
-    print('║   http://$ip:8080'.padRight(63) + '║');
+    print('${'║   http://$ip:8080'.padRight(63)}║');
   }
   print('║                                                              ║');
   print('║ In the app, set the server URL in Settings.                 ║');

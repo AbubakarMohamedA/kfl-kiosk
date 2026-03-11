@@ -72,7 +72,7 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
         _downloadProgress = 0.0;
       });
 
-      final filePath = await _downloadUpdate(widget.updateInfo.updateUrl);
+      final filePath = await _downloadUpdate(widget.updateInfo.updateUrl ?? '');
 
       if (filePath == null) {
         setState(() {

@@ -26,7 +26,7 @@ class UpdateInfo {
   final bool requiresUpdate;
   final bool isMandatory;
   final bool isMaintenanceMode;
-  final String updateUrl;
+  final String? updateUrl;
   final String currentVersion;
   final String latestVersion;
   final String maintenanceMessage;
@@ -55,7 +55,7 @@ class UpdateInfo {
     required this.requiresUpdate,
     required this.isMandatory,
     required this.isMaintenanceMode,
-    required this.updateUrl,
+    this.updateUrl,
     required this.currentVersion,
     required this.latestVersion,
     this.maintenanceMessage = '',
@@ -218,7 +218,7 @@ class UpdateInfo {
       requiresUpdate: json['requiresUpdate'] ?? false,
       isMandatory: json['isMandatory'] ?? false,
       isMaintenanceMode: json['isMaintenanceMode'] ?? false,
-      updateUrl: json['updateUrl'] ?? '',
+      updateUrl: json['updateUrl'],
       currentVersion: json['currentVersion'] ?? '',
       latestVersion: json['latestVersion'] ?? '',
       maintenanceMessage: json['maintenanceMessage'] ?? '',

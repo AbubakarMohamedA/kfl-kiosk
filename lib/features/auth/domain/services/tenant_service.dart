@@ -10,7 +10,6 @@ import 'package:kfm_kiosk/core/database/daos/branches_dao.dart';
 
 import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
 import 'package:kfm_kiosk/core/config/app_role.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
 
 import 'package:kfm_kiosk/core/models/update_info.dart';
 

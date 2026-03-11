@@ -9,8 +9,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../features/auth/domain/services/tenant_service.dart';
@@ -19,7 +17,6 @@ import 'platform_service.dart';
 import '../../features/common/presentation/widgets/auto_update_dialog.dart';
 import '../configuration/domain/repositories/configuration_repository.dart';
 import '../config/app_role.dart';
-import '../../main.dart';
 import 'github_update_service.dart';
 
 /// Security event severity levels
@@ -245,8 +242,13 @@ class UpdateService {
       final fileName = 'update_${updateInfo.latestVersion}${_getExt()}';
       final file = File('${tempDir.path}/$fileName');
 
+      final resolvedUrl = updateInfo.updateUrl;
+      if (resolvedUrl == null || resolvedUrl.isEmpty) {
+        throw Exception('No download URL provided for this update.');
+      }
+
       // Download
-      final response = await http.Client().send(http.Request('GET', Uri.parse(updateInfo.updateUrl)));
+      final response = await http.Client().send(http.Request('GET', Uri.parse(resolvedUrl)));
       final contentLength = response.contentLength ?? 0;
       int downloaded = 0;
 

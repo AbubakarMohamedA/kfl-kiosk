@@ -1844,8 +1844,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           day.month,
                           day.day,
                         );
-                        if (checkDate == initialDay || checkDate == today)
+                        if (checkDate == initialDay || checkDate == today) {
                           return true;
+                        }
                         return activeDates.contains(checkDate);
                       },
                     );
@@ -2662,8 +2663,9 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                           day.month,
                           day.day,
                         );
-                        if (checkDate == initialDay || checkDate == today)
+                        if (checkDate == initialDay || checkDate == today) {
                           return true;
+                        }
                         return activeDates.contains(checkDate);
                       },
                     );

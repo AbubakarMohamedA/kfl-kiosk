@@ -180,6 +180,7 @@ class AppDatabase extends _$AppDatabase {
   // For testing
   AppDatabase.connect(super.connection);
 
+  @override
   int get schemaVersion => 14;
 
   @override
