@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/features/cart/domain/usecases/cart_usecases.dart' as usecases;
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/cart/domain/usecases/cart_usecases.dart' as usecases;
 import 'cart_event.dart';
 import 'cart_state.dart';
 

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tier.dart' as entity;
+import 'package:sss/core/database/app_database.dart';
+import 'package:sss/features/auth/domain/entities/tier.dart' as entity;
 
 part 'tiers_dao.g.dart';
 

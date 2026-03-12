@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel.dart';
-import 'package:kfm_kiosk/features/dashboard/presentation/widgets/enterprise_charts.dart';
-import 'package:kfm_kiosk/features/dashboard/presentation/widgets/enterprise_feed.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
-import 'package:kfm_kiosk/features/settings/presentation/screens/maintenance_screen.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/account_disabled_screen.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_state.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/features/auth/domain/entities/branch.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/screens/staff_panel.dart';
+import 'package:sss/features/dashboard/presentation/widgets/enterprise_charts.dart';
+import 'package:sss/features/dashboard/presentation/widgets/enterprise_feed.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/features/settings/presentation/screens/maintenance_screen.dart';
+import 'package:sss/features/auth/presentation/screens/account_disabled_screen.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_state.dart';
 
 class EnterpriseDashboardMobile extends StatefulWidget {
   const EnterpriseDashboardMobile({super.key});

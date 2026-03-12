@@ -3,30 +3,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:kfm_kiosk/firebase_options.dart';
-import 'package:kfm_kiosk/core/services/cloud_heartbeat_service.dart';
+import 'package:sss/firebase_options.dart';
+import 'package:sss/core/services/cloud_heartbeat_service.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
-import 'package:kfm_kiosk/core/config/api_config.dart';
+import 'package:sss/core/config/api_config.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/core/services/local_server_service.dart';
-import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_bloc.dart';
-import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_event.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_event.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/features/payment/presentation/bloc/payment/payment_bloc.dart';
-import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen.dart';
-import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:kfm_kiosk/core/configuration/data/datasources/local_configuration_datasource.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/core/services/local_server_service.dart';
+import 'package:sss/features/products/presentation/bloc/product/product_bloc.dart';
+import 'package:sss/features/products/presentation/bloc/product/product_event.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_bloc.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_event.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/features/payment/presentation/bloc/payment/payment_bloc.dart';
+import 'package:sss/features/settings/presentation/bloc/language/language_cubit.dart';
+import 'package:sss/features/home/presentation/screens/home_screen.dart';
+import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:sss/core/configuration/data/datasources/local_configuration_datasource.dart';
+import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 
-import 'package:kfm_kiosk/core/config/app_role.dart';
+import 'package:sss/core/config/app_role.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -129,7 +129,7 @@ Future<void> mainWithRole(AppRole role) async {
     // ════════════════════════════════════════════════════════════════════
   // 3. Cloud Status Check (Heartbeat) - NEW (Skip on Linux)
   // ════════════════════════════════════════════════════════════════════
-  if (!Platform.isLinux && isConfigured && config.tenantId != null) {
+  if (isConfigured && config.tenantId != null) {
     final heartbeat = getIt<CloudHeartbeatService>();
     // ignore: unawaited_futures
     heartbeat.checkTenantStatus(); // Fire and forget on startup

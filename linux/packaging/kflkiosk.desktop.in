@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Name=@APP_TITLE@
+GenericName=@APP_TITLE@
+Comment=KFL Kiosk Desktop Application
+Exec=@CMAKE_INSTALL_PREFIX@/kflkiosk %u
+Icon=@CMAKE_INSTALL_PREFIX@/data/flutter_assets/assets/images/logo.png
+Terminal=false
+Type=Application
+Categories=Utility;
+StartupNotify=true
+StartupWMClass=@APPLICATION_ID@

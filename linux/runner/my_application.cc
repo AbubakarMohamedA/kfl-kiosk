@@ -74,6 +74,7 @@ static void my_application_activate(GApplication* application) {
     std::string base_dir = path.substr(0, path.find_last_of("\\/"));
     std::string icon_path = base_dir + "/data/flutter_assets/assets/images/logo.png";
     g_autoptr(GError) error = nullptr;
+    gtk_window_set_default_icon_from_file(icon_path.c_str(), &error);
     gtk_window_set_icon_from_file(window, icon_path.c_str(), &error);
     // Ignore error if the file doesn't exist yet/not bundled
   }

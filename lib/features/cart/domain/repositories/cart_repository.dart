@@ -1,4 +1,4 @@
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
 
 abstract class CartRepository {
   Future<void> addToCart(CartItem item);

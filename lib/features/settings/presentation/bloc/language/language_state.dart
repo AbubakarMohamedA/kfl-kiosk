@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:sss/core/constants/app_constants.dart';
 
 class LanguageState extends Equatable {
   final String languageCode;

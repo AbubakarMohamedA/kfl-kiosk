@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:kfm_kiosk/core/config/api_config.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
+import 'package:sss/core/config/api_config.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
 
 class AuthRemoteDataSource {
   final http.Client client;

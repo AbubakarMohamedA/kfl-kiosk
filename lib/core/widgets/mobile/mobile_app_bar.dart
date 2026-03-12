@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_state.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_bloc.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_state.dart';
 
 class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;

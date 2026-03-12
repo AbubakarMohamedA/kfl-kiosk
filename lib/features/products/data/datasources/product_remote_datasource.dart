@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:kfm_kiosk/core/config/api_config.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
+import 'package:sss/core/config/api_config.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
 
 abstract class ProductDataSource {
   Future<List<ProductModel>> fetchProducts({String? tenantId});

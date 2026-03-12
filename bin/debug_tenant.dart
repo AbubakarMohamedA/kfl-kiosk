@@ -1,4 +1,4 @@
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
 
 void main() {
   final service = TenantService();

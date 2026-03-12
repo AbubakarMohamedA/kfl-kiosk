@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
 
 abstract class CartEvent extends Equatable {
   const CartEvent();

@@ -1,6 +1,6 @@
-import 'package:kfm_kiosk/core/usecases/usecase.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/features/cart/domain/repositories/cart_repository.dart';
+import 'package:sss/core/usecases/usecase.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/cart/domain/repositories/cart_repository.dart';
 
 class AddToCart extends UseCase<void, CartItem> {
   final CartRepository repository;

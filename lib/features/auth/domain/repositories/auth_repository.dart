@@ -1,4 +1,4 @@
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
 
 abstract class AuthRepository {
   Future<Tenant> login(String username, String password);

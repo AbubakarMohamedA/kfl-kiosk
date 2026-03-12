@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_state.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_state.dart';
 
 class EnterpriseFeed extends StatelessWidget {
   final bool isDarkMode;

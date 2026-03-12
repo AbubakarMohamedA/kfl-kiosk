@@ -141,6 +141,22 @@ install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
+# Configure the desktop file and install it locally so `flutter run` will
+# present it in Wayland correctly.
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/packaging/kflkiosk.desktop.in"
+  "${CMAKE_BINARY_DIR}/${APPLICATION_ID}.desktop"
+  @ONLY
+)
+
+install(FILES "${CMAKE_BINARY_DIR}/${APPLICATION_ID}.desktop" DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  COMPONENT Runtime)
+
+# Automatically copy it to the user's local application directory when regenerating
+execute_process(
+    COMMAND cp "${CMAKE_BINARY_DIR}/${APPLICATION_ID}.desktop" "$ENV{HOME}/.local/share/applications/${APPLICATION_ID}.desktop"
+)
+
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")

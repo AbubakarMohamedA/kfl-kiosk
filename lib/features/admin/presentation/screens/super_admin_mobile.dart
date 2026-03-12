@@ -2,20 +2,20 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tier.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/entities/tier.dart';
+import 'package:sss/features/auth/domain/entities/branch.dart';
 import 'package:flutter/services.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/core/services/license_service.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart' as entity;
+import 'package:sss/di/injection.dart';
+import 'package:sss/core/services/license_service.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/warehouse/domain/services/warehouse_service.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart' as entity;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 
-import 'package:kfm_kiosk/core/models/update_info.dart';
+import 'package:sss/core/models/update_info.dart';
 
 import '../../../../core/services/github_update_service.dart';
 
@@ -2501,24 +2501,24 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
                 prefixIcon: Icon(Icons.security_update_warning, size: 20),
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _urlController,
-              decoration: const InputDecoration(
-                labelText: 'Download URL (Optional: Overrides GitHub)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.link, size: 20),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _checksumController,
-              decoration: const InputDecoration(
-                labelText: 'Checksum (Optional: GitHub-Resolved)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.fingerprint, size: 20),
-              ),
-            ),
+            // const SizedBox(height: 16),
+            // TextField(
+            //   controller: _urlController,
+            //   decoration: const InputDecoration(
+            //     labelText: 'Download URL (Optional: Overrides GitHub)',
+            //     border: OutlineInputBorder(),
+            //     prefixIcon: Icon(Icons.link, size: 20),
+            //   ),
+            // ),
+            // const SizedBox(height: 16),
+            // TextField(
+              // controller: _checksumController,
+              // decoration: const InputDecoration(
+              //   labelText: 'Checksum (Optional: GitHub-Resolved)',
+              //   border: OutlineInputBorder(),
+              //   prefixIcon: Icon(Icons.fingerprint, size: 20),
+              // ),
+            // ),
           ]),
           const SizedBox(height: 20),
           _buildUpdateCard('Strategy', [
@@ -2528,51 +2528,51 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
               value: _isMandatory,
               onChanged: (val) => setState(() => _isMandatory = val),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Maintenance Mode'),
-              value: _isMaintenance,
-              onChanged: (val) => setState(() => _isMaintenance = val),
-            ),
+            // SwitchListTile(
+            //   contentPadding: EdgeInsets.zero,
+            //   title: const Text('Maintenance Mode'),
+            //   value: _isMaintenance,
+            //   onChanged: (val) => setState(() => _isMaintenance = val),
+            // ),
           ]),
-          const SizedBox(height: 20),
-          _buildUpdateCard('GitHub Configuration (Optional)', [
-             TextField(
-               controller: _githubOwnerController,
-               decoration: const InputDecoration(
-                 labelText: 'GitHub Owner (Default if blank)',
-                 border: OutlineInputBorder(),
-               ),
-             ),
-             const SizedBox(height: 12),
-             TextField(
-               controller: _githubRepoController,
-               decoration: const InputDecoration(
-                 labelText: 'GitHub Repo (Default if blank)',
-                 border: OutlineInputBorder(),
-               ),
-             ),
-             const SizedBox(height: 12),
-             TextField(
-               controller: _githubTokenController,
-               decoration: const InputDecoration(
-                 labelText: 'GitHub Token (Optional)',
-                 border: OutlineInputBorder(),
-               ),
-               obscureText: true,
-             ),
-          ]),
-          const SizedBox(height: 20),
-          _buildUpdateCard('Release Notes', [
-            TextField(
-              controller: _notesController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Notes (Markdown supported)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ]),
+          // const SizedBox(height: 20),
+          // _buildUpdateCard('GitHub Configuration (Optional)', [
+          //    TextField(
+          //      controller: _githubOwnerController,
+          //      decoration: const InputDecoration(
+          //        labelText: 'GitHub Owner (Default if blank)',
+          //        border: OutlineInputBorder(),
+          //      ),
+          //    ),
+          //    const SizedBox(height: 12),
+          //    TextField(
+          //      controller: _githubRepoController,
+          //      decoration: const InputDecoration(
+          //        labelText: 'GitHub Repo (Default if blank)',
+          //        border: OutlineInputBorder(),
+          //      ),
+          //    ),
+          //    const SizedBox(height: 12),
+          //    TextField(
+          //      controller: _githubTokenController,
+          //      decoration: const InputDecoration(
+          //        labelText: 'GitHub Token (Optional)',
+          //        border: OutlineInputBorder(),
+          //      ),
+          //      obscureText: true,
+          //    ),
+          // ]),
+          // const SizedBox(height: 20),
+          // _buildUpdateCard('Release Notes', [
+          //   TextField(
+          //     controller: _notesController,
+          //     maxLines: 4,
+          //     decoration: const InputDecoration(
+          //       labelText: 'Notes (Markdown supported)',
+          //       border: OutlineInputBorder(),
+          //     ),
+          //   ),
+          // ]),
           const SizedBox(height: 20),
           _buildUpdateCard('Targeting', [
             const Text('App Flavors (None = ALL Apps)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -2601,7 +2601,7 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
             const Text('Targeting Mode', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: _allowedTenants.isEmpty ? 'all' : 'specific',
+              value: _allowedTenants.isEmpty ? 'all' : 'specific',
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 isDense: true,
@@ -2620,29 +2620,37 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
             ),
             if (_allowedTenants.isNotEmpty || true) ...[
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                hint: const Text('Add Tenant...'),
+              // Use plain DropdownButton (not FormField) so value: null is fully
+              // controlled and never persists across rebuilds via FormFieldState.
+              InputDecorator(
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   isDense: true,
                   contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 ),
-                items: _tenants
-                    .where((t) => !_allowedTenants.contains(t.id))
-                    .map((t) => DropdownMenuItem(
-                          value: t.id,
-                          child: Text(t.name, style: const TextStyle(fontSize: 12)),
-                        ))
-                    .toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() {
-                      if (!_allowedTenants.contains(val)) {
-                        _allowedTenants.add(val);
-                      }
-                    });
-                  }
-                },
+                child: DropdownButton<String>(
+                  value: null,
+                  hint: const Text('Add Tenant...', style: TextStyle(fontSize: 12)),
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  isDense: true,
+                  items: _tenants
+                      .where((t) => !_allowedTenants.contains(t.id))
+                      .map((t) => DropdownMenuItem(
+                            value: t.id,
+                            child: Text(t.name, style: const TextStyle(fontSize: 12)),
+                          ))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        if (!_allowedTenants.contains(val)) {
+                          _allowedTenants.add(val);
+                        }
+                      });
+                    }
+                  },
+                ),
               ),
               if (_allowedTenants.isNotEmpty) ...[
                 const SizedBox(height: 12),

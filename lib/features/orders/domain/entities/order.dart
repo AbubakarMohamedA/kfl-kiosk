@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
 
 class Order extends Equatable {
   final String id;

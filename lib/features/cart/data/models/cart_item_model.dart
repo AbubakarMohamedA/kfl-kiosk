@@ -1,7 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
 part 'cart_item_model.g.dart';
 
 @JsonSerializable()

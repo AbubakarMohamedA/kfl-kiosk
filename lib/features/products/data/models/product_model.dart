@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
 
 part 'product_model.g.dart';
 

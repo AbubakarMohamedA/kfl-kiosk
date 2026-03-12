@@ -100,37 +100,43 @@ class UpdateService {
   /// Core logic to check for updates
   Future<UpdateInfo?> checkForUpdate({bool force = false}) async {
     try {
-      if (!force && !await _shouldCheck()) return null;
-
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
 
       UpdateInfo? updateInfo;
 
-      // Check Cloud Manifest first (existing logic)
-      if (!PlatformService.isLinux) {
-        updateInfo = await _tenantService.getLatestUpdateManifest();
+      // Check Cloud Manifest first
+      updateInfo = await _tenantService.getLatestUpdateManifest();
+
+      if (updateInfo == null) {
+        debugPrint('UpdateService: No manifest found, skipping.');
+        return null;
       }
 
-      // If no manifest or on Linux, check if GitHub update is configured
-      // Note: Even if not on Linux, we might want to prioritize GitHub or 
-      // use it as a fallback if the manifest indicates so.
-      
-      if (updateInfo == null || updateInfo.requiresUpdate == false || PlatformService.isLinux) {
-         // Pull manifest again for Linux if needed (it might have been skipped)
-         if (PlatformService.isLinux) {
-           updateInfo = await _tenantService.getLatestUpdateManifest();
-         }
-         
-         if (updateInfo != null && updateInfo.isGitHubUpdate) {
-           updateInfo = await _checkGitHubRelease(currentVersion, updateInfo);
-         }
+      debugPrint('UpdateService: Manifest — latestVersion=${updateInfo.latestVersion}, '
+          'requiresUpdate=${updateInfo.requiresUpdate}, isMandatory=${updateInfo.isMandatory}, '
+          'allowedTenants=${updateInfo.allowedTenants}, allowedFlavors=${updateInfo.allowedFlavors}');
+
+      // Throttle: skip if checked recently, UNLESS the update is mandatory
+      if (!force && !updateInfo.isMandatory && !await _shouldCheck()) {
+        debugPrint('UpdateService: Skipping — within 6-hour throttle window.');
+        return null;
+      }
+
+      // Resolve download URL from GitHub when no explicit URL is stored.
+      // isGitHubUpdate is always true for this project, so we always resolve
+      // unless the admin already provided a direct updateUrl override.
+      if (updateInfo.isGitHubUpdate && (updateInfo.updateUrl == null || updateInfo.updateUrl!.isEmpty)) {
+        debugPrint('UpdateService: updateUrl is null — resolving from GitHub...');
+        updateInfo = await _checkGitHubRelease(currentVersion, updateInfo);
       }
 
       if (updateInfo == null) return null;
 
-      // Security check: Downgrade attack
+      // Security check: Downgrade/replay attack
       if (updateInfo.isReplayOrDowngradeAttack(currentVersion)) {
+        debugPrint('UpdateService: ⚠️ Blocked — downgrade/replay. '
+            'current=$currentVersion, latest=${updateInfo.latestVersion}');
         await SecurityMonitor.instance.reportSecurityEvent(
           eventType: 'downgrade_attack_detected',
           severity: SecuritySeverity.critical,
@@ -139,24 +145,37 @@ class UpdateService {
         return null;
       }
 
-      // Get current state for filtering
+      // Get device identity for filtering
       final config = await _configRepo.getConfiguration();
       final tenantId = config.tenantId ?? '';
       final flavor = _roleConfig.role.name;
 
-      // Granular filtering: Tenant and Flavor
-      if (!updateInfo.appliesTo(tenantId, flavor)) {
-        debugPrint('Update skipped: Not targeted for tenant [$tenantId] or flavor [$flavor]');
+      debugPrint('UpdateService: Device — tenantId=$tenantId, flavor=$flavor, version=$currentVersion');
+
+      // Tier gate: alone-tier (allowUpdates: false) never receives updates
+      if (!_tenantService.isTenantAllowedUpdates(tenantId)) {
+        debugPrint('UpdateService: ⚠️ Update blocked — tenant [$tenantId] tier does not allow updates (alone tier).');
         return null;
       }
 
-      // Update check frequency
+      // Granular filtering: Tenant and Flavor
+      if (!updateInfo.appliesTo(tenantId, flavor)) {
+        debugPrint('UpdateService: ⚠️ Update skipped — not targeted for '
+            'tenant [$tenantId] or flavor [$flavor]. '
+            'allowedTenants=${updateInfo.allowedTenants}, '
+            'allowedFlavors=${updateInfo.allowedFlavors}');
+        return null;
+      }
+
+      // Save last check time
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_keyLastCheckTime, DateTime.now().millisecondsSinceEpoch);
 
+      debugPrint('UpdateService: ✅ Update applies — latest=${updateInfo.latestVersion}, '
+          'mandatory=${updateInfo.isMandatory}');
       return updateInfo;
     } catch (e) {
-      debugPrint('Update check failed: $e');
+      debugPrint('UpdateService: Update check failed: $e');
       return null;
     }
   }

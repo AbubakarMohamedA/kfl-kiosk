@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
+import 'package:sss/core/database/app_database.dart';
 import 'dart:io';
 
 void main() {

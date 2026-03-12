@@ -1,34 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_state.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_state.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
 // TODO: Re-enable when new features are implemented
-// import 'package:kfm_kiosk/features/insights/presentation/screens/analytics_screen.dart';
-// import 'package:kfm_kiosk/features/warehouse/presentation/screens/inventory_screen.dart';
-// import 'package:kfm_kiosk/features/admin/presentation/screens/staff_management_screen.dart';
-import 'package:kfm_kiosk/features/settings/presentation/screens/settings_screen.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/warehouse_selector_screen.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_desktop.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
-import 'package:kfm_kiosk/features/admin/presentation/screens/super_admin_screen.dart';
-import 'package:kfm_kiosk/features/insights/presentation/screens/business_insights_screen.dart';
-import 'package:kfm_kiosk/features/settings/presentation/screens/maintenance_screen.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/account_disabled_screen.dart';
-import 'package:kfm_kiosk/features/settings/presentation/screens/premium_upgrade_screen.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/warehouse_management_screen.dart'; // ✅ NEW
-import 'package:kfm_kiosk/features/products/presentation/screens/product_management_screen.dart';
-import 'package:kfm_kiosk/features/settings/presentation/screens/mobile_config_screen.dart'; // ✅ NEW
-import 'package:kfm_kiosk/core/widgets/desktop/staff_order_card.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart'; // Added import
+// import 'package:sss/features/insights/presentation/screens/analytics_screen.dart';
+// import 'package:sss/features/warehouse/presentation/screens/inventory_screen.dart';
+// import 'package:sss/features/admin/presentation/screens/staff_management_screen.dart';
+import 'package:sss/features/settings/presentation/screens/settings_screen.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
+import 'package:sss/features/warehouse/presentation/screens/warehouse_selector_screen.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/home/presentation/screens/home_screen_desktop.dart';
+import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:sss/features/admin/presentation/screens/super_admin_screen.dart';
+import 'package:sss/features/insights/presentation/screens/business_insights_screen.dart';
+import 'package:sss/features/settings/presentation/screens/maintenance_screen.dart';
+import 'package:sss/features/auth/presentation/screens/account_disabled_screen.dart';
+import 'package:sss/features/settings/presentation/screens/premium_upgrade_screen.dart';
+import 'package:sss/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/features/warehouse/presentation/screens/warehouse_management_screen.dart'; // ✅ NEW
+import 'package:sss/features/products/presentation/screens/product_management_screen.dart';
+import 'package:sss/features/settings/presentation/screens/mobile_config_screen.dart'; // ✅ NEW
+import 'package:sss/core/widgets/desktop/staff_order_card.dart';
+import 'package:sss/features/auth/domain/entities/branch.dart'; // Added import
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;

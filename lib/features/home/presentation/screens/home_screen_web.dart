@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_desktop.dart';
+import 'package:sss/features/home/presentation/screens/home_screen_desktop.dart';
 
 class HomeScreenWeb extends StatelessWidget {
   const HomeScreenWeb({super.key});

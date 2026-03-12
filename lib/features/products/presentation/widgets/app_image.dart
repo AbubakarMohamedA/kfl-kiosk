@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:kfm_kiosk/core/config/api_config.dart';
+import 'package:sss/core/config/api_config.dart';
 
 class AppImage extends StatelessWidget {
   final String imageUrl;

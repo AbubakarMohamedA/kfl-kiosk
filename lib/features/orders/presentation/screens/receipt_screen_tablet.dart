@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/receipt_screen_desktop.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/orders/presentation/screens/receipt_screen_desktop.dart';
 
 class ReceiptScreenTablet extends StatelessWidget {
   final String language;

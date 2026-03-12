@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:kfm_kiosk/core/config/api_config.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
-import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
-import 'package:kfm_kiosk/di/injection.dart';
+import 'package:sss/core/config/api_config.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
+import 'package:sss/features/products/data/datasources/product_remote_datasource.dart';
+import 'package:sss/core/database/daos/app_config_dao.dart';
+import 'package:sss/di/injection.dart';
 
 class SapProductDataSource implements ProductDataSource {
   final http.Client client;

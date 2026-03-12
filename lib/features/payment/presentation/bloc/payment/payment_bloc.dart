@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/payment/domain/usecases/payment_usecases.dart';
-import 'package:kfm_kiosk/core/utils/validators.dart';
+import 'package:sss/features/payment/domain/usecases/payment_usecases.dart';
+import 'package:sss/core/utils/validators.dart';
 import 'payment_event.dart';
 import 'payment_state.dart';
 

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart' as entity;
+import 'package:sss/core/database/app_database.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart' as entity;
 
 part 'warehouses_dao.g.dart';
 

@@ -1,17 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart' as db_drift;
-import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/local_product_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/repositories/product_repository_impl.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/sap_product_datasource.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/core/database/app_database.dart' as db_drift;
+import 'package:sss/core/database/daos/products_dao.dart';
+import 'package:sss/features/products/data/datasources/local_product_datasource.dart';
+import 'package:sss/features/products/data/repositories/product_repository_impl.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/products/data/datasources/product_remote_datasource.dart';
+import 'package:sss/features/products/data/datasources/sap_product_datasource.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 
 // Generate mocks
 @GenerateMocks([AuthRepository, ProductRemoteDataSource, SapProductDataSource, ProductsDao, ConfigurationRepository])

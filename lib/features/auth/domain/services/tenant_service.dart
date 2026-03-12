@@ -1,23 +1,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tier.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
-import 'package:kfm_kiosk/core/database/daos/tenants_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tiers_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/branches_dao.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/entities/tier.dart';
+import 'package:sss/features/auth/domain/entities/branch.dart';
+import 'package:sss/core/database/daos/tenants_dao.dart';
+import 'package:sss/core/database/daos/tiers_dao.dart';
+import 'package:sss/core/database/daos/branches_dao.dart';
 
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
-import 'package:kfm_kiosk/core/config/app_role.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
+import 'package:sss/core/config/app_role.dart';
 
-import 'package:kfm_kiosk/core/models/update_info.dart';
+import 'package:sss/core/models/update_info.dart';
+
+import '../../../../core/services/firebase_rest_service.dart';
+import '../../../../di/injection.dart';
 
 class TenantService {
   // Singleton pattern for simple state management in this phase
   static final TenantService _instance = TenantService._internal();
   factory TenantService() => _instance;
   TenantService._internal();
+
+  FirebaseRestService get _restService => getIt<FirebaseRestService>();
 
   TenantsDao? _tenantsDao;
   TiersDao? _tiersDao;
@@ -156,7 +161,27 @@ class TenantService {
   }
 
   Future<void> syncTenantToCloud(Tenant tenant) async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        await _restService.patchDocument('tenants/${tenant.id}', {
+          'name': tenant.name,
+          'businessName': tenant.businessName,
+          'email': tenant.email,
+          'phone': tenant.phone,
+          'status': tenant.status,
+          'tierId': tenant.tierId,
+          'isMaintenanceMode': tenant.isMaintenanceMode,
+          'enabledFeatures': tenant.enabledFeatures,
+          'allowUpdate': tenant.allowUpdate,
+          'immuneToBlocking': tenant.immuneToBlocking,
+          'updatedAt': DateTime.now(),
+        });
+        debugPrint('TenantService (REST): Synced tenant ${tenant.id} to cloud');
+      } catch (e) {
+        debugPrint('TenantService (REST): Error syncing tenant ${tenant.id}: $e');
+      }
+      return;
+    }
     try {
       await _firestore.collection('tenants').doc(tenant.id).set({
         'name': tenant.name,
@@ -228,7 +253,22 @@ class TenantService {
   }
 
   Future<void> syncTierToCloud(Tier tier) async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        await _restService.patchDocument('tiers/${tier.id}', {
+          'name': tier.name,
+          'enabledFeatures': tier.enabledFeatures,
+          'allowUpdates': tier.allowUpdates,
+          'immuneToBlocking': tier.immuneToBlocking,
+          'description': tier.description,
+          'updatedAt': DateTime.now(),
+        });
+        debugPrint('TenantService (REST): Synced tier ${tier.id} to cloud');
+      } catch (e) {
+        debugPrint('TenantService (REST): Error syncing tier ${tier.id}: $e');
+      }
+      return;
+    }
     try {
       await _firestore.collection('tiers').doc(tier.id).set({
         'name': tier.name,
@@ -246,7 +286,33 @@ class TenantService {
 
   /// Pull all tiers from Firestore and merge into local DB
   Future<void> pullTiersFromCloud() async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+       try {
+         final tiers = await _restService.getCollection('tiers');
+         if (_tiersDao != null) {
+           await _tiersDao!.deleteAllTiers();
+         }
+         _cacheTiers.clear();
+         for (final data in tiers) {
+           final tier = Tier(
+             id: data['id'] ?? '',
+             name: data['name'] ?? '',
+             description: data['description'] ?? '',
+             enabledFeatures: List<String>.from(data['enabledFeatures'] ?? []),
+             allowUpdates: data['allowUpdates'] ?? true,
+             immuneToBlocking: data['immuneToBlocking'] ?? false,
+           );
+           if (_tiersDao != null) {
+             await _tiersDao!.saveTier(tier);
+           }
+           _cacheTiers.add(tier);
+         }
+         debugPrint('TenantService (REST): Pulled ${tiers.length} tiers from cloud');
+       } catch (e) {
+          debugPrint('TenantService (REST): Error pulling tiers: $e');
+       }
+       return;
+    }
     try {
       final snapshot = await _firestore.collection('tiers').get();
       
@@ -280,7 +346,26 @@ class TenantService {
 
   /// Pull all tenants from Firestore and merge into local DB
   Future<void> pullTenantsFromCloud() async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        final tenants = await _restService.getCollection('tenants');
+        if (_tenantsDao != null) {
+          await _tenantsDao!.deleteAllTenants();
+        }
+        _cacheTenants.clear();
+        for (final data in tenants) {
+          final tenant = _parseTenantFromMap(data);
+          if (_tenantsDao != null) {
+            await _tenantsDao!.saveTenant(tenant);
+          }
+          _cacheTenants.add(tenant);
+        }
+        debugPrint('TenantService (REST): Pulled ${tenants.length} tenants from cloud');
+      } catch (e) {
+        debugPrint('TenantService (REST): Error pulling tenants: $e');
+      }
+      return;
+    }
     try {
       final snapshot = await _firestore.collection('tenants').get();
       
@@ -391,7 +476,17 @@ class TenantService {
 
   void setMaintenanceMode(bool enabled) async {
     _isMaintenanceMode = enabled;
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+       try {
+         await _restService.patchDocument('system_config/global', {
+           'isMaintenanceMode': enabled,
+           'updatedAt': DateTime.now(),
+         });
+       } catch (e) {
+         debugPrint('TenantService (REST): Error syncing maintenance mode: $e');
+       }
+       return;
+    }
     try {
       await _firestore.collection('system_config').doc('global').set({
         'isMaintenanceMode': enabled,
@@ -405,7 +500,17 @@ class TenantService {
   void setModuleMaintenance(String module, bool enabled) async {
     if (_moduleMaintenance.containsKey(module)) {
       _moduleMaintenance[module] = enabled;
-      if (Platform.isLinux) return;
+      if (Platform.isLinux) {
+        try {
+          await _restService.patchDocument('system_config/modules', {
+            module: enabled,
+            'updatedAt': DateTime.now(),
+          });
+        } catch (e) {
+          debugPrint('TenantService (REST): Error syncing module maintenance ($module): $e');
+        }
+        return;
+      }
       try {
         await _firestore.collection('system_config').doc('modules').set({
           module: enabled,
@@ -423,7 +528,26 @@ class TenantService {
 
   /// Initial fetch for global settings from cloud
   Future<void> syncGlobalConfig() async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        final globalDoc = await _restService.getDocument('system_config/global');
+        if (globalDoc != null) {
+          _isMaintenanceMode = globalDoc['isMaintenanceMode'] as bool? ?? false;
+        }
+
+        final modulesDoc = await _restService.getDocument('system_config/modules');
+        if (modulesDoc != null) {
+          modulesDoc.forEach((key, value) {
+            if (_moduleMaintenance.containsKey(key) && value is bool) {
+              _moduleMaintenance[key] = value;
+            }
+          });
+        }
+      } catch (e) {
+        debugPrint('TenantService (REST): Error fetching global config: $e');
+      }
+      return;
+    }
     try {
       final globalDoc = await _firestore.collection('system_config').doc('global').get();
       if (globalDoc.exists) {
@@ -448,7 +572,19 @@ class TenantService {
 
   /// Push update manifest to Firestore for real-time update management
   Future<void> pushUpdateManifest(UpdateInfo updateInfo) async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        await _restService.patchDocument('system_config/updates', {
+          ...updateInfo.toJson(),
+          'updatedAt': DateTime.now(),
+        });
+        debugPrint('TenantService (REST): Pushed update manifest to cloud');
+      } catch (e) {
+        debugPrint('TenantService (REST): Error pushing update manifest: $e');
+        rethrow;
+      }
+      return;
+    }
     try {
       await _firestore.collection('system_config').doc('updates').set({
         ...updateInfo.toJson(),
@@ -463,7 +599,17 @@ class TenantService {
 
   /// Get latest update manifest from Firestore
   Future<UpdateInfo?> getLatestUpdateManifest() async {
-    if (Platform.isLinux) return null;
+    if (Platform.isLinux) {
+      try {
+        final doc = await _restService.getDocument('system_config/updates');
+        if (doc != null) {
+          return UpdateInfo.fromJson(doc);
+        }
+      } catch (e) {
+        debugPrint('TenantService (REST): Error fetching update manifest: $e');
+      }
+      return null;
+    }
     try {
       final doc = await _firestore.collection('system_config').doc('updates').get();
       if (doc.exists && doc.data() != null) {
@@ -694,7 +840,24 @@ class TenantService {
   }
 
   Future<void> _syncBranchToCloud(Branch branch) async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        await _restService.patchDocument('tenants/${branch.tenantId}/branches/${branch.id}', {
+          'name': branch.name,
+          'location': branch.location,
+          'contactPhone': branch.contactPhone,
+          'managerName': branch.managerName,
+          'loginUsername': branch.loginUsername,
+          'loginPassword': branch.loginPassword,
+          'isActive': branch.isActive,
+          'updatedAt': DateTime.now(),
+        });
+        debugPrint('TenantService (REST): Synced branch ${branch.id} to cloud');
+      } catch (e) {
+        debugPrint('TenantService (REST): Error syncing branch ${branch.id}: $e');
+      }
+      return;
+    }
     try {
       await _firestore
           .collection('tenants')
@@ -718,7 +881,23 @@ class TenantService {
   }
 
   Future<void> syncWarehouseToCloud(Warehouse warehouse) async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        await _restService.patchDocument(
+          'tenants/${warehouse.tenantId}/branches/${warehouse.branchId}/warehouses/${warehouse.id}', {
+          'name': warehouse.name,
+          'categories': warehouse.categories,
+          'loginUsername': warehouse.loginUsername,
+          'loginPassword': warehouse.loginPassword,
+          'isActive': warehouse.isActive,
+          'updatedAt': DateTime.now(),
+        });
+        debugPrint('TenantService (REST): Synced warehouse ${warehouse.id} to cloud');
+      } catch (e) {
+        debugPrint('TenantService (REST): Error syncing warehouse ${warehouse.id}: $e');
+      }
+      return;
+    }
     try {
       await _firestore
           .collection('tenants')
@@ -744,7 +923,116 @@ class TenantService {
   /// Unified Cloud Login
   Future<Map<String, dynamic>?> cloudLogin(
       String identifier, String password, AppRole role) async {
-    if (Platform.isLinux) return null;
+    if (Platform.isLinux) {
+      try {
+        // 1. Primary Tenant/SuperAdmin Login Check (Universal)
+        final tenantResults = await _restService.runQuery('tenants', [
+          {
+            'fieldFilter': {
+              'field': {'fieldPath': 'email'},
+              'op': 'EQUAL', 
+              'value': {'stringValue': identifier.toLowerCase()}
+            }
+          }
+        ]);
+
+        for (final data in tenantResults) {
+          if (data['id'] == password) {
+            return {'type': 'tenant', 'data': data, 'id': data['id']};
+          }
+        }
+
+        // 2. Branch Manager / Staff Login Check
+        if (role == AppRole.staff || role == AppRole.manager) {
+           final branchResults = await _restService.runQuery('branches', [
+             {
+               'fieldFilter': {
+                 'field': {'fieldPath': 'loginUsername'},
+                 'op': 'EQUAL', 
+                 'value': {'stringValue': identifier}
+               }
+             },
+             {
+               'fieldFilter': {
+                 'field': {'fieldPath': 'loginPassword'},
+                 'op': 'EQUAL', 
+                 'value': {'stringValue': password}
+               }
+             }
+           ], allDescendants: true);
+
+           if (branchResults.isNotEmpty) {
+             final bData = branchResults.first;
+             final path = bData['__path'] as String? ?? '';
+             final tenantId = _getParentId(path, 'tenants');
+             
+             // Optional: Fetch tenant data to match SDK structure
+             Map<String, dynamic>? tenantData;
+             if (tenantId != null) {
+                tenantData = await _restService.getDocument('tenants/$tenantId');
+             }
+
+             return {
+               'type': 'branch',
+               'data': bData,
+               'id': bData['id'],
+               'tenantId': tenantId,
+               'tenantData': tenantData,
+             };
+           }
+        }
+
+        // 3. Warehouse Staff Login
+        if (role == AppRole.warehouse) {
+          final whResults = await _restService.runQuery('warehouses', [
+             {
+               'fieldFilter': {
+                 'field': {'fieldPath': 'loginUsername'},
+                 'op': 'EQUAL', 
+                 'value': {'stringValue': identifier}
+               }
+             },
+             {
+               'fieldFilter': {
+                 'field': {'fieldPath': 'loginPassword'},
+                 'op': 'EQUAL', 
+                 'value': {'stringValue': password}
+               }
+             }
+          ], allDescendants: true);
+
+          if (whResults.isNotEmpty) {
+             final whData = whResults.first;
+             final path = whData['__path'] as String? ?? '';
+             final tenantId = _getParentId(path, 'tenants');
+             final branchId = _getParentId(path, 'branches');
+
+             Map<String, dynamic>? tenantData;
+             if (tenantId != null) {
+                tenantData = await _restService.getDocument('tenants/$tenantId');
+             }
+             
+             Map<String, dynamic>? branchData;
+             if (tenantId != null && branchId != null) {
+                branchData = await _restService.getDocument('tenants/$tenantId/branches/$branchId');
+             }
+
+             return {
+                'type': 'warehouse',
+                'data': whData,
+                'id': whData['id'],
+                'tenantId': tenantId,
+                'tenantData': tenantData,
+                'branchId': branchId,
+                'branchData': branchData,
+             };
+          }
+        }
+      } catch (e) {
+        debugPrint('TenantService (REST): Cloud login error: $e');
+      }
+      return null;
+    }
 
     try {
       // 1. Primary Tenant/SuperAdmin Login Check (Universal)
@@ -883,6 +1171,72 @@ class TenantService {
       }
     }
     
+    return null;
+  }
+
+  Future<void> syncTenantWithCloud(String tenantId) async {
+    if (Platform.isLinux) {
+      try {
+        final data = await _restService.getDocument('tenants/$tenantId');
+        if (data != null) {
+          final updatedTenant = _parseTenantFromMap(data);
+          await updateTenant(updatedTenant);
+          debugPrint('TenantService (REST): Synced tenant $tenantId');
+        }
+      } catch (e) {
+        debugPrint('TenantService (REST): Error syncing tenant $tenantId: $e');
+      }
+      return;
+    }
+
+    try {
+      final doc = await _firestore.collection('tenants').doc(tenantId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        data['id'] = doc.id;
+        // Firestore Timestamp handling
+        if (data['createdAt'] is Timestamp) data['createdAt'] = (data['createdAt'] as Timestamp).toDate();
+        if (data['updatedAt'] is Timestamp) data['updatedAt'] = (data['updatedAt'] as Timestamp).toDate();
+        
+        final updatedTenant = _parseTenantFromMap(data);
+        await updateTenant(updatedTenant);
+        debugPrint('TenantService (Cloud): Synced tenant $tenantId');
+      }
+    } catch (e) {
+      debugPrint('TenantService (Cloud): Error syncing tenant $tenantId: $e');
+    }
+  }
+
+  Tenant _parseTenantFromMap(Map<String, dynamic> data) {
+    return Tenant(
+      id: data['id'] ?? '',
+      name: data['name'] ?? '',
+      businessName: data['businessName'] ?? '',
+      email: data['email'] ?? '',
+      phone: data['phone'] ?? '',
+      status: data['status'] ?? 'Active',
+      tierId: data['tierId'] ?? 'standard',
+      createdDate: data['createdAt'] is DateTime 
+          ? data['createdAt'] 
+          : DateTime.now(),
+      lastLogin: data['updatedAt'] is DateTime 
+          ? data['updatedAt'] 
+          : null,
+      ordersCount: data['ordersCount'] ?? 0,
+      revenue: (data['revenue'] ?? 0.0).toDouble(),
+      isMaintenanceMode: data['isMaintenanceMode'] ?? false,
+      enabledFeatures: List<String>.from(data['enabledFeatures'] ?? []),
+      allowUpdate: data['allowUpdate'],
+      immuneToBlocking: data['immuneToBlocking'],
+    );
+  }
+
+  String? _getParentId(String path, String collection) {
+    final parts = path.split('/');
+    final index = parts.indexOf(collection);
+    if (index != -1 && index + 1 < parts.length) {
+      return parts[index + 1];
+    }
     return null;
   }
 }

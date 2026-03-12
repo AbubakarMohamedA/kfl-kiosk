@@ -1,8 +1,8 @@
-import 'package:kfm_kiosk/core/database/app_database.dart' hide Warehouse;
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
-import 'package:kfm_kiosk/core/database/daos/warehouses_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/core/database/app_database.dart' hide Warehouse;
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
+import 'package:sss/core/database/daos/warehouses_dao.dart';
+import 'package:sss/core/database/daos/products_dao.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
 
 class WarehouseService {
   final WarehousesDao _dao;

@@ -2,13 +2,18 @@ import 'package:drift/drift.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
+import 'package:sss/core/database/app_database.dart';
+
+import '../../di/injection.dart';
+import 'firebase_rest_service.dart';
 
 class LicenseService {
   final AppDatabase db;
 
   LicenseService(this.db);
   
+  FirebaseRestService get _restService => getIt<FirebaseRestService>();
+
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   /// Check if the app is licensed
@@ -34,7 +39,41 @@ class LicenseService {
 
   /// Verify license key against Cloud (Firestore)
   Future<bool> verifyLicense(String key) async {
-    if (Platform.isLinux) return true; // Bypass on linux for now or use mock
+    if (Platform.isLinux) {
+       try {
+         final queryResults = await _restService.runQuery('licenses', [
+           {
+             'fieldFilter': {
+               'field': {'fieldPath': 'key'},
+               'op': 'EQUAL',
+               'value': {'stringValue': key}
+             }
+           },
+           {
+             'fieldFilter': {
+               'field': {'fieldPath': 'status'},
+               'op': 'EQUAL',
+               'value': {'stringValue': 'pending'}
+             }
+           }
+         ]);
+
+         if (queryResults.isEmpty) return false;
+
+         final data = queryResults.first;
+         final tenantId = data['tenantId'] as String;
+         final expiresAt = data['expiresAt'] is DateTime 
+             ? data['expiresAt'] 
+             : DateTime.now().add(const Duration(days: 365));
+
+         // 3. Save locally
+         await saveLicense(key, expiresAt, tenantId);
+         return true;
+       } catch (e) {
+         debugPrint('LicenseService (REST): Error verifying license: $e');
+         return false;
+       }
+    }
 
     try {
       // 1. Query Firestore for this key
@@ -69,7 +108,32 @@ class LicenseService {
 
   /// Check Cloud for license updates or remote blocks
   Future<void> checkCloudLicenseStatus(String tenantId) async {
-    if (Platform.isLinux) return;
+    if (Platform.isLinux) {
+      try {
+        final data = await _restService.getDocument('tenants/$tenantId');
+        if (data != null) {
+          final expiry = data['licenseExpiry'] as DateTime?;
+          final status = data['licenseStatus'] as String?;
+
+          if (expiry != null) {
+            await db.into(db.appConfig).insertOnConflictUpdate(AppConfigCompanion(
+              key: const Value('license_expiry'),
+              value: Value(expiry.toIso8601String()),
+            ));
+          }
+
+          if (status != null) {
+            await db.into(db.appConfig).insertOnConflictUpdate(AppConfigCompanion(
+              key: const Value(AppConfigKeys.licenseStatus),
+              value: Value(status),
+            ));
+          }
+        }
+      } catch (e) {
+        debugPrint('LicenseService (REST): Error checking cloud license: $e');
+      }
+      return;
+    }
 
     try {
       final doc = await _firestore.collection('tenants').doc(tenantId).get();

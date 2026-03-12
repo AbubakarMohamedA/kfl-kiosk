@@ -1,9 +1,9 @@
-import 'package:kfm_kiosk/core/usecases/usecase.dart';
+import 'package:sss/core/usecases/usecase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/orders/domain/repositories/order_repository.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/orders/domain/repositories/order_repository.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 
 class CreateOrder extends UseCase<String, Order> {
   final OrderRepository repository;

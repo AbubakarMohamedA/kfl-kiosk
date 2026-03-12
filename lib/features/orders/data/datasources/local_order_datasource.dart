@@ -3,15 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:drift/drift.dart' hide Column;
-import 'package:kfm_kiosk/core/config/api_config.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart' hide Order, OrderItem;
-import 'package:kfm_kiosk/core/database/daos/orders_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
-import 'package:kfm_kiosk/features/orders/data/models/order_model.dart';
+import 'package:sss/core/config/api_config.dart';
+import 'package:sss/core/database/app_database.dart' hide Order, OrderItem;
+import 'package:sss/core/database/daos/orders_dao.dart';
+import 'package:sss/core/database/daos/app_config_dao.dart';
+import 'package:sss/features/orders/data/models/order_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kfm_kiosk/features/orders/data/datasources/order_remote_datasource.dart';
-import 'package:kfm_kiosk/features/cart/data/models/cart_item_model.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
+import 'package:sss/features/orders/data/datasources/order_remote_datasource.dart';
+import 'package:sss/features/cart/data/models/cart_item_model.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
 
 class LocalOrderDataSource implements OrderDataSource {
   static const String _serverUrlKey = 'kfl_server_url';

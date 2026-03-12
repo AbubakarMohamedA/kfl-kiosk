@@ -1,10 +1,10 @@
-import 'package:kfm_kiosk/features/orders/data/datasources/local_order_datasource.dart';
-import 'package:kfm_kiosk/features/orders/data/datasources/order_remote_datasource.dart';
-import 'package:kfm_kiosk/features/orders/data/models/order_model.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/orders/domain/repositories/order_repository.dart';
+import 'package:sss/features/orders/data/datasources/local_order_datasource.dart';
+import 'package:sss/features/orders/data/datasources/order_remote_datasource.dart';
+import 'package:sss/features/orders/data/models/order_model.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/orders/domain/repositories/order_repository.dart';
 
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
 
 class OrderRepositoryImpl implements OrderRepository {
   final LocalOrderDataSource localDataSource;

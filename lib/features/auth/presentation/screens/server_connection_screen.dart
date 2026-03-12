@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen.dart';
-import 'package:kfm_kiosk/core/services/sync_service.dart';
-import 'package:kfm_kiosk/di/injection.dart';
+import 'package:sss/features/home/presentation/screens/home_screen.dart';
+import 'package:sss/core/services/sync_service.dart';
+import 'package:sss/di/injection.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ServerConnectionScreen extends StatefulWidget {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/features/payment/presentation/screens/payment_screen_desktop.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/payment/presentation/screens/payment_screen_desktop.dart';
 
 class PaymentScreenWeb extends StatelessWidget {
   final String language;

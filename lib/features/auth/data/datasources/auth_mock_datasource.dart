@@ -1,5 +1,5 @@
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
 
 class AuthMockDataSource {
   final TenantService _tenantService = TenantService();

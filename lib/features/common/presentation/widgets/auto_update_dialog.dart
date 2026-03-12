@@ -5,8 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:app_installer/app_installer.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:kfm_kiosk/core/models/update_info.dart';
-import 'package:kfm_kiosk/core/services/platform_service.dart';
+import 'package:sss/core/models/update_info.dart';
+import 'package:sss/core/services/platform_service.dart';
 
 /// Update Status Enum
 enum UpdateStatus {
@@ -191,6 +191,7 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
     if (PlatformService.isWindows) return 'update_$version.exe';
     if (PlatformService.isLinux) return 'update_$version.AppImage';
     if (PlatformService.isMacOS) return 'update_$version.dmg';
+    if (PlatformService.isIOS) return 'update_$version.ipa';
     if (PlatformService.isAndroid) return 'update_$version.apk';
     return 'update_$version.zip';
   }

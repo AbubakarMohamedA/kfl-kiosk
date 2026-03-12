@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:kfm_kiosk/features/settings/domain/entities/tenant_config.dart';
+import 'package:sss/features/settings/domain/entities/tenant_config.dart';
 
 part 'tenant_config_model.g.dart';
 

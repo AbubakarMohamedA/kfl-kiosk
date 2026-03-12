@@ -185,7 +185,7 @@ The Super Admin interface is a privileged zone for system oversight.
 ## 📁 Project Structure
 
 ```
-kfm_kiosk/
+sss/
 ├── lib/
 │   ├── core/                  # Shared utilities, constants, and config
 │   │   ├── config/            # API endpoints & flavors

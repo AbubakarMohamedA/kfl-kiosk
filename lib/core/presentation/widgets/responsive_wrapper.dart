@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kfm_kiosk/core/platform/platform_info.dart';
+import 'package:sss/core/platform/platform_info.dart';
 
 class ResponsiveWrapper extends StatelessWidget {
   final Widget mobile;

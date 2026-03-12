@@ -2,18 +2,18 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tier.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/entities/tier.dart';
+import 'package:sss/features/auth/domain/entities/branch.dart';
 import 'package:flutter/services.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/core/services/license_service.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart' as entity;
+import 'package:sss/di/injection.dart';
+import 'package:sss/core/services/license_service.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/warehouse/domain/services/warehouse_service.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart' as entity;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 
 import '../../../../core/models/update_info.dart';
 import '../../../../core/services/github_update_service.dart';
@@ -2510,24 +2510,24 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
                       prefixIcon: Icon(Icons.security_update_warning, size: 20),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _urlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Custom Download URL (Optional: Overrides GitHub)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.link, size: 20),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _checksumController,
-                    decoration: const InputDecoration(
-                      labelText: 'SHA-256 Checksum (Optional: Auto-resolved from GitHub)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.fingerprint, size: 20),
-                    ),
-                  ),
+                  // const SizedBox(height: 16),
+                  // TextField(
+                  //   controller: _urlController,
+                  //   decoration: const InputDecoration(
+                  //     labelText: 'Custom Download URL (Optional: Overrides GitHub)',
+                  //     border: OutlineInputBorder(),
+                  //     prefixIcon: Icon(Icons.link, size: 20),
+                  //   ),
+                  // ),
+                  // const SizedBox(height: 16),
+                  // TextField(
+                  //   controller: _checksumController,
+                  //   decoration: const InputDecoration(
+                  //     labelText: 'SHA-256 Checksum (Optional: Auto-resolved from GitHub)',
+                  //     border: OutlineInputBorder(),
+                  //     prefixIcon: Icon(Icons.fingerprint, size: 20),
+                  //   ),
+                  // ),
                 ]),
               ),
               const SizedBox(width: 24),
@@ -2539,76 +2539,76 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
                     value: _isMandatory,
                     onChanged: (val) => setState(() => _isMandatory = val),
                   ),
-                  const Divider(),
-                  SwitchListTile(
-                    title: const Text('Maintenance Mode'),
-                    subtitle: const Text('Blocks all app interactions globally if enabled in manifest'),
-                    value: _isMaintenance,
-                    onChanged: (val) => setState(() => _isMaintenance = val),
-                  ),
+                  // const Divider(),
+                  // SwitchListTile(
+                  //   title: const Text('Maintenance Mode'),
+                  //   subtitle: const Text('Blocks all app interactions globally if enabled in manifest'),
+                  //   value: _isMaintenance,
+                  //   onChanged: (val) => setState(() => _isMaintenance = val),
+                  // ),
                 ]),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          _buildUpdateCard('GitHub Release Configuration (Optional Overrides)', [
-             Row(
-               children: [
-                 const Icon(Icons.check_circle, color: Colors.green),
-                 const SizedBox(width: 8),
-                 Text('Default: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
-                   style: const TextStyle(fontWeight: FontWeight.bold)),
-               ],
-             ),
-             const SizedBox(height: 16),
-             Row(
-               children: [
-                 Expanded(
-                   child: TextField(
-                     controller: _githubOwnerController,
-                     decoration: const InputDecoration(
-                       labelText: 'GitHub Owner (Override)',
-                       border: OutlineInputBorder(),
-                       hintText: GitHubUpdateService.DEFAULT_OWNER,
-                     ),
-                   ),
-                 ),
-                 const SizedBox(width: 16),
-                 Expanded(
-                   child: TextField(
-                     controller: _githubRepoController,
-                     decoration: const InputDecoration(
-                       labelText: 'GitHub Repo (Override)',
-                       border: OutlineInputBorder(),
-                       hintText: GitHubUpdateService.DEFAULT_REPO,
-                     ),
-                   ),
-                 ),
-               ],
-             ),
-             const SizedBox(height: 16),
-             TextField(
-               controller: _githubTokenController,
-               decoration: const InputDecoration(
-                 labelText: 'GitHub Personal Access Token (For private repos)',
-                 border: OutlineInputBorder(),
-                 helperText: 'Leave blank for public repositories',
-               ),
-               obscureText: true,
-             ),
-          ]),
-          const SizedBox(height: 24),
-          _buildUpdateCard('Release Notes', [
-            TextField(
-              controller: _notesController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Release Notes (Markdown supported)',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-          ]),
+          // const SizedBox(height: 24),
+          // _buildUpdateCard('GitHub Release Configuration (Optional Overrides)', [
+          //    Row(
+          //      children: [
+          //        const Icon(Icons.check_circle, color: Colors.green),
+          //        const SizedBox(width: 8),
+          //        Text('Default: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
+          //          style: const TextStyle(fontWeight: FontWeight.bold)),
+          //      ],
+          //    ),
+          //    const SizedBox(height: 16),
+          //    Row(
+          //      children: [
+          //        Expanded(
+          //          child: TextField(
+          //            controller: _githubOwnerController,
+          //            decoration: const InputDecoration(
+          //              labelText: 'GitHub Owner (Override)',
+          //              border: OutlineInputBorder(),
+          //              hintText: GitHubUpdateService.DEFAULT_OWNER,
+          //            ),
+          //          ),
+          //        ),
+          //        const SizedBox(width: 16),
+          //        Expanded(
+          //          child: TextField(
+          //            controller: _githubRepoController,
+          //            decoration: const InputDecoration(
+          //              labelText: 'GitHub Repo (Override)',
+          //              border: OutlineInputBorder(),
+          //              hintText: GitHubUpdateService.DEFAULT_REPO,
+          //            ),
+          //          ),
+          //        ),
+          //      ],
+          //    ),
+          //    const SizedBox(height: 16),
+          //    TextField(
+          //      controller: _githubTokenController,
+          //      decoration: const InputDecoration(
+          //        labelText: 'GitHub Personal Access Token (For private repos)',
+          //        border: OutlineInputBorder(),
+          //        helperText: 'Leave blank for public repositories',
+          //      ),
+          //      obscureText: true,
+          //    ),
+          // ]),
+          // const SizedBox(height: 24),
+          // _buildUpdateCard('Release Notes', [
+          //   TextField(
+          //     controller: _notesController,
+          //     maxLines: 4,
+          //     decoration: const InputDecoration(
+          //       labelText: 'Release Notes (Markdown supported)',
+          //       border: OutlineInputBorder(),
+          //       alignLabelWithHint: true,
+          //     ),
+          //   ),
+          // ]),
           const SizedBox(height: 24),
           _buildUpdateCard('Targeting & Filtering', [
             const Text('App Flavors (Select none to target ALL apps)', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -2636,7 +2636,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
             const Text('Targeting Mode', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: _allowedTenants.isEmpty ? 'all' : 'specific',
+              value: _allowedTenants.isEmpty ? 'all' : 'specific',
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.people_alt),
@@ -2658,29 +2658,37 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      hint: const Text('Add Tenant...'),
+                    // Use plain DropdownButton so value:null is fully controlled
+                    // and never persists via FormFieldState across rebuilds.
+                    child: InputDecorator(
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         isDense: true,
                         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
-                      items: _tenants
-                          .where((t) => !_allowedTenants.contains(t.id))
-                          .map((t) => DropdownMenuItem(
-                                value: t.id,
-                                child: Text('${t.name} (${t.id})'),
-                              ))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            if (!_allowedTenants.contains(val)) {
-                              _allowedTenants.add(val);
-                            }
-                          });
-                        }
-                      },
+                      child: DropdownButton<String>(
+                        value: null,
+                        hint: const Text('Add Tenant...'),
+                        isExpanded: true,
+                        underline: const SizedBox.shrink(),
+                        isDense: true,
+                        items: _tenants
+                            .where((t) => !_allowedTenants.contains(t.id))
+                            .map((t) => DropdownMenuItem(
+                                  value: t.id,
+                                  child: Text('${t.name} (${t.id})'),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              if (!_allowedTenants.contains(val)) {
+                                _allowedTenants.add(val);
+                              }
+                            });
+                          }
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),

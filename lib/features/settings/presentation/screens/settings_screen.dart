@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/orders/data/datasources/local_order_datasource.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/orders/data/datasources/local_order_datasource.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

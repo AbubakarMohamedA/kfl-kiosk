@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
+import 'package:sss/core/database/app_database.dart';
 
 part 'tenant_config_dao.g.dart';
 

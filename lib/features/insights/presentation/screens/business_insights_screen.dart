@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/core/services/insights_service.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_state.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/core/services/insights_service.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_state.dart';
 
 class BusinessInsightsScreen extends StatefulWidget {
   const BusinessInsightsScreen({super.key});

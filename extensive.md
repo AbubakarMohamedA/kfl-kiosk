@@ -1,6 +1,6 @@
 ## SSS Kiosk – Multi‑Role Offline/Online POS Suite
 
-This document is an in‑depth walkthrough of the SSS Kiosk codebase (`kfm_kiosk`).  
+This document is an in‑depth walkthrough of the SSS Kiosk codebase (`sss`).  
 It explains **what the system does**, **how it is structured**, and **how the main flows work** (startup, authentication, licensing, local server sync, and role‑specific behavior).
 
 ---

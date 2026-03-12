@@ -1,9 +1,9 @@
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/features/cart/data/datasources/local_cart_datasource.dart';
-import 'package:kfm_kiosk/features/cart/data/models/cart_item_model.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/features/cart/domain/repositories/cart_repository.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/features/cart/data/datasources/local_cart_datasource.dart';
+import 'package:sss/features/cart/data/models/cart_item_model.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/cart/domain/repositories/cart_repository.dart';
 
 class CartRepositoryImpl implements CartRepository {
   final LocalCartDataSource dataSource;

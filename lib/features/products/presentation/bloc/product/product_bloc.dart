@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/products/domain/usecases/product_usecases.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/features/products/domain/usecases/product_usecases.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 import 'product_event.dart';
 import 'product_state.dart';
 

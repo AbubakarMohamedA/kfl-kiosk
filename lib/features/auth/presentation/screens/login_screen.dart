@@ -1,22 +1,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/core/services/local_server_service.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel.dart';
-import 'package:kfm_kiosk/features/admin/presentation/screens/tenant_setup_screen.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/features/home/presentation/screens/home_screen.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/core/services/local_server_service.dart';
+import 'package:sss/features/orders/presentation/screens/staff_panel.dart';
+import 'package:sss/features/admin/presentation/screens/tenant_setup_screen.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
-import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/core/config/app_role.dart';
+import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/entities/branch.dart';
+import 'package:sss/features/dashboard/presentation/screens/enterprise_dashboard.dart';
+import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/core/config/app_role.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 

@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/core/services/license_service.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel.dart'; // Ensure this import is correct based on your project structure. If StaffPanelDesktop is in orders, keeping it.
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/core/services/license_service.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/dashboard/presentation/screens/enterprise_dashboard.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/features/orders/presentation/screens/staff_panel.dart'; // Ensure this import is correct based on your project structure. If StaffPanelDesktop is in orders, keeping it.
 
 class TenantSetupScreen extends StatefulWidget {
   final Tenant tenant;

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_bloc.dart';
-import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_event.dart';
-import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_state.dart';
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
+import 'package:sss/features/products/presentation/bloc/product/product_bloc.dart';
+import 'package:sss/features/products/presentation/bloc/product/product_event.dart';
+import 'package:sss/features/products/presentation/bloc/product/product_state.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:kfm_kiosk/core/repositories/image_repository.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/features/products/presentation/widgets/app_image.dart';
-import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/core/repositories/image_repository.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/features/products/presentation/widgets/app_image.dart';
+import 'package:sss/core/database/daos/app_config_dao.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 
 class ProductManagementScreen extends StatefulWidget {
   const ProductManagementScreen({super.key});

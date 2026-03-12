@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
-import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_state.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/settings/presentation/bloc/language/language_cubit.dart';
+import 'package:sss/features/settings/presentation/bloc/language/language_state.dart';
 
 class LanguageSelector extends StatelessWidget {
   final bool isCompact;

@@ -1,6 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'package:kfm_kiosk/features/cart/data/models/cart_item_model.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
+import 'package:sss/features/cart/data/models/cart_item_model.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
 
 part 'order_model.g.dart';
 

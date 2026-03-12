@@ -1,14 +1,14 @@
-import 'package:kfm_kiosk/core/config/api_config.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/local_product_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
-import 'package:kfm_kiosk/features/products/domain/repositories/product_repository.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/sap_product_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
-import 'package:kfm_kiosk/di/injection.dart';
+import 'package:sss/core/config/api_config.dart';
+import 'package:sss/features/products/data/datasources/local_product_datasource.dart';
+import 'package:sss/features/products/data/datasources/product_remote_datasource.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
+import 'package:sss/features/products/domain/repositories/product_repository.dart';
+import 'package:sss/features/products/data/datasources/sap_product_datasource.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/core/database/daos/app_config_dao.dart';
+import 'package:sss/di/injection.dart';
 
 class ProductRepositoryImpl implements ProductRepository {
   final LocalProductDataSource localDataSource;

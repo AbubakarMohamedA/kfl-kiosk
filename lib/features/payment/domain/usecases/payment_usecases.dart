@@ -1,5 +1,5 @@
-import 'package:kfm_kiosk/core/usecases/usecase.dart';
-import 'package:kfm_kiosk/features/payment/domain/repositories/payment_repository.dart';
+import 'package:sss/core/usecases/usecase.dart';
+import 'package:sss/features/payment/domain/repositories/payment_repository.dart';
 
 class ProcessPayment extends UseCase<bool, ProcessPaymentParams> {
   final PaymentRepository repository;

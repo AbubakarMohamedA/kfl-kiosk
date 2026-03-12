@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
 
 abstract class CartState extends Equatable {
   const CartState();

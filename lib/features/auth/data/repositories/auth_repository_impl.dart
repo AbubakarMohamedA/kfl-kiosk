@@ -1,10 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kfm_kiosk/core/config/api_config.dart';
-import 'package:kfm_kiosk/features/auth/data/datasources/auth_mock_datasource.dart';
-import 'package:kfm_kiosk/features/auth/data/datasources/auth_remote_datasource.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/core/config/api_config.dart';
+import 'package:sss/features/auth/data/datasources/auth_mock_datasource.dart';
+import 'package:sss/features/auth/data/datasources/auth_remote_datasource.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthMockDataSource mockDataSource;

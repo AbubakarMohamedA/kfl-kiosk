@@ -3,13 +3,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
-import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart';
-import 'package:kfm_kiosk/core/services/local_server_service.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/core/database/app_database.dart';
+import 'package:sss/core/database/daos/tenant_config_dao.dart';
+import 'package:sss/core/services/local_server_service.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class MobileConfigScreen extends StatefulWidget {

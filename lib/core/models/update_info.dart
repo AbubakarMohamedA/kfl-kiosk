@@ -111,21 +111,29 @@ class UpdateInfo {
     }
   }
 
-  /// Check if this update applies to the current tenant and flavor
+  /// Check if this update applies to the current tenant and flavor.
+  /// All comparisons are case-insensitive to prevent mismatches between
+  /// Firestore-stored values (e.g. "superadmin") and runtime enum names
+  /// (e.g. AppRole.superAdmin.name → "superAdmin").
   bool appliesTo(String currentTenantId, String currentFlavor) {
+    final tenantLower = currentTenantId.toLowerCase();
+    final flavorLower = currentFlavor.toLowerCase();
+
     // If allowed lists are provided, current must be in them
-    if (allowedTenants.isNotEmpty && !allowedTenants.contains(currentTenantId)) {
+    if (allowedTenants.isNotEmpty &&
+        !allowedTenants.any((t) => t.toLowerCase() == tenantLower)) {
       return false;
     }
-    if (allowedFlavors.isNotEmpty && !allowedFlavors.contains(currentFlavor)) {
+    if (allowedFlavors.isNotEmpty &&
+        !allowedFlavors.any((f) => f.toLowerCase() == flavorLower)) {
       return false;
     }
 
     // If excluded lists are provided, current must NOT be in them
-    if (excludedTenants.contains(currentTenantId)) {
+    if (excludedTenants.any((t) => t.toLowerCase() == tenantLower)) {
       return false;
     }
-    if (excludedFlavors.contains(currentFlavor)) {
+    if (excludedFlavors.any((f) => f.toLowerCase() == flavorLower)) {
       return false;
     }
 

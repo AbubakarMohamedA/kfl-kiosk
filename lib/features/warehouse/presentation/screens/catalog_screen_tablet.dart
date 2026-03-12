@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/catalog_screen_desktop.dart';
+import 'package:sss/features/warehouse/presentation/screens/catalog_screen_desktop.dart';
 
 class CatalogScreenTablet extends StatelessWidget {
   final String language;

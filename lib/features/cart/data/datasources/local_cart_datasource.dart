@@ -1,9 +1,9 @@
 import 'package:drift/drift.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart' hide Product;
-import 'package:kfm_kiosk/core/database/daos/cart_dao.dart';
-import 'package:kfm_kiosk/features/cart/data/models/cart_item_model.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/local_product_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
+import 'package:sss/core/database/app_database.dart' hide Product;
+import 'package:sss/core/database/daos/cart_dao.dart';
+import 'package:sss/features/cart/data/models/cart_item_model.dart';
+import 'package:sss/features/products/data/datasources/local_product_datasource.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
 
 class LocalCartDataSource {
   final CartDao _cartDao;

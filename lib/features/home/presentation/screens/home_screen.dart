@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:kfm_kiosk/core/config/app_role.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/staff_panel.dart';
+import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:sss/core/config/app_role.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/features/orders/presentation/screens/staff_panel.dart';
 
-import 'package:kfm_kiosk/core/presentation/widgets/responsive_wrapper.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_mobile.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_tablet.dart';
-import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_desktop.dart';
+import 'package:sss/core/presentation/widgets/responsive_wrapper.dart';
+import 'package:sss/features/home/presentation/screens/home_screen_mobile.dart';
+import 'package:sss/features/home/presentation/screens/home_screen_tablet.dart';
+import 'package:sss/features/home/presentation/screens/home_screen_desktop.dart';
 
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
-import 'package:kfm_kiosk/features/settings/presentation/screens/maintenance_screen.dart';
-import 'package:kfm_kiosk/features/dashboard/presentation/screens/enterprise_dashboard.dart';
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/core/services/license_service.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
-import 'package:kfm_kiosk/features/admin/presentation/screens/super_admin_screen.dart';
+import 'package:sss/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/features/settings/presentation/screens/maintenance_screen.dart';
+import 'package:sss/features/dashboard/presentation/screens/enterprise_dashboard.dart';
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/core/services/license_service.dart';
+import 'package:sss/features/warehouse/domain/services/warehouse_service.dart';
+import 'package:sss/core/database/app_database.dart';
+import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:sss/features/admin/presentation/screens/super_admin_screen.dart';
 
-import 'package:kfm_kiosk/core/services/update_service.dart';
+import 'package:sss/core/services/update_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

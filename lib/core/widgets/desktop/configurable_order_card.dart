@@ -1,15 +1,15 @@
 // import 'package:flutter/material.dart';
 // import 'package:flutter_bloc/flutter_bloc.dart';
-// import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-// import 'package:kfm_kiosk/core/constants/app_constants.dart';
-// import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-// import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-// import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-// import 'package:kfm_kiosk/features/orders/presentation/widgets/order_status_badge.dart';
-// import 'package:kfm_kiosk/core/widgets/desktop/staff_order_card.dart';
-// import 'package:kfm_kiosk/core/widgets/desktop/warehouse_order_card.dart';
-// import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
-// import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+// import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+// import 'package:sss/core/constants/app_constants.dart';
+// import 'package:sss/features/orders/domain/entities/order.dart';
+// import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+// import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
+// import 'package:sss/features/orders/presentation/widgets/order_status_badge.dart';
+// import 'package:sss/core/widgets/desktop/staff_order_card.dart';
+// import 'package:sss/core/widgets/desktop/warehouse_order_card.dart';
+// import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
+// import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
 
 // class ConfigurableOrderCard extends StatelessWidget {
 //   final Order order;

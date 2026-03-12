@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_state.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/core/widgets/desktop/warehouse_order_card.dart';
-// import 'package:kfm_kiosk/features/home/presentation/screens/home_screen_desktop.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart'; // ✅ Entity Import
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_state.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/core/widgets/desktop/warehouse_order_card.dart';
+// import 'package:sss/features/home/presentation/screens/home_screen_desktop.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart'; // ✅ Entity Import
 import 'package:intl/intl.dart';
 import 'dart:async';
-import 'package:kfm_kiosk/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 
 class StaffPanelWarehouseDesktop extends StatefulWidget {
   final Warehouse warehouse;

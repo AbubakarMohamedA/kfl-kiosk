@@ -1,16 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
-import 'package:kfm_kiosk/features/products/data/repositories/product_repository_impl.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/local_product_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/sap_product_datasource.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/tenant.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
-import 'package:kfm_kiosk/core/config/api_config.dart';
+import 'package:sss/features/products/data/repositories/product_repository_impl.dart';
+import 'package:sss/features/products/data/datasources/local_product_datasource.dart';
+import 'package:sss/features/products/data/datasources/product_remote_datasource.dart';
+import 'package:sss/features/products/data/datasources/sap_product_datasource.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
+import 'package:sss/core/config/api_config.dart';
 
 import 'product_repository_source_test.mocks.dart';
 

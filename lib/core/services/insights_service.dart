@@ -1,5 +1,5 @@
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
 import 'package:intl/intl.dart';
 
 class InsightsService {

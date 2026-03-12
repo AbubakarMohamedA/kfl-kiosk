@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/core/constants/app_constants.dart';
 
 class Cart extends Equatable {
   final List<CartItem> items;

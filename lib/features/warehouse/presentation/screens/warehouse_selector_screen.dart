@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
+import 'package:sss/features/warehouse/domain/services/warehouse_service.dart';
+import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 
 
 /// Callback type so StaffPanelDesktop can switch its own _currentScreen

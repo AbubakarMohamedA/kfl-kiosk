@@ -1,4 +1,4 @@
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
 
 abstract class ProductRepository {
   /// Get all products from the data source

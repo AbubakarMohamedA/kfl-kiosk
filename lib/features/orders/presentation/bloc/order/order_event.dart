@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
 
 abstract class OrderEvent extends Equatable {
   const OrderEvent();

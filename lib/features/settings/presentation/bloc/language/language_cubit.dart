@@ -1,5 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
+import 'package:sss/core/constants/app_constants.dart';
 import 'language_state.dart';
 
 class LanguageCubit extends Cubit<LanguageState> {

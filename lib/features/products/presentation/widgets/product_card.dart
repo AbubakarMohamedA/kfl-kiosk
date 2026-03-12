@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_event.dart';
-import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
-import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_state.dart';
-import 'package:kfm_kiosk/features/products/presentation/widgets/app_image.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_bloc.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_event.dart';
+import 'package:sss/features/settings/presentation/bloc/language/language_cubit.dart';
+import 'package:sss/features/settings/presentation/bloc/language/language_state.dart';
+import 'package:sss/features/products/presentation/widgets/app_image.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;

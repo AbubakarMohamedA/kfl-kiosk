@@ -1,4 +1,4 @@
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
 
 abstract class ConfigurationRepository {
   Future<AppConfiguration> getConfiguration();

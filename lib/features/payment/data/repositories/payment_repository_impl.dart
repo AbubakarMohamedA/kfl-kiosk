@@ -1,5 +1,5 @@
-import 'package:kfm_kiosk/features/payment/data/datasources/mock_payment_datasource.dart';
-import 'package:kfm_kiosk/features/payment/domain/repositories/payment_repository.dart';
+import 'package:sss/features/payment/data/datasources/mock_payment_datasource.dart';
+import 'package:sss/features/payment/domain/repositories/payment_repository.dart';
 
 class PaymentRepositoryImpl implements PaymentRepository {
   final MockPaymentDataSource dataSource;

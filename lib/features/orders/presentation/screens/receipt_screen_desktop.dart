@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart';
-import 'package:kfm_kiosk/di/injection.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
+import 'package:sss/core/database/daos/tenant_config_dao.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
 
 class ReceiptScreenDesktop extends StatefulWidget {
   final String language;

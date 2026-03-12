@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
-import 'package:kfm_kiosk/features/auth/domain/entities/branch.dart';
+import 'package:sss/core/database/app_database.dart';
+import 'package:sss/features/auth/domain/entities/branch.dart';
 
 part 'branches_dao.g.dart';
 

@@ -1,55 +1,56 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:kfm_kiosk/core/configuration/data/datasources/local_configuration_datasource.dart';
-import 'package:kfm_kiosk/core/database/daos/orders_dao.dart';
-import 'package:kfm_kiosk/core/services/license_service.dart';
-import 'package:kfm_kiosk/core/services/local_server_service.dart';
-import 'package:kfm_kiosk/core/services/sync_service.dart';
-import 'package:kfm_kiosk/core/services/cloud_heartbeat_service.dart';
-import 'package:kfm_kiosk/core/services/update_service.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/local_product_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/product_remote_datasource.dart';
-import 'package:kfm_kiosk/features/products/data/datasources/sap_product_datasource.dart';
-import 'package:kfm_kiosk/features/cart/data/datasources/local_cart_datasource.dart';
-import 'package:kfm_kiosk/features/orders/data/datasources/local_order_datasource.dart';
-import 'package:kfm_kiosk/features/orders/data/datasources/order_remote_datasource.dart';
-import 'package:kfm_kiosk/features/payment/data/datasources/mock_payment_datasource.dart';
-import 'package:kfm_kiosk/features/auth/data/datasources/auth_mock_datasource.dart';
-import 'package:kfm_kiosk/features/auth/data/datasources/auth_remote_datasource.dart';
-import 'package:kfm_kiosk/core/configuration/data/repositories/configuration_repository_impl.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
-import 'package:kfm_kiosk/features/products/data/repositories/product_repository_impl.dart';
-import 'package:kfm_kiosk/features/cart/data/repositories/cart_repository_impl.dart';
-import 'package:kfm_kiosk/features/orders/data/repositories/order_repository_impl.dart';
-import 'package:kfm_kiosk/features/payment/data/repositories/payment_repository_impl.dart';
-import 'package:kfm_kiosk/features/auth/data/repositories/auth_repository_impl.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/features/products/domain/repositories/product_repository.dart';
-import 'package:kfm_kiosk/features/cart/domain/repositories/cart_repository.dart';
-import 'package:kfm_kiosk/features/orders/domain/repositories/order_repository.dart';
-import 'package:kfm_kiosk/features/payment/domain/repositories/payment_repository.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/features/products/domain/usecases/product_usecases.dart';
-import 'package:kfm_kiosk/features/cart/domain/usecases/cart_usecases.dart';
-import 'package:kfm_kiosk/features/orders/domain/usecases/order_usecases.dart';
-import 'package:kfm_kiosk/features/payment/domain/usecases/payment_usecases.dart';
-import 'package:kfm_kiosk/features/products/presentation/bloc/product/product_bloc.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/payment/presentation/bloc/payment/payment_bloc.dart';
-import 'package:kfm_kiosk/features/settings/presentation/bloc/language/language_cubit.dart';
-import 'package:kfm_kiosk/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
-import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/branches_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tenants_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tiers_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/cart_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart'; // NEW
-import 'package:kfm_kiosk/features/auth/domain/services/tenant_service.dart';
-import 'package:kfm_kiosk/core/repositories/image_repository.dart';
+import 'package:sss/core/configuration/data/datasources/local_configuration_datasource.dart';
+import 'package:sss/core/database/daos/orders_dao.dart';
+import 'package:sss/core/services/license_service.dart';
+import 'package:sss/core/services/local_server_service.dart';
+import 'package:sss/core/services/sync_service.dart';
+import 'package:sss/core/services/firebase_rest_service.dart';
+import 'package:sss/core/services/cloud_heartbeat_service.dart';
+import 'package:sss/core/services/update_service.dart';
+import 'package:sss/features/products/data/datasources/local_product_datasource.dart';
+import 'package:sss/features/products/data/datasources/product_remote_datasource.dart';
+import 'package:sss/features/products/data/datasources/sap_product_datasource.dart';
+import 'package:sss/features/cart/data/datasources/local_cart_datasource.dart';
+import 'package:sss/features/orders/data/datasources/local_order_datasource.dart';
+import 'package:sss/features/orders/data/datasources/order_remote_datasource.dart';
+import 'package:sss/features/payment/data/datasources/mock_payment_datasource.dart';
+import 'package:sss/features/auth/data/datasources/auth_mock_datasource.dart';
+import 'package:sss/features/auth/data/datasources/auth_remote_datasource.dart';
+import 'package:sss/core/configuration/data/repositories/configuration_repository_impl.dart';
+import 'package:sss/features/warehouse/domain/services/warehouse_service.dart';
+import 'package:sss/features/products/data/repositories/product_repository_impl.dart';
+import 'package:sss/features/cart/data/repositories/cart_repository_impl.dart';
+import 'package:sss/features/orders/data/repositories/order_repository_impl.dart';
+import 'package:sss/features/payment/data/repositories/payment_repository_impl.dart';
+import 'package:sss/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/features/products/domain/repositories/product_repository.dart';
+import 'package:sss/features/cart/domain/repositories/cart_repository.dart';
+import 'package:sss/features/orders/domain/repositories/order_repository.dart';
+import 'package:sss/features/payment/domain/repositories/payment_repository.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/features/products/domain/usecases/product_usecases.dart';
+import 'package:sss/features/cart/domain/usecases/cart_usecases.dart';
+import 'package:sss/features/orders/domain/usecases/order_usecases.dart';
+import 'package:sss/features/payment/domain/usecases/payment_usecases.dart';
+import 'package:sss/features/products/presentation/bloc/product/product_bloc.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/payment/presentation/bloc/payment/payment_bloc.dart';
+import 'package:sss/features/settings/presentation/bloc/language/language_cubit.dart';
+import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:sss/core/database/app_database.dart';
+import 'package:sss/core/database/daos/products_dao.dart';
+import 'package:sss/core/database/daos/app_config_dao.dart';
+import 'package:sss/core/database/daos/branches_dao.dart';
+import 'package:sss/core/database/daos/tenants_dao.dart';
+import 'package:sss/core/database/daos/tiers_dao.dart';
+import 'package:sss/core/database/daos/cart_dao.dart';
+import 'package:sss/core/database/daos/tenant_config_dao.dart'; // NEW
+import 'package:sss/features/auth/domain/services/tenant_service.dart';
+import 'package:sss/core/repositories/image_repository.dart';
 
 import '../core/config/app_role.dart';
 
@@ -88,6 +89,7 @@ Future<void> setupDependencies() async {
       )); // NEW
   
   getIt.registerLazySingleton<SyncService>(() => SyncService(getIt<ConfigurationRepository>())); // NEW
+  getIt.registerLazySingleton<FirebaseRestService>(() => FirebaseRestService());
   
   // Initialize TenantService with DAOs FIRST, as other services depend on it
   final tenantService = TenantService();

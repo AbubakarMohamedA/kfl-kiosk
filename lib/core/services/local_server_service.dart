@@ -5,19 +5,19 @@ import 'package:path/path.dart' as p;
 
 import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:kfm_kiosk/core/database/daos/orders_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart';
-import 'package:kfm_kiosk/features/orders/data/models/order_model.dart';
-import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
-import 'package:kfm_kiosk/features/cart/data/models/cart_item_model.dart';
-import 'package:kfm_kiosk/features/products/data/models/product_model.dart';
-import 'package:kfm_kiosk/features/settings/data/models/tenant_config_model.dart';
+import 'package:sss/core/database/daos/orders_dao.dart';
+import 'package:sss/core/database/daos/products_dao.dart';
+import 'package:sss/core/database/daos/tenant_config_dao.dart';
+import 'package:sss/features/orders/data/models/order_model.dart';
+import 'package:sss/core/database/daos/app_config_dao.dart';
+import 'package:sss/features/cart/data/models/cart_item_model.dart';
+import 'package:sss/features/products/data/models/product_model.dart';
+import 'package:sss/features/settings/data/models/tenant_config_model.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart' as drift_db;
+import 'package:sss/core/database/app_database.dart' as drift_db;
 
 // NEW: Terminal Info Class
 class TerminalInfo {

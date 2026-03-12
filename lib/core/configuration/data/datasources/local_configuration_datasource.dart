@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
-import 'package:kfm_kiosk/core/database/app_database.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/core/database/app_database.dart';
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalConfigurationDataSource {

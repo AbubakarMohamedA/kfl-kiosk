@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/entities/warehouse.dart';
-import 'package:kfm_kiosk/features/warehouse/domain/services/warehouse_service.dart';
-import 'package:kfm_kiosk/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
-import 'package:kfm_kiosk/di/injection.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
+import 'package:sss/features/warehouse/domain/services/warehouse_service.dart';
+import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
+import 'package:sss/di/injection.dart';
 
 class WarehouseManagementScreen extends StatefulWidget {
   const WarehouseManagementScreen({super.key});

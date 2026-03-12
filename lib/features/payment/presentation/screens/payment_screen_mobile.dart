@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/constants/app_constants.dart';
-import 'package:kfm_kiosk/features/cart/domain/entities/cart_item.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/payment/presentation/bloc/payment/payment_bloc.dart';
-import 'package:kfm_kiosk/features/payment/presentation/bloc/payment/payment_event.dart';
-import 'package:kfm_kiosk/features/payment/presentation/bloc/payment/payment_state.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_bloc.dart';
-import 'package:kfm_kiosk/features/orders/presentation/bloc/order/order_event.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_bloc.dart';
-import 'package:kfm_kiosk/features/cart/presentation/bloc/cart/cart_event.dart';
-import 'package:kfm_kiosk/features/orders/presentation/screens/receipt_screen_mobile.dart';
+import 'package:sss/core/constants/app_constants.dart';
+import 'package:sss/features/cart/domain/entities/cart_item.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/payment/presentation/bloc/payment/payment_bloc.dart';
+import 'package:sss/features/payment/presentation/bloc/payment/payment_event.dart';
+import 'package:sss/features/payment/presentation/bloc/payment/payment_state.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
+import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_bloc.dart';
+import 'package:sss/features/cart/presentation/bloc/cart/cart_event.dart';
+import 'package:sss/features/orders/presentation/screens/receipt_screen_mobile.dart';
 // Note: CartItemWidget import might also be needed if used, but it's not used in PaymentScreenMobile based on previous view?
 // Wait, previous build error said `CartItemWidget` isn't defined in `lib/features/cart/presentation/screens/cart_screen_mobile.dart`.
 // Ah, the error I saw was for `cart_screen_mobile.dart` NOT `payment_screen_mobile.dart`.

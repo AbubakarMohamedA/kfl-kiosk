@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:kfm_kiosk/core/configuration/domain/entities/app_configuration.dart';
-import 'package:kfm_kiosk/features/orders/domain/entities/order.dart';
-import 'package:kfm_kiosk/features/auth/domain/repositories/auth_repository.dart';
-import 'package:kfm_kiosk/core/configuration/domain/repositories/configuration_repository.dart';
-import 'package:kfm_kiosk/features/orders/domain/usecases/order_usecases.dart' as usecases;
+import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
+import 'package:sss/features/orders/domain/entities/order.dart';
+import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/features/orders/domain/usecases/order_usecases.dart' as usecases;
 import 'order_event.dart';
 import 'order_state.dart';
 

@@ -1,6 +1,6 @@
-import 'package:kfm_kiosk/core/usecases/usecase.dart';
-import 'package:kfm_kiosk/features/products/domain/entities/product.dart';
-import 'package:kfm_kiosk/features/products/domain/repositories/product_repository.dart';
+import 'package:sss/core/usecases/usecase.dart';
+import 'package:sss/features/products/domain/entities/product.dart';
+import 'package:sss/features/products/domain/repositories/product_repository.dart';
 
 class GetAllProducts extends UseCaseNoParams<List<Product>> {
   final ProductRepository repository;

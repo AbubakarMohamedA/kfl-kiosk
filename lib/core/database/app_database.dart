@@ -5,15 +5,15 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:kfm_kiosk/core/database/daos/products_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/orders_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/warehouses_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tenants_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tiers_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/cart_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/tenant_config_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/branches_dao.dart';
-import 'package:kfm_kiosk/core/database/daos/app_config_dao.dart';
+import 'package:sss/core/database/daos/products_dao.dart';
+import 'package:sss/core/database/daos/orders_dao.dart';
+import 'package:sss/core/database/daos/warehouses_dao.dart';
+import 'package:sss/core/database/daos/tenants_dao.dart';
+import 'package:sss/core/database/daos/tiers_dao.dart';
+import 'package:sss/core/database/daos/cart_dao.dart';
+import 'package:sss/core/database/daos/tenant_config_dao.dart';
+import 'package:sss/core/database/daos/branches_dao.dart';
+import 'package:sss/core/database/daos/app_config_dao.dart';
 
 part 'app_database.g.dart';
 
