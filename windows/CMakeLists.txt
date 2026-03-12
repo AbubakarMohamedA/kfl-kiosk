@@ -99,6 +99,34 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# Fix for Firebase Windows SDK linker errors (LNK2001/LNK2019)
+# Force all configurations to use Release-flavored Firebase libraries when building
+# in non-Debug modes. This is necessary because some Firebase plugins may default
+# to Debug libraries, which are incompatible with the forced Release CRT.
+set(FIREBASE_LIBS_TO_REMAPP 
+  firebase_app 
+  firebase_auth 
+  firebase_storage 
+  firebase_firestore 
+  firebase_remote_config
+)
+foreach(firebase_lib IN ITEMS ${FIREBASE_LIBS_TO_REMAPP})
+  if(TARGET ${firebase_lib})
+    get_target_property(firebase_lib_path ${firebase_lib} IMPORTED_LOCATION)
+    if(firebase_lib_path)
+      string(REPLACE "Debug" "Release" firebase_lib_release_path ${firebase_lib_path})
+      if(EXISTS "${firebase_lib_release_path}")
+        set_target_properties(${firebase_lib} PROPERTIES
+          IMPORTED_LOCATION_DEBUG "${firebase_lib_path}"
+          IMPORTED_LOCATION_RELEASE "${firebase_lib_release_path}"
+          IMPORTED_LOCATION_PROFILE "${firebase_lib_release_path}"
+        )
+        message(STATUS "Remapped ${firebase_lib} to Release: ${firebase_lib_release_path}")
+      endif()
+    endif()
+  endif()
+endforeach()
+
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can
 # run in place. This is done instead of making a separate bundle (as on Linux)
