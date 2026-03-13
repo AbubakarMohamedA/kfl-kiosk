@@ -4,7 +4,11 @@ project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "kflkiosk")
+if(DEFINED ENV{FLAVOR})
+  set(BINARY_NAME "kflkiosk_$ENV{FLAVOR}")
+else()
+  set(BINARY_NAME "kflkiosk")
+endif()
 
 if(DEFINED ENV{FLAVOR})
   set(APP_FLAVOR "$ENV{FLAVOR}")
@@ -107,7 +111,12 @@ include(flutter/generated_plugins.cmake)
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
 # directory.
-set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle")
+if(DEFINED ENV{FLAVOR})
+  set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle_$ENV{FLAVOR}")
+else()
+  set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle")
+endif()
+
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
 endif()

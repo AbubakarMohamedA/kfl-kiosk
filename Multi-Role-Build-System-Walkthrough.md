@@ -1,6 +1,6 @@
 # Multi-Role Build System Walkthrough
 
-I have implemented a flexible build system that allows you to generate distinct `.exe` files for different roles from the same codebase.
+I have implemented a flexible build system that allows you to generate distinct executables for different roles from the same codebase (e.g., .exe for Windows, .AppImage/.tar.gz for Linux).
 
 ## New Files
 - `lib/core/config/app_role.dart`: Defines roles (`kiosk`, `warehouse`, `staff`, `superAdmin`, `dashboard`) and their configurations.

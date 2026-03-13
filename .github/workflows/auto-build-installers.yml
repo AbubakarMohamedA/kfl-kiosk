@@ -854,15 +854,19 @@ jobs:
           set -e
           echo "Creating tarball for $FLAVOR_APP_NAME version $VERSION"
           mkdir -p dist
-          BUNDLE_DIR="build/linux/x64/release/bundle"
+          BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
           if [ ! -d "$BUNDLE_DIR" ]; then
-            echo "Error: Bundle directory not found at $BUNDLE_DIR"
+            BUNDLE_DIR="build/linux/x64/release/bundle"
+          fi
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Error: Bundle directory not found"
             exit 1
           fi
           
-          # The binary compiled by CMake on Linux is statically named kflkiosk
-          # We need to rename it to our flavor-specific APP_NAME
-          if [ -f "$BUNDLE_DIR/kflkiosk" ]; then
+          # The binary compiled by CMake on Linux may be flavor-aware now
+          if [ -f "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" ]; then
+            mv "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" "$BUNDLE_DIR/$FLAVOR_APP_NAME"
+          elif [ -f "$BUNDLE_DIR/kflkiosk" ]; then
             mv "$BUNDLE_DIR/kflkiosk" "$BUNDLE_DIR/$FLAVOR_APP_NAME"
           fi
           
@@ -971,7 +975,10 @@ jobs:
           mkdir -p "${APP_DIR}/usr/lib"
           mkdir -p "${APP_DIR}/usr/share/icons/hicolor/256x256/apps"
           mkdir -p "${APP_DIR}/usr/share/applications"
-          BUNDLE_DIR="build/linux/x64/release/bundle"
+          BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="build/linux/x64/release/bundle"
+          fi
           cp -r "${BUNDLE_DIR}"/* "${APP_DIR}/usr/bin/"
           chmod +x "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
           ICON_CREATED=false
@@ -1791,7 +1798,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Checkout pins branch or initialize
         run: |

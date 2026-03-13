@@ -85,7 +85,9 @@ export FLAVOR=superadmin && flutter build windows -t lib/main_superadmin.dart
 ---
 
 ## 🐧 Platform 5: Linux
-Linux operates exactly the same as Windows, utilizing CMake environment variables to dynamically compile unique GTK Application IDs and binary executables.
+Linux operates exactly the same as Windows, utilizing CMake environment variables to dynamically compile unique GTK Application IDs and binary executables. 
+
+**Note:** Our custom build script generates unique binary names (e.g., `kflkiosk_staff`) and bundle directories (e.g., `bundle_staff`) for each flavor, allowing them to be installed and run simultaneously.
 
 **Run / Debug:**
 ```bash
