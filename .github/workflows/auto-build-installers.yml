@@ -947,19 +947,19 @@ jobs:
           # After install.sh is run, the installed .desktop uses the binary on
           # PATH instead, so this file is only relevant for portable use.
           cat > "$PACKAGE_DIR/${APP_ID}.desktop" << DESKTOP_EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=${APP_TITLE}
-GenericName=${APP_TITLE}
-Comment=KFL Kiosk Desktop Application
-Exec=bash -c 'cd "\$(dirname "%k")" && ./run.sh'
-Icon=utilities-terminal
-Categories=Utility;
-Terminal=false
-StartupNotify=true
-StartupWMClass=${APP_ID}
-DESKTOP_EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=${APP_TITLE}
+          GenericName=${APP_TITLE}
+          Comment=KFL Kiosk Desktop Application
+          Exec=bash -c 'cd "\$(dirname "%k")" && ./run.sh'
+          Icon=utilities-terminal
+          Categories=Utility;
+          Terminal=false
+          StartupNotify=true
+          StartupWMClass=${APP_ID}
+          DESKTOP_EOF
           chmod +x "$PACKAGE_DIR/${APP_ID}.desktop"
 
           cat > "$PACKAGE_DIR/run.sh" << EOF
