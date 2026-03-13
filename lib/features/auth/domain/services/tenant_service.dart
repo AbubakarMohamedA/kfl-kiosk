@@ -12,6 +12,7 @@ import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
 import 'package:sss/core/config/app_role.dart';
 
 import 'package:sss/core/models/update_info.dart';
+import 'package:sss/core/models/terminal_info.dart';
 
 import '../../../../core/services/firebase_rest_service.dart';
 import '../../../../di/injection.dart';
@@ -574,7 +575,9 @@ class TenantService {
   Future<void> pushUpdateManifest(UpdateInfo updateInfo) async {
     if (Platform.isLinux) {
       try {
-        await _restService.patchDocument('system_config/updates', {
+        // For REST/Linux, we'll prefix with a timestamp to keep history
+        final id = 'manifest_${DateTime.now().millisecondsSinceEpoch}';
+        await _restService.patchDocument('system_config/update_manifests/items/$id', {
           ...updateInfo.toJson(),
           'updatedAt': DateTime.now(),
         });
@@ -586,7 +589,7 @@ class TenantService {
       return;
     }
     try {
-      await _firestore.collection('system_config').doc('updates').set({
+      await _firestore.collection('update_manifests').add({
         ...updateInfo.toJson(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -598,28 +601,35 @@ class TenantService {
   }
 
   /// Get latest update manifest from Firestore
-  Future<UpdateInfo?> getLatestUpdateManifest() async {
+  Future<List<UpdateInfo>> getLatestUpdateManifests() async {
     if (Platform.isLinux) {
       try {
-        final doc = await _restService.getDocument('system_config/updates');
-        if (doc != null) {
-          return UpdateInfo.fromJson(doc);
-        }
+        final collection = await _restService.getCollection('system_config/update_manifests/items');
+        return collection.map((doc) => UpdateInfo.fromJson(doc)).toList()
+          ..sort((a, b) => (b.releaseDate ?? DateTime.now()).compareTo(a.releaseDate ?? DateTime.now()));
       } catch (e) {
-        debugPrint('TenantService (REST): Error fetching update manifest: $e');
+        debugPrint('TenantService (REST): Error fetching update manifests: $e');
       }
-      return null;
+      return [];
     }
     try {
-      final doc = await _firestore.collection('system_config').doc('updates').get();
-      if (doc.exists && doc.data() != null) {
-        return UpdateInfo.fromJson(doc.data()!);
-      }
-      return null;
+      final snapshot = await _firestore
+          .collection('update_manifests')
+          .orderBy('releaseDate', descending: true)
+          .limit(10)
+          .get();
+      
+      return snapshot.docs.map((doc) => UpdateInfo.fromJson(doc.data())).toList();
     } catch (e) {
-      debugPrint('TenantService: Error fetching update manifest: $e');
-      return null;
+      debugPrint('TenantService: Error fetching update manifests: $e');
+      return [];
     }
+  }
+
+  /// Compatibility layer: Get the absolute most recent manifest regardless of platform
+  Future<UpdateInfo?> getLatestUpdateManifest() async {
+    final manifests = await getLatestUpdateManifests();
+    return manifests.isNotEmpty ? manifests.first : null;
   }
 
   /// Check if a tenant has immunity to blocking
@@ -1238,6 +1248,67 @@ class TenantService {
       return parts[index + 1];
     }
     return null;
+  }
+
+  // --- Terminal Monitoring ---
+
+  /// Reports terminal status to Firestore (or REST on Linux)
+  Future<void> reportTerminalStatus(TerminalInfo terminalInfo) async {
+    if (Platform.isLinux) {
+      try {
+        await _restService.patchDocument('terminals/${terminalInfo.id}', {
+          ...terminalInfo.toJson(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        debugPrint('TenantService (REST): Error reporting terminal status: $e');
+      }
+      return;
+    }
+
+    try {
+      await _firestore.collection('terminals').doc(terminalInfo.id).set({
+        ...terminalInfo.toJson(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('TenantService: Error reporting terminal status: $e');
+    }
+  }
+
+  /// Fetches all active terminals (last seen within 24 hours)
+  Future<List<TerminalInfo>> getAllTerminals() async {
+    final List<TerminalInfo> terminals = [];
+    final yesterday = DateTime.now().subtract(const Duration(hours: 24));
+
+    if (Platform.isLinux) {
+      try {
+        final data = await _restService.getCollection('terminals');
+        for (final item in data) {
+          final terminal = TerminalInfo.fromJson(item);
+          if (terminal.lastSeen.isAfter(yesterday)) {
+            terminals.add(terminal);
+          }
+        }
+      } catch (e) {
+        debugPrint('TenantService (REST): Error fetching terminals: $e');
+      }
+      return terminals;
+    }
+
+    try {
+      final snapshot = await _firestore
+          .collection('terminals')
+          .where('updatedAt', isGreaterThan: yesterday)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        terminals.add(TerminalInfo.fromJson(doc.data()));
+      }
+    } catch (e) {
+      debugPrint('TenantService: Error fetching terminals: $e');
+    }
+    return terminals;
   }
 }
 

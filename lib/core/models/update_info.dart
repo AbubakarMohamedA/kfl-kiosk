@@ -45,6 +45,8 @@ class UpdateInfo {
   final List<String> allowedFlavors;
   final List<String> excludedTenants;
   final List<String> excludedFlavors;
+  final List<String> allowedPlatforms;
+  final List<String> excludedPlatforms;
 
   // GitHub Release fields
   final String? githubOwner;
@@ -72,6 +74,8 @@ class UpdateInfo {
     this.allowedFlavors = const [],
     this.excludedTenants = const [],
     this.excludedFlavors = const [],
+    this.allowedPlatforms = const [],
+    this.excludedPlatforms = const [],
     this.githubOwner,
     this.githubRepo,
     this.githubToken,
@@ -115,9 +119,10 @@ class UpdateInfo {
   /// All comparisons are case-insensitive to prevent mismatches between
   /// Firestore-stored values (e.g. "superadmin") and runtime enum names
   /// (e.g. AppRole.superAdmin.name → "superAdmin").
-  bool appliesTo(String currentTenantId, String currentFlavor) {
+  bool appliesTo(String currentTenantId, String currentFlavor, {String? currentPlatform}) {
     final tenantLower = currentTenantId.toLowerCase();
     final flavorLower = currentFlavor.toLowerCase();
+    final platformLower = currentPlatform?.toLowerCase();
 
     // If allowed lists are provided, current must be in them
     if (allowedTenants.isNotEmpty &&
@@ -128,12 +133,21 @@ class UpdateInfo {
         !allowedFlavors.any((f) => f.toLowerCase() == flavorLower)) {
       return false;
     }
+    if (currentPlatform != null &&
+        allowedPlatforms.isNotEmpty &&
+        !allowedPlatforms.any((p) => p.toLowerCase() == platformLower)) {
+      return false;
+    }
 
     // If excluded lists are provided, current must NOT be in them
     if (excludedTenants.any((t) => t.toLowerCase() == tenantLower)) {
       return false;
     }
     if (excludedFlavors.any((f) => f.toLowerCase() == flavorLower)) {
+      return false;
+    }
+    if (currentPlatform != null &&
+        excludedPlatforms.any((p) => p.toLowerCase() == platformLower)) {
       return false;
     }
 
@@ -161,6 +175,8 @@ class UpdateInfo {
     List<String>? allowedFlavors,
     List<String>? excludedTenants,
     List<String>? excludedFlavors,
+    List<String>? allowedPlatforms,
+    List<String>? excludedPlatforms,
     String? githubOwner,
     String? githubRepo,
     String? githubToken,
@@ -187,6 +203,8 @@ class UpdateInfo {
       allowedFlavors: allowedFlavors ?? this.allowedFlavors,
       excludedTenants: excludedTenants ?? this.excludedTenants,
       excludedFlavors: excludedFlavors ?? this.excludedFlavors,
+      allowedPlatforms: allowedPlatforms ?? this.allowedPlatforms,
+      excludedPlatforms: excludedPlatforms ?? this.excludedPlatforms,
       githubOwner: githubOwner ?? this.githubOwner,
       githubRepo: githubRepo ?? this.githubRepo,
       githubToken: githubToken ?? this.githubToken,
@@ -215,6 +233,8 @@ class UpdateInfo {
       'allowedFlavors': allowedFlavors,
       'excludedTenants': excludedTenants,
       'excludedFlavors': excludedFlavors,
+      'allowedPlatforms': allowedPlatforms,
+      'excludedPlatforms': excludedPlatforms,
       'githubOwner': githubOwner,
       'githubRepo': githubRepo,
       'githubToken': githubToken,
@@ -248,6 +268,8 @@ class UpdateInfo {
       allowedFlavors: List<String>.from(json['allowedFlavors'] ?? []),
       excludedTenants: List<String>.from(json['excludedTenants'] ?? []),
       excludedFlavors: List<String>.from(json['excludedFlavors'] ?? []),
+      allowedPlatforms: List<String>.from(json['allowedPlatforms'] ?? []),
+      excludedPlatforms: List<String>.from(json['excludedPlatforms'] ?? []),
       githubOwner: json['githubOwner'],
       githubRepo: json['githubRepo'],
       githubToken: json['githubToken'],

@@ -7,10 +7,39 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      target_platform:
+        description: 'Target Platform (windows, macos, linux, android, ios, all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - macos
+          - linux
+          - android
+          - ios
+      target_flavor:
+        description: 'Target Flavor (all, kiosk, staff, etc.)'
+        required: true
+        default: 'all'
+        type: string
+      create_release:
+        description: 'Create/Update GitHub Release?'
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Tag for release (if manual). Leave empty to use version from pubspec.'
+        required: false
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TARGET_PLATFORM: ${{ github.event.inputs.target_platform || 'all' }}
+  TARGET_FLAVOR: ${{ github.event.inputs.target_flavor || 'all' }}
 
 jobs:
   parse-metadata:
@@ -41,12 +70,20 @@ jobs:
 
   build-windows:
     needs: parse-metadata
+    if: (github.event_name == 'push') || (github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'windows')
     runs-on: windows-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         flavor: [superadmin, manager, staff, warehouse, dashboard, kiosk]
+        exclude:
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'superadmin') ? 'superadmin' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'manager') ? 'manager' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'staff') ? 'staff' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'warehouse') ? 'warehouse' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'dashboard') ? 'dashboard' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'kiosk') ? 'kiosk' : 'none' }}
     env:
       APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
       FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
@@ -483,12 +520,20 @@ jobs:
 
   build-macos:
     needs: parse-metadata
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'macos'
     runs-on: macos-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         flavor: [superadmin, manager, staff, warehouse, dashboard, kiosk]
+        exclude:
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'superadmin') ? 'superadmin' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'manager') ? 'manager' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'staff') ? 'staff' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'warehouse') ? 'warehouse' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'dashboard') ? 'dashboard' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'kiosk') ? 'kiosk' : 'none' }}
     env:
       APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
       FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
@@ -772,10 +817,18 @@ jobs:
 
   build-linux:
     needs: parse-metadata
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'linux'
     strategy:
       matrix:
         arch: [x64]
         flavor: [superadmin, manager, staff, warehouse, dashboard, kiosk]
+        exclude:
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'superadmin') ? 'superadmin' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'manager') ? 'manager' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'staff') ? 'staff' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'warehouse') ? 'warehouse' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'dashboard') ? 'dashboard' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'kiosk') ? 'kiosk' : 'none' }}
       fail-fast: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1128,12 +1181,20 @@ jobs:
 
   build-android:
     needs: parse-metadata
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'android'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         flavor: [superadmin, manager, staff, warehouse, dashboard, kiosk]
+        exclude:
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'superadmin') ? 'superadmin' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'manager') ? 'manager' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'staff') ? 'staff' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'warehouse') ? 'warehouse' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'dashboard') ? 'dashboard' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'kiosk') ? 'kiosk' : 'none' }}
     env:
       FLAVOR: ${{ matrix.flavor }}
       FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
@@ -1175,12 +1236,20 @@ jobs:
 
   build-ios:
     needs: parse-metadata
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'ios'
     runs-on: macos-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         flavor: [superadmin, manager, staff, warehouse, dashboard, kiosk]
+        exclude:
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'superadmin') ? 'superadmin' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'manager') ? 'manager' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'staff') ? 'staff' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'warehouse') ? 'warehouse' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'dashboard') ? 'dashboard' : 'none' }}
+          - flavor: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target_flavor != 'all' && github.event.inputs.target_flavor != 'kiosk') ? 'kiosk' : 'none' }}
     env:
       FLAVOR: ${{ matrix.flavor }}
       FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
@@ -1422,11 +1491,12 @@ jobs:
     needs: [parse-metadata, build-windows, build-macos, build-linux, build-android, build-ios]
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_release == 'true'
     env:
       APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
       VERSION: ${{ needs.parse-metadata.outputs.version }}
-      VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
+      # If manual tag provided, use it. If tag push, use current tag. Otherwise use v + pubspec version.
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', needs.parse-metadata.outputs.version)) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1707,11 +1777,11 @@ jobs:
           USE_AUTO="true"
 
           if [ -f "CHANGELOG.md" ] && [ -s "CHANGELOG.md" ]; then
-            VERSION_TO_FIND="${VERSION_TAG}"
+            VERSION_TO_FIND="${RELEASE_TAG#v}"
             if grep -qi "## \[?${VERSION_TO_FIND}\]?" CHANGELOG.md; then
               sed -n "/## \[?${VERSION_TO_FIND}\]?/,/^## /p" CHANGELOG.md | sed '$d' > release_notes.txt
               if [ -s release_notes.txt ]; then
-                echo "Found changelog section for v${VERSION_TAG}"
+                echo "Found changelog section for v${VERSION_TO_FIND}"
                 USE_AUTO="false"
               fi
             fi
@@ -1733,8 +1803,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release_files/*
-          tag_name: ${{ github.ref_name }}
-          name: ${{ env.APP_NAME }} v${{ env.VERSION_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.APP_NAME }} ${{ env.RELEASE_TAG }}
           body_path: release_notes.txt
           draft: false
           prerelease: false
@@ -1748,8 +1818,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release_files/*
-          tag_name: ${{ github.ref_name }}
-          name: ${{ env.APP_NAME }} v${{ env.VERSION_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.APP_NAME }} ${{ env.RELEASE_TAG }}
           body_path: auto_notes.txt
           draft: false
           prerelease: false
@@ -1785,7 +1855,7 @@ jobs:
       - name: Upload Security Report
         uses: actions/upload-artifact@v4
         with:
-          name: security-reports-${{ env.VERSION_TAG }}
+          name: security-reports-${{ env.RELEASE_TAG }}
           path: security-report.txt
           retention-days: 90
 

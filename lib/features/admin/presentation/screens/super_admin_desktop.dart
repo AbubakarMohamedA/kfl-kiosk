@@ -14,6 +14,7 @@ import 'package:sss/features/warehouse/domain/entities/warehouse.dart' as entity
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:sss/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/core/models/terminal_info.dart';
 
 import '../../../../core/models/update_info.dart';
 import '../../../../core/services/github_update_service.dart';
@@ -49,16 +50,36 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
   bool _isMaintenance = false;
   List<String> _allowedFlavors = [];
   List<String> _allowedTenants = [];
+  List<String> _allowedPlatforms = [];
+  List<UpdateInfo> _manifestHistory = [];
+  bool _isLoadingTerminals = false;
+  List<TerminalInfo> _terminals = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _loadTenants();
     _loadUpdateManifest();
+    _loadTerminals();
     _tenantService.syncGlobalConfig().then((_) {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _loadTerminals() async {
+    setState(() => _isLoadingTerminals = true);
+    try {
+      final terminals = await _tenantService.getAllTerminals();
+      if (mounted) {
+        setState(() {
+          _terminals = terminals;
+          _isLoadingTerminals = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingTerminals = false);
+    }
   }
 
   void _loadTenants() {
@@ -93,8 +114,15 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
           _isMaintenance = manifest.isMaintenanceMode;
           _allowedFlavors = List.from(manifest.allowedFlavors);
           _allowedTenants = List.from(manifest.allowedTenants);
+          _allowedPlatforms = List.from(manifest.allowedPlatforms);
         }
         _isLoadingUpdate = false;
+      });
+      
+      // Load history
+      final history = await _tenantService.getLatestUpdateManifests();
+      setState(() {
+        _manifestHistory = history;
       });
     } catch (e) {
       debugPrint('SuperAdmin: Error loading update manifest: $e');
@@ -132,9 +160,10 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
                       _buildTenantListTab(),
                       _buildTierListTab(),
                       _buildLicensesTab(), // New Tab
-                      _buildUpdatesTab(), // NEW
-                      _buildAnalyticsTab(),
-                      _buildSettingsTab(),
+                       _buildUpdatesTab(), // OR _buildUpdatesTab()
+                       _buildTerminalsTab(),
+                       _buildAnalyticsTab(),
+                       _buildSettingsTab(),
                     ],
                   ),
                 ),
@@ -254,10 +283,11 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
         children: [
           _buildSidebarItem(0, Icons.people_outline, 'Tenants'),
           _buildSidebarItem(1, Icons.layers_outlined, 'Tiers'),
-          _buildSidebarItem(2, Icons.vpn_key_outlined, 'Licenses'), // New Item
-          _buildSidebarItem(3, Icons.system_update_alt, 'Updates'), // NEW Item
-          _buildSidebarItem(4, Icons.analytics_outlined, 'Analytics'),
-          _buildSidebarItem(5, Icons.settings_outlined, 'Settings'),
+          _buildSidebarItem(2, Icons.vpn_key_outlined, 'Licenses'), 
+          _buildSidebarItem(3, Icons.system_update_alt, 'Updates'), 
+          _buildSidebarItem(4, Icons.devices, 'Terminals'),
+          _buildSidebarItem(5, Icons.analytics_outlined, 'Analytics'),
+          _buildSidebarItem(6, Icons.settings_outlined, 'Settings'),
           const Spacer(),
           const Divider(),
           ListTile(
@@ -337,35 +367,6 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
     );
   }
 
-  Widget _buildQuickStat(
-      String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-                Text(label,
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildTenantListTab() {
     return Column(
@@ -2492,43 +2493,33 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
             children: [
               Expanded(
                 flex: 2,
-                child: _buildUpdateCard('Version Information', [
-                  TextField(
-                    controller: _versionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Latest Version (e.g., 1.1.0)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.history, size: 20),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _minVersionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Min Supported Version (e.g., 1.0.0)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.security_update_warning, size: 20),
-                    ),
-                  ),
-                  // const SizedBox(height: 16),
-                  // TextField(
-                  //   controller: _urlController,
-                  //   decoration: const InputDecoration(
-                  //     labelText: 'Custom Download URL (Optional: Overrides GitHub)',
-                  //     border: OutlineInputBorder(),
-                  //     prefixIcon: Icon(Icons.link, size: 20),
-                  //   ),
-                  // ),
-                  // const SizedBox(height: 16),
-                  // TextField(
-                  //   controller: _checksumController,
-                  //   decoration: const InputDecoration(
-                  //     labelText: 'SHA-256 Checksum (Optional: Auto-resolved from GitHub)',
-                  //     border: OutlineInputBorder(),
-                  //     prefixIcon: Icon(Icons.fingerprint, size: 20),
-                  //   ),
-                  // ),
-                ]),
+                child: Column(
+                  children: [
+                    _buildUpdateCard('Version Information', [
+                      TextField(
+                        controller: _versionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Latest Version (e.g., 1.1.0)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.history, size: 20),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _minVersionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Min Supported Version (e.g., 1.0.0)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.security_update_warning, size: 20),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 24),
+                    _buildUpdateCard('Update History', [
+                      _buildManifestHistory(),
+                    ]),
+                  ],
+                ),
               ),
               const SizedBox(width: 24),
               Expanded(
@@ -2633,10 +2624,32 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
               }).toList(),
             ),
             const SizedBox(height: 24),
+            const Text('App Platforms (Select none to target ALL platforms)', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              children: ['android', 'ios', 'windows', 'linux', 'macos'].map((platform) {
+                final isSelected = _allowedPlatforms.contains(platform);
+                return FilterChip(
+                  label: Text(platform.toUpperCase()),
+                  selected: isSelected,
+                  onSelected: (val) {
+                    setState(() {
+                      if (val) {
+                        _allowedPlatforms.add(platform);
+                      } else {
+                        _allowedPlatforms.remove(platform);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
             const Text('Targeting Mode', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _allowedTenants.isEmpty ? 'all' : 'specific',
+              initialValue: _allowedTenants.isEmpty ? 'all' : 'specific',
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.people_alt),
@@ -2749,7 +2762,6 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2))
         ],
-        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2757,6 +2769,113 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
           Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1a237e))),
           const SizedBox(height: 20),
           ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManifestHistory() {
+    if (_manifestHistory.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Column(
+            children: [
+              Icon(Icons.history_outlined, size: 48, color: Colors.grey),
+              SizedBox(height: 16),
+              Text('No publish history available', style: TextStyle(color: Colors.grey)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: _manifestHistory.map((manifest) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: CircleAvatar(
+              backgroundColor: const Color(0xFF1a237e).withValues(alpha: 0.1),
+              child: const Icon(Icons.cloud_done, color: Color(0xFF1a237e), size: 20),
+            ),
+            title: Row(
+              children: [
+                Text('v${manifest.latestVersion}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 8),
+                if (manifest.isMandatory)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('MANDATORY', style: TextStyle(color: Colors.red, fontSize: 8, fontWeight: FontWeight.bold)),
+                  ),
+              ],
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text(manifest.releaseNotes, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today, size: 12, color: Colors.grey[400]),
+                    const SizedBox(width: 4),
+                    Text(DateFormat('MMM dd, yyyy HH:mm').format(manifest.releaseDate ?? DateTime.now()), style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                  ],
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.info_outline),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('Release v${manifest.latestVersion} Details'),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildDetailItem('Release Date', DateFormat('yyyy-MM-dd HH:mm:ss').format(manifest.releaseDate ?? DateTime.now())),
+                          _buildDetailItem('Min Supported', manifest.minimumSupportedVersion ?? 'None'),
+                          _buildDetailItem('Platforms', manifest.allowedPlatforms.join(', ')),
+                          _buildDetailItem('Flavors', manifest.allowedFlavors.join(', ')),
+                          _buildDetailItem('Release Notes', manifest.releaseNotes),
+                        ],
+                      ),
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDetailItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 14)),
         ],
       ),
     );
@@ -2802,6 +2921,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
         minimumSupportedVersion: _minVersionController.text.isNotEmpty ? _minVersionController.text : null,
         allowedFlavors: _allowedFlavors,
         allowedTenants: _allowedTenants,
+        allowedPlatforms: _allowedPlatforms,
         githubOwner: _githubOwnerController.text.isNotEmpty 
             ? _githubOwnerController.text 
             : GitHubUpdateService.DEFAULT_OWNER,
@@ -2830,6 +2950,142 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
       if (mounted) setState(() => _isPublishingUpdate = false);
     }
   }
+
+  Widget _buildTerminalsTab() {
+    if (_isLoadingTerminals) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_terminals.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.devices_other, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text('No Active Terminals', style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Devices will appear here once they perform a heartbeat.', style: TextStyle(color: Colors.grey[500])),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: _loadTerminals,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh Terminals'),
+              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Sort by last seen
+    final sortedTerminals = List<TerminalInfo>.from(_terminals)
+      ..sort((a, b) => b.lastSeen.compareTo(a.lastSeen));
+
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Connected Terminals', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              ElevatedButton.icon(
+                onPressed: _loadTerminals,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.vertical,
+                child: DataTable(
+                  columnSpacing: 32,
+                  headingRowColor: WidgetStateProperty.all(Colors.grey[100]),
+                  columns: const [
+                    DataColumn(label: Text('TENANT', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('PLATFORM', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('FLAVOR', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('VERSION', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('LAST SEEN', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: sortedTerminals.map((terminal) {
+                    final tenant = _tenants.firstWhere((t) => t.id == terminal.tenantId, 
+                        orElse: () => Tenant(id: terminal.tenantId, name: 'Unknown', businessName: '', email: '', phone: '', status: '', createdDate: DateTime.now()));
+                    
+                    return DataRow(cells: [
+                      DataCell(Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(tenant.businessName.isNotEmpty ? tenant.businessName : tenant.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('${terminal.id.substring(0, 8)}...', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                        ],
+                      )),
+                      DataCell(Row(
+                        children: [
+                          _getPlatformIcon(terminal.platform),
+                          const SizedBox(width: 8),
+                          Text(terminal.platform),
+                        ],
+                      )),
+                      DataCell(Text(terminal.flavor)),
+                      DataCell(Text('v${terminal.version}')),
+                      DataCell(Text(DateFormat('yyyy-MM-dd HH:mm').format(terminal.lastSeen))),
+                      DataCell(_getStatusIndicator(terminal.lastSeen)),
+                    ]);
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _getPlatformIcon(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'android': return const Icon(Icons.android, color: Colors.green, size: 18);
+      case 'ios': return const Icon(Icons.apple, color: Colors.grey, size: 18);
+      case 'windows': return const Icon(Icons.window, color: Colors.blue, size: 18);
+      case 'macos': return const Icon(Icons.laptop_mac, color: Colors.grey, size: 18);
+      case 'linux': return const Icon(Icons.terminal, color: Colors.orange, size: 18);
+      default: return const Icon(Icons.device_unknown, size: 18);
+    }
+  }
+
+  Widget _getStatusIndicator(DateTime lastSeen) {
+    final diff = DateTime.now().difference(lastSeen).inMinutes;
+    Color color = Colors.green;
+    String label = 'ONLINE';
+
+    if (diff > 30) {
+      color = Colors.orange;
+      label = 'IDLE';
+    }
+    if (diff > 1440) {
+      color = Colors.red;
+      label = 'OFFLINE';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
 }
 
 class _LicenseGeneratorForm extends StatefulWidget {
@@ -2854,6 +3110,7 @@ class _LicenseGeneratorFormState extends State<_LicenseGeneratorForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<Tenant>(
+          initialValue: selectedTenant,
           decoration: const InputDecoration(
             labelText: 'Select Tenant',
             border: OutlineInputBorder(),
@@ -2953,9 +3210,9 @@ class _LicenseGeneratorFormState extends State<_LicenseGeneratorForm> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
             ),
             child: Column(
               children: [

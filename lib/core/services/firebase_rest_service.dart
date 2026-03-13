@@ -122,6 +122,15 @@ class FirebaseRestService {
 
       if (response.statusCode == 200) {
         return true;
+      } else if (response.statusCode == 404) {
+        // If document doesn't exist, try creating it
+        final parts = path.split('/');
+        if (parts.length >= 2) {
+          final collection = parts.sublist(0, parts.length - 1).join('/');
+          final docId = parts.last;
+          return await createDocument(collection, docId, data);
+        }
+        return false;
       } else {
         debugPrint('Firestore REST Patch Error (${response.statusCode}): ${response.body}');
         return false;

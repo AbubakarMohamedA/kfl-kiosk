@@ -4,6 +4,7 @@ import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
 import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 import 'package:sss/core/constants/app_constants.dart';
 import 'package:sss/core/services/license_service.dart';
+import 'package:sss/core/services/cloud_heartbeat_service.dart';
 import 'package:sss/di/injection.dart';
 import 'package:sss/features/auth/domain/entities/tenant.dart';
 import 'package:sss/features/dashboard/presentation/screens/enterprise_dashboard.dart';
@@ -84,6 +85,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
 
       // 3. Save Configuration
       await configRepo.saveConfiguration(newConfig);
+      getIt<CloudHeartbeatService>().start(); // START CLOUD MONITORING
       
       // 4. Reload Orders
       if (mounted) {

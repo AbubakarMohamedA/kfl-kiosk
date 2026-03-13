@@ -103,54 +103,13 @@ class UpdateService {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
 
-      UpdateInfo? updateInfo;
-
-      // Check Cloud Manifest first
-      updateInfo = await _tenantService.getLatestUpdateManifest();
-
-      if (updateInfo == null) {
-        debugPrint('UpdateService: No manifest found, skipping.');
-        return null;
-      }
-
-      debugPrint('UpdateService: Manifest — latestVersion=${updateInfo.latestVersion}, '
-          'requiresUpdate=${updateInfo.requiresUpdate}, isMandatory=${updateInfo.isMandatory}, '
-          'allowedTenants=${updateInfo.allowedTenants}, allowedFlavors=${updateInfo.allowedFlavors}');
-
-      // Throttle: skip if checked recently, UNLESS the update is mandatory
-      if (!force && !updateInfo.isMandatory && !await _shouldCheck()) {
-        debugPrint('UpdateService: Skipping — within 6-hour throttle window.');
-        return null;
-      }
-
-      // Resolve download URL from GitHub when no explicit URL is stored.
-      // isGitHubUpdate is always true for this project, so we always resolve
-      // unless the admin already provided a direct updateUrl override.
-      if (updateInfo.isGitHubUpdate && (updateInfo.updateUrl == null || updateInfo.updateUrl!.isEmpty)) {
-        debugPrint('UpdateService: updateUrl is null — resolving from GitHub...');
-        updateInfo = await _checkGitHubRelease(currentVersion, updateInfo);
-      }
-
-      if (updateInfo == null) return null;
-
-      // Security check: Downgrade/replay attack
-      if (updateInfo.isReplayOrDowngradeAttack(currentVersion)) {
-        debugPrint('UpdateService: ⚠️ Blocked — downgrade/replay. '
-            'current=$currentVersion, latest=${updateInfo.latestVersion}');
-        await SecurityMonitor.instance.reportSecurityEvent(
-          eventType: 'downgrade_attack_detected',
-          severity: SecuritySeverity.critical,
-          metadata: {'current': currentVersion, 'latest': updateInfo.latestVersion},
-        );
-        return null;
-      }
-
       // Get device identity for filtering
       final config = await _configRepo.getConfiguration();
       final tenantId = config.tenantId ?? '';
       final flavor = _roleConfig.role.name;
+      final platform = PlatformService.platformName;
 
-      debugPrint('UpdateService: Device — tenantId=$tenantId, flavor=$flavor, version=$currentVersion');
+      debugPrint('UpdateService: Device — tenantId=$tenantId, flavor=$flavor, platform=$platform, version=$currentVersion');
 
       // Tier gate: alone-tier (allowUpdates: false) never receives updates
       if (!_tenantService.isTenantAllowedUpdates(tenantId)) {
@@ -158,12 +117,44 @@ class UpdateService {
         return null;
       }
 
-      // Granular filtering: Tenant and Flavor
-      if (!updateInfo.appliesTo(tenantId, flavor)) {
-        debugPrint('UpdateService: ⚠️ Update skipped — not targeted for '
-            'tenant [$tenantId] or flavor [$flavor]. '
-            'allowedTenants=${updateInfo.allowedTenants}, '
-            'allowedFlavors=${updateInfo.allowedFlavors}');
+      // Fetch all recent manifests
+      final List<UpdateInfo> manifests = await _tenantService.getLatestUpdateManifests();
+      if (manifests.isEmpty) {
+        debugPrint('UpdateService: No manifests found in cloud.');
+        return null;
+      }
+
+      UpdateInfo? bestUpdate;
+
+      for (var updateInfo in manifests) {
+        // 1. Filtering: Tenant, Flavor, and Platform
+        if (updateInfo.appliesTo(tenantId, flavor, currentPlatform: platform)) {
+          
+          // 2. Version Check & Resolve GitHub if needed
+          if (updateInfo.isGitHubUpdate && (updateInfo.updateUrl == null || updateInfo.updateUrl!.isEmpty)) {
+            updateInfo = await _checkGitHubRelease(currentVersion, updateInfo);
+          }
+
+          // 3. Security/Logic Check: Is it a valid newer version?
+          if (_isUpdateRequired(currentVersion, updateInfo.latestVersion) && 
+              !updateInfo.isReplayOrDowngradeAttack(currentVersion)) {
+            
+            // 4. Persistence: Find the HIGHEST version among applicable manifests
+            if (bestUpdate == null || _isVersionNewer(updateInfo.latestVersion, bestUpdate.latestVersion)) {
+              bestUpdate = updateInfo;
+            }
+          }
+        }
+      }
+
+      if (bestUpdate == null) {
+        debugPrint('UpdateService: No applicable updates found for this device.');
+        return null;
+      }
+
+      // Throttle: skip if checked recently, UNLESS the update is mandatory
+      if (!force && !bestUpdate.isMandatory && !await _shouldCheck()) {
+        debugPrint('UpdateService: Skipping [${bestUpdate.latestVersion}] — within throttle window.');
         return null;
       }
 
@@ -171,9 +162,8 @@ class UpdateService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_keyLastCheckTime, DateTime.now().millisecondsSinceEpoch);
 
-      debugPrint('UpdateService: ✅ Update applies — latest=${updateInfo.latestVersion}, '
-          'mandatory=${updateInfo.isMandatory}');
-      return updateInfo;
+      debugPrint('UpdateService: ✅ Update applies — latest=${bestUpdate.latestVersion}, mandatory=${bestUpdate.isMandatory}');
+      return bestUpdate;
     } catch (e) {
       debugPrint('UpdateService: Update check failed: $e');
       return null;
@@ -182,12 +172,10 @@ class UpdateService {
 
   /// Helper to check GitHub releases
   Future<UpdateInfo> _checkGitHubRelease(String currentVersion, UpdateInfo manifest) async {
-    // SECURITY/CONTROL: Only check GitHub if the manifest itself indicates a newer version is available.
-    // This allows the Super Admin to "Publish" an update to Firestore first.
     final manifestVersion = manifest.latestVersion;
-    final updateRequiredInManifest = _isUpdateRequired(currentVersion, manifestVersion);
     
-    if (!updateRequiredInManifest) {
+    // If manifest itself doesn't suggest a new version, don't bother GitHub
+    if (!_isUpdateRequired(currentVersion, manifestVersion)) {
       return manifest.copyWith(requiresUpdate: false);
     }
 
@@ -197,30 +185,25 @@ class UpdateService {
       githubToken: manifest.githubToken,
     );
     
-    // Fetch the specific release published by the Super Admin
     final release = await githubService.checkReleaseByTag(manifestVersion);
     
     if (release == null) {
-      // Fallback to latest if specific tag fetch fails, or just abort
-      debugPrint('Specific release $manifestVersion not found on GitHub, falling back to latest check');
+      // Fallback to latest
       final latestRelease = await githubService.checkLatestRelease();
       if (latestRelease == null) return manifest.copyWith(requiresUpdate: false);
       
-      // If latest on GitHub is still less than manifest, respect GitHub (maybe it's not uploaded yet)
       if (!_isUpdateRequired(currentVersion, latestRelease.version)) {
          return manifest.copyWith(requiresUpdate: false);
       }
       
-    // Use latest from GitHub
-    final flavor = _roleConfig.role.name;
-    final githubVersion = latestRelease.version;
-    return manifest.copyWith(
-      requiresUpdate: true,
-      latestVersion: githubVersion,
-      updateUrl: githubService.getPlatformDownloadUrl(latestRelease, flavor, githubVersion) ?? latestRelease.htmlUrl,
-      releaseNotes: latestRelease.cleanReleaseNotes,
-    );
-  }
+      final flavor = _roleConfig.role.name;
+      return manifest.copyWith(
+        requiresUpdate: true,
+        latestVersion: latestRelease.version,
+        updateUrl: githubService.getPlatformDownloadUrl(latestRelease, flavor, latestRelease.version) ?? latestRelease.htmlUrl,
+        releaseNotes: latestRelease.cleanReleaseNotes,
+      );
+    }
     
     final flavor = _roleConfig.role.name;
     final downloadUrl = githubService.getPlatformDownloadUrl(release, flavor, manifestVersion);
@@ -232,6 +215,14 @@ class UpdateService {
       releaseNotes: release.cleanReleaseNotes,
       releaseDate: release.publishedAt,
     );
+  }
+
+  bool _isVersionNewer(String latest, String current) {
+    try {
+      return Version.parse(latest) > Version.parse(current);
+    } catch (e) {
+      return latest != current;
+    }
   }
 
   bool _isUpdateRequired(String current, String latest) {

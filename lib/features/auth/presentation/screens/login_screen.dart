@@ -12,6 +12,7 @@ import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:sss/features/auth/domain/entities/tenant.dart';
+import 'package:sss/core/services/cloud_heartbeat_service.dart';
 import 'package:sss/features/auth/domain/entities/branch.dart';
 import 'package:sss/features/dashboard/presentation/screens/enterprise_dashboard.dart';
 import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
@@ -239,6 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
     await repo.saveConfiguration(config);
     // Persist Session
     await getIt<AuthRepository>().saveSession(tenant);
+    getIt<CloudHeartbeatService>().start(); // START HEARTBEAT
 
     // Set Local Server context for syncing tablets
     getIt<LocalServerService>().setActiveTenantId(
@@ -275,6 +277,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await repo.saveConfiguration(config);
       // Persist Session
       await getIt<AuthRepository>().saveSession(tenant);
+      getIt<CloudHeartbeatService>().start(); // START HEARTBEAT
 
       // Notify Local Server (Desktop only)
       getIt<LocalServerService>().setActiveTenantId(
@@ -318,6 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
     
     // Persist Session
     await getIt<AuthRepository>().saveSession(tenant);
+    getIt<CloudHeartbeatService>().start(); // START HEARTBEAT
     
     if (mounted) {
       if (tenant.id == 'SUPER_ADMIN') {

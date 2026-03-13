@@ -105,6 +105,7 @@ Future<void> setupDependencies() async {
     getIt<LicenseService>(),
     getIt<AuthRepository>(),
     getIt<LocalServerService>(),
+    getIt<RoleConfig>(),
   ));
 
   getIt.registerLazySingleton<UpdateService>(() => UpdateService(

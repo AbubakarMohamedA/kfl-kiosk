@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sss/core/database/app_database.dart' hide Tier;
 import 'package:sss/features/auth/domain/entities/tier.dart';
@@ -9,11 +10,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter/material.dart';
 import 'package:sss/core/services/license_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
-import 'package:sss/core/services/local_server_service.dart';
+import 'package:sss/core/services/local_server_service.dart' hide TerminalInfo;
 import 'package:sss/main.dart'; // For globalNavigatorKey
 import 'package:sss/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/core/config/app_role.dart';
+import 'package:sss/core/models/terminal_info.dart';
+import 'package:sss/core/services/platform_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:uuid/uuid.dart';
 
 class CloudHeartbeatService {
   final ConfigurationRepository _configRepo;
@@ -21,6 +26,7 @@ class CloudHeartbeatService {
   final LicenseService _licenseService;
   final AuthRepository _authRepository;
   final LocalServerService _localServerService;
+  final RoleConfig _roleConfig;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   CloudHeartbeatService(
@@ -29,7 +35,25 @@ class CloudHeartbeatService {
     this._licenseService,
     this._authRepository,
     this._localServerService,
+    this._roleConfig,
   );
+  
+  static Timer? _heartbeatTimer;
+
+  /// Starts the periodic heartbeat (every 10 minutes)
+  void start() {
+    stop(); // Avoid duplicates
+    checkTenantStatus(); // Immediate Check
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 10), (_) => checkTenantStatus());
+    debugPrint('CloudHeartbeatService: Periodic monitoring started (10m interval)');
+  }
+
+  /// Stops the periodic heartbeat
+  void stop() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    debugPrint('CloudHeartbeatService: Periodic monitoring stopped');
+  }
 
   /// Performs a remote status check for the current tenant using Firebase Firestore (or REST on Linux).
   /// Updates local storage and locks the app if the tenant is inactive.
@@ -41,6 +65,9 @@ class CloudHeartbeatService {
     // Sync Global Tiers & Config
     await _tenantService.pullTiersFromCloud();
     await _tenantService.syncGlobalConfig();
+
+    // Report Terminal Status
+    await _reportTerminalStatus(tenantId);
 
     try {
       // Fetch status from Cloud (Handles Firestore/REST split internally)
@@ -92,6 +119,41 @@ class CloudHeartbeatService {
           (route) => false,
         );
       }
+    }
+  }
+
+  /// Reports current terminal info to the cloud
+  Future<void> _reportTerminalStatus(String tenantId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // 1. Get or create unique terminal ID
+      String? terminalId = prefs.getString('terminal_id');
+      if (terminalId == null) {
+        terminalId = const Uuid().v4();
+        await prefs.setString('terminal_id', terminalId);
+      }
+
+      // 2. Gather information
+      final packageInfo = await PackageInfo.fromPlatform();
+      final platform = PlatformService.platformName;
+      final flavor = _roleConfig.role.name;
+      final version = packageInfo.version;
+
+      // 3. Create TerminalInfo
+      final info = TerminalInfo(
+        id: terminalId,
+        tenantId: tenantId,
+        flavor: flavor,
+        platform: platform,
+        version: version,
+        lastSeen: DateTime.now(),
+      );
+
+      // 4. Report to service
+      await _tenantService.reportTerminalStatus(info);
+    } catch (e) {
+      debugPrint('CloudHeartbeatService: Error reporting terminal status: $e');
     }
   }
 }

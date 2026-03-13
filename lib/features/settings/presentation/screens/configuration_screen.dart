@@ -4,6 +4,8 @@ import 'package:sss/core/configuration/domain/entities/app_configuration.dart';
 import 'package:sss/core/constants/app_constants.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
+import 'package:sss/core/services/cloud_heartbeat_service.dart';
+import 'package:sss/di/injection.dart';
 
 class ConfigurationScreen extends StatefulWidget {
   const ConfigurationScreen({super.key});
@@ -464,6 +466,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
       final updatedConfig = config.copyWith(statusTrackingMode: _selectedMode!);
       
       await bloc.configurationRepository.saveConfiguration(updatedConfig);
+      getIt<CloudHeartbeatService>().start(); // START CLOUD MONITORING
       
       if (mounted) {
         // ignore: use_build_context_synchronously

@@ -11,6 +11,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:sss/di/injection.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:sss/core/services/cloud_heartbeat_service.dart';
 import 'package:path/path.dart' as p;
 
 class SyncResult {
@@ -104,6 +105,7 @@ class SyncService {
       // Only save if configuration changed
       if (newConfig != currentConfig) {
         await _configRepo.saveConfiguration(newConfig);
+        getIt<CloudHeartbeatService>().start(); // START CLOUD MONITORING
         debugPrint('App configuration updated');
       }
 

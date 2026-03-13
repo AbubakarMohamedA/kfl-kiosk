@@ -131,8 +131,7 @@ Future<void> mainWithRole(AppRole role) async {
   // ════════════════════════════════════════════════════════════════════
   if (isConfigured && config.tenantId != null) {
     final heartbeat = getIt<CloudHeartbeatService>();
-    // ignore: unawaited_futures
-    heartbeat.checkTenantStatus(); // Fire and forget on startup
+    heartbeat.start(); // Start periodic monitoring
   }
 
   if (config.isConfigured && config.tenantId != null) {

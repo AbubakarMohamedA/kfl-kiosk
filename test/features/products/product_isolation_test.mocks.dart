@@ -8,6 +8,8 @@ import 'dart:async' as _i7;
 import 'package:drift/drift.dart' as _i5;
 import 'package:drift/src/runtime/executor/stream_queries.dart' as _i6;
 import 'package:http/http.dart' as _i3;
+import 'package:mockito/mockito.dart' as _i1;
+import 'package:mockito/src/dummies.dart' as _i14;
 import 'package:sss/core/configuration/domain/entities/app_configuration.dart'
     as _i8;
 import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart'
@@ -21,10 +23,7 @@ import 'package:sss/features/products/data/datasources/product_remote_datasource
     as _i10;
 import 'package:sss/features/products/data/datasources/sap_product_datasource.dart'
     as _i12;
-import 'package:sss/features/products/data/models/product_model.dart'
-    as _i11;
-import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i14;
+import 'package:sss/features/products/data/models/product_model.dart' as _i11;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -175,6 +174,15 @@ class MockAuthRepository extends _i1.Mock implements _i9.AuthRepository {
   _i7.Future<void> logout() =>
       (super.noSuchMethod(
             Invocation.method(#logout, []),
+            returnValue: _i7.Future<void>.value(),
+            returnValueForMissingStub: _i7.Future<void>.value(),
+          )
+          as _i7.Future<void>);
+
+  @override
+  _i7.Future<void> saveSession(_i2.Tenant? tenant) =>
+      (super.noSuchMethod(
+            Invocation.method(#saveSession, [tenant]),
             returnValue: _i7.Future<void>.value(),
             returnValueForMissingStub: _i7.Future<void>.value(),
           )
