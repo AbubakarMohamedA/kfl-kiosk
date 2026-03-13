@@ -923,6 +923,45 @@ jobs:
           PACKAGE_DIR="${FLAVOR_APP_NAME}-${VERSION}-linux-x64"
           mkdir -p "$PACKAGE_DIR"
           cp -r "${BUNDLE_DIR}"/* "$PACKAGE_DIR/"
+
+          # Determine human-readable app title and app ID from flavor
+          case "${{ matrix.flavor }}" in
+            superadmin) APP_TITLE="SSS Admin" ;;
+            manager)    APP_TITLE="SSS Manager" ;;
+            staff)      APP_TITLE="SSS Staff" ;;
+            warehouse)  APP_TITLE="SSS Warehouse" ;;
+            dashboard)  APP_TITLE="SSS Dashboard" ;;
+            kiosk)      APP_TITLE="SSS Kiosk" ;;
+            *)          APP_TITLE="$FLAVOR_APP_NAME" ;;
+          esac
+          APP_ID="com.techbizafrica.kflkiosk.${{ matrix.flavor }}"
+
+          # Remove any .desktop file baked in by CMake (it has an absolute Exec
+          # path pointing to the CI runner's build directory, which won't exist
+          # on the end-user's machine).
+          rm -f "$PACKAGE_DIR"/*.desktop
+
+          # Write a portable .desktop file. The Exec uses 'bash -c' with %k
+          # (the path to this .desktop file) so double-clicking from inside the
+          # extracted folder resolves the correct directory and runs run.sh.
+          # After install.sh is run, the installed .desktop uses the binary on
+          # PATH instead, so this file is only relevant for portable use.
+          cat > "$PACKAGE_DIR/${APP_ID}.desktop" << DESKTOP_EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=${APP_TITLE}
+GenericName=${APP_TITLE}
+Comment=KFL Kiosk Desktop Application
+Exec=bash -c 'cd "\$(dirname "%k")" && ./run.sh'
+Icon=utilities-terminal
+Categories=Utility;
+Terminal=false
+StartupNotify=true
+StartupWMClass=${APP_ID}
+DESKTOP_EOF
+          chmod +x "$PACKAGE_DIR/${APP_ID}.desktop"
+
           cat > "$PACKAGE_DIR/run.sh" << EOF
           #!/bin/bash
           SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
