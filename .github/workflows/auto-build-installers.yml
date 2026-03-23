@@ -967,82 +967,92 @@ jobs:
         } > "$PACKAGE_DIR/${APP_ID}.desktop"
         chmod +x "$PACKAGE_DIR/${APP_ID}.desktop"
 
-        cat > "$PACKAGE_DIR/run.sh" <<'RUN_EOF'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-exec "./${FLAVOR_APP_NAME}" "$@"
-RUN_EOF
-        # Substitute the literal variable that must expand at generation time
-        sed -i "s/\${FLAVOR_APP_NAME}/${FLAVOR_APP_NAME}/g" "$PACKAGE_DIR/run.sh"
-        chmod +x "$PACKAGE_DIR/run.sh"
+        # run.sh — written via python3 so no single quotes appear in YAML.
+        # The binary name is baked in at CI generation time.
+        python3 -c "
+import os, sys
+content = [
+    '#!/bin/bash',
+    'SCRIPT_DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"',
+    'cd \"\$SCRIPT_DIR\"',
+    'exec \"./${FLAVOR_APP_NAME}\" \"\$@\"',
+]
+with open('$PACKAGE_DIR/run.sh', 'w') as f:
+    f.write('\n'.join(content) + '\n')
+os.chmod('$PACKAGE_DIR/run.sh', 0o755)
+"
 
-        # install.sh — written with a quoted heredoc so no variable expansion
-        # happens here; the script uses its own runtime variables instead.
-        cat > "$PACKAGE_DIR/install.sh" <<'INSTALL_EOF'
-#!/bin/bash
+        # install.sh — written via python3 to avoid any single quotes in YAML.
+        # All shell syntax that needs literal dollar signs is passed as a plain
+        # string inside a Python triple-quoted string, then written to disk.
+        python3 - "$PACKAGE_DIR/install.sh" <<PYEOF
+import sys
+path = sys.argv[1]
+content = r"""#!/bin/bash
 set -e
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="$(basename "$SCRIPT_DIR" | sed 's/-[0-9].*//')"
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+APP_NAME="\$(basename "\$SCRIPT_DIR" | sed "s/-[0-9].*//g")"
 
-if [ "$APP_NAME" = "kflkiosk" ]; then
+if [ "\$APP_NAME" = "kflkiosk" ]; then
   APP_ID="com.techbizafrica.kflkiosk"
 else
-  FLAVOR_PART="${APP_NAME#kflkiosk-}"
-  APP_ID="com.techbizafrica.kflkiosk.${FLAVOR_PART}"
+  FLAVOR_PART="\${APP_NAME#kflkiosk-}"
+  APP_ID="com.techbizafrica.kflkiosk.\${FLAVOR_PART}"
 fi
 
-echo "Installing $APP_NAME..."
-INSTALL_DIR="$HOME/.local/share/$APP_NAME"
-BIN_DIR="$HOME/.local/bin"
-DESKTOP_DIR="$HOME/.local/share/applications"
-mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$DESKTOP_DIR"
+echo "Installing \$APP_NAME..."
+INSTALL_DIR="\$HOME/.local/share/\$APP_NAME"
+BIN_DIR="\$HOME/.local/bin"
+DESKTOP_DIR="\$HOME/.local/share/applications"
+mkdir -p "\$INSTALL_DIR" "\$BIN_DIR" "\$DESKTOP_DIR"
 
 echo "Copying application files..."
-cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+cp -r "\$SCRIPT_DIR"/* "\$INSTALL_DIR/"
 
 echo "Creating launcher..."
-ln -sf "$INSTALL_DIR/$APP_NAME" "$BIN_DIR/$APP_NAME"
+ln -sf "\$INSTALL_DIR/\$APP_NAME" "\$BIN_DIR/\$APP_NAME"
 
 ICON_PATH=""
 for icon_location in \
-  "$INSTALL_DIR/data/flutter_assets/assets/images/logo.png" \
-  "$INSTALL_DIR/data/flutter_assets/assets/icons/icon.png" \
-  "$INSTALL_DIR/data/flutter_assets/assets/icon.png" \
-  "$INSTALL_DIR/assets/images/logo.png" \
-  "$INSTALL_DIR/assets/icons/icon.png" \
-  "$INSTALL_DIR/assets/icon.png"; do
-  if [ -f "$icon_location" ]; then
-    ICON_PATH="$icon_location"
+  "\$INSTALL_DIR/data/flutter_assets/assets/images/logo.png" \
+  "\$INSTALL_DIR/data/flutter_assets/assets/icons/icon.png" \
+  "\$INSTALL_DIR/data/flutter_assets/assets/icon.png" \
+  "\$INSTALL_DIR/assets/images/logo.png" \
+  "\$INSTALL_DIR/assets/icons/icon.png" \
+  "\$INSTALL_DIR/assets/icon.png"; do
+  if [ -f "\$icon_location" ]; then
+    ICON_PATH="\$icon_location"
     break
   fi
 done
 
 echo "Creating menu entry..."
-# Build the .desktop file line-by-line to avoid heredoc indentation issues
 {
   echo "[Desktop Entry]"
   echo "Type=Application"
-  echo "Name=$APP_NAME"
-  echo "Exec=$BIN_DIR/$APP_NAME"
-  if [ -n "$ICON_PATH" ]; then echo "Icon=$ICON_PATH"; fi
+  echo "Name=\$APP_NAME"
+  echo "Exec=\$BIN_DIR/\$APP_NAME"
+  if [ -n "\$ICON_PATH" ]; then echo "Icon=\$ICON_PATH"; fi
   echo "Categories=Utility;"
   echo "Terminal=false"
-  echo "StartupWMClass=$APP_ID"
-} > "$DESKTOP_DIR/$APP_NAME.desktop"
-chmod +x "$DESKTOP_DIR/$APP_NAME.desktop"
+  echo "StartupWMClass=\$APP_ID"
+} > "\$DESKTOP_DIR/\$APP_NAME.desktop"
+chmod +x "\$DESKTOP_DIR/\$APP_NAME.desktop"
 
 if command -v update-desktop-database &> /dev/null; then
-  update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+  update-desktop-database "\$DESKTOP_DIR" 2>/dev/null || true
 fi
 
 echo ""
-echo "✓ Installation complete!"
-echo "  You can now run '$APP_NAME' from the terminal or find it in your applications menu."
+echo "Installation complete!"
+echo "  You can now run \$APP_NAME from the terminal or find it in your applications menu."
 echo ""
 echo "  To uninstall, run:"
-echo "  rm -rf $INSTALL_DIR $BIN_DIR/$APP_NAME $DESKTOP_DIR/$APP_NAME.desktop"
-INSTALL_EOF
+echo "  rm -rf \$INSTALL_DIR \$BIN_DIR/\$APP_NAME \$DESKTOP_DIR/\$APP_NAME.desktop"
+"""
+with open(path, "w") as f:
+    f.write(content)
+PYEOF
         chmod +x "$PACKAGE_DIR/install.sh"
 
         cat > "$PACKAGE_DIR/README.txt" <<README_EOF
@@ -1051,7 +1061,7 @@ ${FLAVOR_APP_NAME} - Linux Installation
 Quick Start:
 1. Run: ./install.sh
 2. Log out and log back in (or run: source ~/.profile)
-3. Launch from your application menu or run '${FLAVOR_APP_NAME}' in terminal
+3. Launch from your application menu or run ${FLAVOR_APP_NAME} in terminal
 
 Manual Run (Portable):
 - Run directly: ./run.sh
