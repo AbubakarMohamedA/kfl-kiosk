@@ -947,23 +947,24 @@ jobs:
         # won't work on the end-user's machine).
         rm -f "$PACKAGE_DIR"/*.desktop
 
-        # Write a portable .desktop file using a heredoc with no leading whitespace.
-        # Exec uses 'bash -c' with %k so double-clicking from the extracted folder
-        # resolves the correct directory and runs run.sh.
-        cat > "$PACKAGE_DIR/${APP_ID}.desktop" <<DESKTOP_EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=${APP_TITLE}
-GenericName=${APP_TITLE}
-Comment=KFL Kiosk Desktop Application
-Exec=bash -c 'cd "\$(dirname "%k")" && ./run.sh'
-Icon=utilities-terminal
-Categories=Utility;
-Terminal=false
-StartupNotify=true
-StartupWMClass=${APP_ID}
-DESKTOP_EOF
+        # Write the portable .desktop using echo statements to avoid any
+        # YAML-unsafe characters (apostrophes, etc.) inside a heredoc.
+        # The Exec line uses env -C to cd to the .desktop file's directory
+        # before invoking run.sh — compatible with all major desktop environments.
+        {
+          echo "[Desktop Entry]"
+          echo "Version=1.0"
+          echo "Type=Application"
+          echo "Name=${APP_TITLE}"
+          echo "GenericName=${APP_TITLE}"
+          echo "Comment=KFL Kiosk Desktop Application"
+          echo "Exec=env -C %d ./run.sh"
+          echo "Icon=utilities-terminal"
+          echo "Categories=Utility;"
+          echo "Terminal=false"
+          echo "StartupNotify=true"
+          echo "StartupWMClass=${APP_ID}"
+        } > "$PACKAGE_DIR/${APP_ID}.desktop"
         chmod +x "$PACKAGE_DIR/${APP_ID}.desktop"
 
         cat > "$PACKAGE_DIR/run.sh" <<'RUN_EOF'
