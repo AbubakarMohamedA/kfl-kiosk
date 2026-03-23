@@ -1069,8 +1069,6 @@ jobs:
             BUNDLE_DIR="build/linux/x64/release/bundle"
           fi
           cp -r "${BUNDLE_DIR}"/* "${APP_DIR}/usr/bin/"
-          # Rename the binary from generic "kflkiosk" to the flavor-specific name.
-          # This MUST happen before AppRun is written, since AppRun hard-codes FLAVOR_APP_NAME.
           if [ -f "${APP_DIR}/usr/bin/kflkiosk" ] && [ "${FLAVOR_APP_NAME}" != "kflkiosk" ]; then
             mv "${APP_DIR}/usr/bin/kflkiosk" "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
             echo "Renamed binary: kflkiosk → ${FLAVOR_APP_NAME}"
@@ -1094,7 +1092,6 @@ jobs:
               break
             fi
           done
-          # Fallback: copy the logo already bundled inside flutter_assets
           if [ "$ICON_CREATED" = false ]; then
             BUNDLED_ICON="${APP_DIR}/usr/bin/data/flutter_assets/assets/images/logo.png"
             if [ -f "$BUNDLED_ICON" ]; then
@@ -1110,13 +1107,11 @@ jobs:
               -annotate +0+0 "${FLAVOR_APP_NAME:0:1}" "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
             cp "${APP_DIR}/${FLAVOR_APP_NAME}.png" "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
           fi
-          
           if [ "$FLAVOR" = "default" ] || [ -z "$FLAVOR" ]; then
             APP_ID="com.techbizafrica.kflkiosk"
           else
             APP_ID="com.techbizafrica.kflkiosk.${FLAVOR}"
           fi
-          
           cat > "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" << EOF
           [Desktop Entry]
           Type=Application
@@ -1131,73 +1126,67 @@ jobs:
           EOF
           cp "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" "${APP_DIR}/usr/share/applications/${FLAVOR_APP_NAME}.desktop"
           desktop-file-validate "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" || echo "Warning: Desktop file validation failed"
-          # Create AppRun script.
-          # We bake APP_NAME and APP_ID at generation time so AppRun doesn't have to scan
-          # the directory (which risks picking up .desktop files or helper scripts).
           if [ "${FLAVOR_APP_NAME}" = "kflkiosk" ] || [ -z "${FLAVOR}" ]; then
             BAKED_APP_ID="com.techbizafrica.kflkiosk"
           else
             BAKED_APP_ID="com.techbizafrica.kflkiosk.${FLAVOR}"
           fi
           BAKED_APP_NAME="${FLAVOR_APP_NAME}"
-          cat > "${APP_DIR}/AppRun" << APPRUN_EOF
-#!/bin/bash
-set -e
-APPDIR="\$(dirname "\$(readlink -f "\${0}")")"
-APPIMAGE="\${APPIMAGE:-\$(readlink -f "\${0}")}"
-APP_NAME="${BAKED_APP_NAME}"
-APP_ID="${BAKED_APP_ID}"
-auto_integrate() {
-  local desktop_dir="\$HOME/.local/share/applications"
-  local desktop_file="\$desktop_dir/\$APP_NAME.desktop"
-  local icon_dest="\$HOME/.local/share/icons/hicolor/256x256/apps/\$APP_NAME.png"
-  if [[ ! -f "\$desktop_file" ]] && [[ "\$APPIMAGE" == */Downloads/* || "\$APPIMAGE" == */tmp/* || "\$APPIMAGE" == */Temp/* || "\$APPIMAGE" == */Desktop/* ]]; then
-    echo "First run: integrating ${BAKED_APP_NAME} with system menu..."
-    mkdir -p "\$desktop_dir"
-    mkdir -p "\$HOME/.local/share/icons/hicolor/256x256/apps"
-    cat > "\$desktop_file" << INNER_EOF
-[Desktop Entry]
-Type=Application
-Name=${BAKED_APP_NAME}
-Exec="\$APPIMAGE" %U
-Icon=\$HOME/.local/share/icons/hicolor/256x256/apps/${BAKED_APP_NAME}.png
-Categories=Utility;Application;
-Terminal=false
-Comment=${BAKED_APP_NAME} Application
-StartupWMClass=${BAKED_APP_ID}
-INNER_EOF
-    if [ -f "\$APPDIR/${BAKED_APP_NAME}.png" ]; then
-      cp "\$APPDIR/${BAKED_APP_NAME}.png" "\$icon_dest"
-    fi
-    if command -v update-desktop-database &> /dev/null; then
-      update-desktop-database "\$desktop_dir" 2>/dev/null || true
-    fi
-    echo "✓ ${BAKED_APP_NAME} has been added to your application menu!"
-    echo "  Tip: Move this AppImage to ~/Applications or ~/.local/bin for permanent installation."
-  fi
-}
-auto_integrate &
-export LD_LIBRARY_PATH="\${APPDIR}/usr/lib:\${LD_LIBRARY_PATH}"
-cd "\${APPDIR}/usr/bin"
-exec "./${BAKED_APP_NAME}" "\$@"
-APPRUN_EOF
-        chmod +x "${APP_DIR}/AppRun"
-
-        echo "Building AppImage..."
-        mkdir -p dist artifacts
-        ARCH=x86_64 ./squashfs-root/AppRun \
-          "${APP_DIR}" "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
-
-        if [ -f "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" ]; then
-          chmod +x "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
-          echo "✓ Successfully created AppImage!"
-          ls -lh "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
-          cp "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" \
-             "artifacts/${FLAVOR_APP_NAME}.AppImage"
-        else
-          echo "Warning: AppImage creation failed"
-        fi
-
+          # Write AppRun to a temp file first, then move it — avoids heredoc-in-YAML issues
+          APPRUN_FILE="${APP_DIR}/AppRun"
+          printf '%s\n' '#!/bin/bash' 'set -e' \
+            'APPDIR="$(dirname "$(readlink -f "${0}")")"' \
+            'APPIMAGE="${APPIMAGE:-$(readlink -f "${0}")}"' \
+            "APP_NAME=\"${BAKED_APP_NAME}\"" \
+            "APP_ID=\"${BAKED_APP_ID}\"" \
+            'auto_integrate() {' \
+            '  local desktop_dir="$HOME/.local/share/applications"' \
+            '  local desktop_file="$desktop_dir/$APP_NAME.desktop"' \
+            '  local icon_dest="$HOME/.local/share/icons/hicolor/256x256/apps/$APP_NAME.png"' \
+            '  if [[ ! -f "$desktop_file" ]] && [[ "$APPIMAGE" == */Downloads/* || "$APPIMAGE" == */tmp/* || "$APPIMAGE" == */Temp/* || "$APPIMAGE" == */Desktop/* ]]; then' \
+            "    echo \"First run: integrating ${BAKED_APP_NAME} with system menu...\"" \
+            '    mkdir -p "$desktop_dir"' \
+            '    mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"' \
+            '    {' \
+            '      echo "[Desktop Entry]"' \
+            '      echo "Type=Application"' \
+            "      echo \"Name=${BAKED_APP_NAME}\"" \
+            '      echo "Exec=\"\$APPIMAGE\" %U"' \
+            "      echo \"Icon=\$HOME/.local/share/icons/hicolor/256x256/apps/${BAKED_APP_NAME}.png\"" \
+            '      echo "Categories=Utility;Application;"' \
+            '      echo "Terminal=false"' \
+            "      echo \"Comment=${BAKED_APP_NAME} Application\"" \
+            "      echo \"StartupWMClass=${BAKED_APP_ID}\"" \
+            '    } > "$desktop_file"' \
+            "    if [ -f \"\$APPDIR/${BAKED_APP_NAME}.png\" ]; then" \
+            "      cp \"\$APPDIR/${BAKED_APP_NAME}.png\" \"\$icon_dest\"" \
+            '    fi' \
+            '    if command -v update-desktop-database &> /dev/null; then' \
+            '      update-desktop-database "$desktop_dir" 2>/dev/null || true' \
+            '    fi' \
+            "    echo \"✓ ${BAKED_APP_NAME} has been added to your application menu!\"" \
+            '    echo "  Tip: Move this AppImage to ~/Applications or ~/.local/bin for permanent installation."' \
+            '  fi' \
+            '}' \
+            'auto_integrate &' \
+            'export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${LD_LIBRARY_PATH}"' \
+            'cd "${APPDIR}/usr/bin"' \
+            "exec \"./${BAKED_APP_NAME}\" \"\$@\"" \
+            > "$APPRUN_FILE"
+          chmod +x "${APP_DIR}/AppRun"
+          echo "Building AppImage..."
+          mkdir -p dist artifacts
+          ARCH=x86_64 ./squashfs-root/AppRun \
+            "${APP_DIR}" "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
+          if [ -f "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" ]; then
+            chmod +x "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
+            echo "✓ Successfully created AppImage!"
+            ls -lh "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
+            cp "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" \
+               "artifacts/${FLAVOR_APP_NAME}.AppImage"
+          else
+            echo "Warning: AppImage creation failed"
+          fi
     - name: Generate Linux checksums
       run: |
         cd dist
