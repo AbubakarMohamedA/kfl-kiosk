@@ -5,7 +5,6 @@ void main() async {
   final serverUrl = 'http://127.0.0.1:8080';
   final client = HttpClient();
 
-  print('Verifying Multi-Client Support...');
 
   // 1. Create Order from Client A
   final orderA = {
@@ -18,7 +17,6 @@ void main() async {
     'terminalId': 'Client A',
   };
 
-  print('Sending Order A from Client A...');
   await _sendOrder(client, serverUrl, orderA);
 
   // 2. Create Order from Client B
@@ -32,28 +30,21 @@ void main() async {
     'terminalId': 'Client B',
   };
 
-  print('Sending Order B from Client B...');
   await _sendOrder(client, serverUrl, orderB);
 
   // 3. Fetch Orders and Verify
-  print('Fetching all orders...');
   final orders = await _getOrders(client, serverUrl);
 
-  print('Found ${orders.length} orders.');
   
   final receivedOrderA = orders.firstWhere((o) => o['id'] == orderA['id'], orElse: () => null);
   final receivedOrderB = orders.firstWhere((o) => o['id'] == orderB['id'], orElse: () => null);
 
   if (receivedOrderA != null && receivedOrderA['terminalId'] == 'Client A') {
-    print('✅ Order A verified (Terminal: Client A)');
   } else {
-    print('❌ Order A verification failed!');
   }
 
   if (receivedOrderB != null && receivedOrderB['terminalId'] == 'Client B') {
-    print('✅ Order B verified (Terminal: Client B)');
   } else {
-    print('❌ Order B verification failed!');
   }
 
   client.close();
@@ -65,7 +56,6 @@ Future<void> _sendOrder(HttpClient client, String baseUrl, Map<String, dynamic> 
   request.write(jsonEncode(order));
   final response = await request.close();
   if (response.statusCode != 200) {
-    print('Error sending order: ${response.statusCode}');
   }
 }
 

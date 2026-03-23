@@ -5,7 +5,6 @@
 // But wait, I can write a small flutter app/test that uses the actual DAOs.
 
 void main() async {
-  print('Inspecting database...');
   // Since sqlite3 command failed, I'll try to use the native drift driver if possible,
   // but that requires many dependencies.
   // actually, let's just try to cat the database file and grep for strings if it's small? No, binary.

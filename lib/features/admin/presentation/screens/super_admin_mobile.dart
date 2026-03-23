@@ -18,6 +18,7 @@ import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 import 'package:sss/core/models/update_info.dart';
 import 'package:sss/core/models/terminal_info.dart';
 
+import '../../../../core/services/firebase_rest_service.dart';
 import '../../../../core/services/github_update_service.dart';
 
 class SuperAdminMobile extends StatefulWidget {
@@ -1122,13 +1123,6 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
   }
 
   Future<void> _pullAllFromCloud() async {
-    if (Platform.isLinux) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cloud sync is disabled on Linux.')),
-      );
-      return;
-    }
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1171,13 +1165,6 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
   }
 
   Future<void> _syncAllToCloud() async {
-    if (Platform.isLinux) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cloud sync is disabled on Linux.')),
-      );
-      return;
-    }
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2263,7 +2250,64 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
 
   Widget _buildLicenseList() {
     if (Platform.isLinux) {
-      return const Center(child: Text('Cloud License List is unavailable on Linux Local-Only mode.'));
+      return FutureBuilder<List<Map<String, dynamic>>>(
+        future: getIt<FirebaseRestService>().getCollection('licenses'),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Text('Error: ${snapshot.error}');
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+          var docs = snapshot.data ?? [];
+          if (docs.isEmpty) return const Center(child: Text('No licenses generated yet.'));
+
+          // Sort by createdAt descending
+          docs.sort((a, b) {
+             final aDate = a['createdAt'] is DateTime ? a['createdAt'] as DateTime : DateTime.now();
+             final bDate = b['createdAt'] is DateTime ? b['createdAt'] as DateTime : DateTime.now();
+             return bDate.compareTo(aDate);
+          });
+
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: docs.length,
+            separatorBuilder: (context, index) => const Divider(),
+            itemBuilder: (context, index) {
+              final data = docs[index];
+              final tenantId = data['tenantId'] as String? ?? 'Unknown';
+              final tenant = _tenants.firstWhere((t) => t.id == tenantId, orElse: () => Tenant(id: tenantId, name: 'Unknown', businessName: 'Unknown Tenant', email: '', phone: '', status: '', tierId: '', createdDate: DateTime.now(), lastLogin: DateTime.now(), ordersCount: 0, revenue: 0, isMaintenanceMode: false, enabledFeatures: []));
+              
+              final expiresAt = data['expiresAt'];
+              final expiry = expiresAt is DateTime ? expiresAt : DateTime.now();
+              final status = data['status'] as String? ?? 'unknown';
+              final key = data['key'] as String? ?? '';
+
+              return ListTile(
+                title: Text(key, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+                subtitle: Text('${tenant.businessName} • Expires: ${DateFormat('yyyy-MM-dd').format(expiry)}'),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: status == 'active' ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      color: status == 'active' ? Colors.green : Colors.orange,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                onTap: () {
+                   Clipboard.setData(ClipboardData(text: key));
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Key copied')));
+                },
+              );
+            },
+          );
+        },
+      );
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -2816,10 +2860,10 @@ class _SuperAdminMobileState extends State<SuperAdminMobile>
         allowedPlatforms: _allowedPlatforms,
         githubOwner: _githubOwnerController.text.isNotEmpty 
             ? _githubOwnerController.text 
-            : GitHubUpdateService.DEFAULT_OWNER,
+            : GitHubUpdateService.defaultOwner,
         githubRepo: _githubOwnerController.text.isNotEmpty 
             ? _githubRepoController.text 
-            : GitHubUpdateService.DEFAULT_REPO,
+            : GitHubUpdateService.defaultRepo,
         githubToken: _githubTokenController.text.isNotEmpty ? _githubTokenController.text : null,
         releaseDate: DateTime.now(),
       );

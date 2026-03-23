@@ -2,7 +2,7 @@
 // in sss/test/features/products/product_isolation_test.dart.
 // Do not manually edit this file.
 
-// ignore_for_file: no_leading_underscores_for_library_prefixes
+// ignore_for_file: no_leading_underscores_for_library_prefixes, invalid_use_of_internal_member
 import 'dart:async' as _i7;
 
 import 'package:drift/drift.dart' as _i5;
@@ -72,6 +72,8 @@ class _FakeQueryExecutor_5 extends _i1.SmartFake implements _i5.QueryExecutor {
 }
 
 class _FakeStreamQueryStore_6 extends _i1.SmartFake
+    // ignore: duplicate_ignore
+    // ignore: invalid_use_of_internal_member
     implements _i6.StreamQueryStore {
   _FakeStreamQueryStore_6(Object parent, Invocation parentInvocation)
     : super(parent, parentInvocation);

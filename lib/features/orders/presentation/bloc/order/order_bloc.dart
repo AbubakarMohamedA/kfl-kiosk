@@ -107,7 +107,6 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     CreateOrder event,
     Emitter<OrderState> emit,
   ) async {
-    print('[OrderBloc] Creating order: ${event.order.id}');
     emit(const OrderCreating());
     try {
       final currentTenant = await authRepository.getCurrentTenant();
@@ -130,7 +129,6 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
       ));
       add(const LoadOrders());
     } catch (e) {
-      print('[OrderBloc] Error creating order: $e');
       emit(OrderError(e.toString()));
     }
   }

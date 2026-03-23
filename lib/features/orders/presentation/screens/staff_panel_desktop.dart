@@ -7,7 +7,6 @@ import 'package:sss/features/cart/domain/entities/cart_item.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_state.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
-// TODO: Re-enable when new features are implemented
 // import 'package:sss/features/insights/presentation/screens/analytics_screen.dart';
 // import 'package:sss/features/warehouse/presentation/screens/inventory_screen.dart';
 // import 'package:sss/features/admin/presentation/screens/staff_management_screen.dart';
@@ -46,7 +45,6 @@ class StaffPanelDesktop extends StatefulWidget {
 enum ScreenType {
   dashboard,
   orderHistory,
-  // TODO: Re-enable when new features are implemented
   // analytics,
   // inventory,
   // staffManagement,
@@ -838,7 +836,7 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   }
 
   Widget _buildSidebar() {
-    final roleConfig = getIt<RoleConfig>();
+    getIt<RoleConfig>();
     final tenantId = _currentConfig.tenantId ?? '';
     final tenantService = TenantService();
     final isSuperAdmin = tenantService.isSuperAdmin(tenantId);

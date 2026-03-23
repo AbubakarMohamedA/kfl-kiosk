@@ -66,17 +66,37 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
-  // Attempt to load the application icon from the flutter assets
+  // Attempt to load the application icon from the flutter assets.
+  // We try several paths to cover both the installed bundle layout and
+  // the flutter run / debug layout (where the exe sits in
+  // intermediates_do_not_run/ rather than bundle/).
   char exe_path[PATH_MAX];
   ssize_t count = readlink("/proc/self/exe", exe_path, PATH_MAX);
   if (count != -1) {
     std::string path(exe_path, count);
     std::string base_dir = path.substr(0, path.find_last_of("\\/"));
-    std::string icon_path = base_dir + "/data/flutter_assets/assets/images/logo.png";
-    g_autoptr(GError) error = nullptr;
-    gtk_window_set_default_icon_from_file(icon_path.c_str(), &error);
-    gtk_window_set_icon_from_file(window, icon_path.c_str(), &error);
-    // Ignore error if the file doesn't exist yet/not bundled
+
+    // Candidate icon locations in priority order
+    std::string icon_candidates[] = {
+      // Release bundle: <bundle>/data/flutter_assets/assets/images/logo.png
+      base_dir + "/data/flutter_assets/assets/images/logo.png",
+      // Debug: exe is in intermediates_do_not_run; bundle is a sibling of its parent
+      base_dir + "/../bundle/data/flutter_assets/assets/images/logo.png",
+      base_dir + "/../../bundle/data/flutter_assets/assets/images/logo.png",
+    };
+
+    bool icon_loaded = false;
+    for (const auto& icon_path : icon_candidates) {
+      g_autoptr(GError) icon_error = nullptr;
+      if (gtk_window_set_default_icon_from_file(icon_path.c_str(), &icon_error)) {
+        gtk_window_set_icon_from_file(window, icon_path.c_str(), nullptr);
+        icon_loaded = true;
+        break;
+      }
+    }
+    if (!icon_loaded) {
+      g_printerr("kflkiosk: could not load application icon from any known path\n");
+    }
   }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

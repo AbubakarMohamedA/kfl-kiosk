@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -7,10 +9,8 @@ import 'dart:io';
 void main() {
   test('Fix Product Isolation: Assign SUPER_ADMIN to orphaned products', () async {
     final dbPath = '/home/abubakar/Documents/kiosk_db.sqlite';
-    print('Checking database at $dbPath...');
     
     if (!File(dbPath).existsSync()) {
-      print('Database not found, skipping fix.');
       return;
     }
 
@@ -18,7 +18,6 @@ void main() {
     
     try {
       final products = await database.select(database.products).get();
-      print('Total products found: ${products.length}');
       
       int updatedCount = 0;
       for (final product in products) {
@@ -29,20 +28,15 @@ void main() {
         }
       }
       
-      print('Updated $updatedCount products to SUPER_ADMIN.');
       
       // Verify
       final distribution = await (database.selectOnly(database.products)
         ..addColumns([database.products.tenantId, database.products.id.count()]))
         .get();
         
-      print('Final Distribution:');
       for (final row in distribution) {
-        print('${row.read(database.products.tenantId)}: ${row.read(database.products.id.count())}');
       }
       
-    } catch (e) {
-      print('Error during fix: $e');
     } finally {
       await database.close();
     }

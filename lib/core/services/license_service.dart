@@ -164,7 +164,7 @@ class LicenseService {
   /// Generate a new unique license key
   String generateLicense() {
      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No O, 0, I, 1
-     final random = DateTime.now().microsecondsSinceEpoch.toString();
+     DateTime.now().microsecondsSinceEpoch.toString();
      String key = 'KFL-';
      for (int i = 0; i < 12; i++) {
         key += chars[DateTime.now().microsecondsSinceEpoch % chars.length];

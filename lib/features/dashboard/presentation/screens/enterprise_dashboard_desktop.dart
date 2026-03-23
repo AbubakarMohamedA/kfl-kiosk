@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -60,7 +62,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
     
     // Force clear branch ID if we are in Enterprise View
     if (config.branchId != null) {
-       final newConfig = config.copyWith(branchId: null);
+       config.copyWith(branchId: null);
        // However, since we are IN EnterpriseDashboard, we don't strictly *need* to clear it in config
        // unless we want subsequent launches to default here. 
        // For now, just use local state.
@@ -499,7 +501,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                        borderRadius: BorderRadius.circular(16),
                        boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha:0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           )
@@ -535,7 +537,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                        borderRadius: BorderRadius.circular(16),
                        boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha:0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           )
@@ -693,7 +695,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                          BoxShadow(
-                           color: Colors.black.withOpacity(0.05),
+                           color: Colors.black.withValues(alpha:0.05),
                            blurRadius: 10,
                            offset: const Offset(0, 4),
                          )
@@ -722,7 +724,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                          BoxShadow(
-                           color: Colors.black.withOpacity(0.05),
+                           color: Colors.black.withValues(alpha:0.05),
                            blurRadius: 10,
                            offset: const Offset(0, 4),
                          )
@@ -752,7 +754,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                 color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                  BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 10, offset: const Offset(0, 4))
                 ]
               ),
               child: Column(
@@ -1003,7 +1005,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
         border: Border.all(color: isDarkMode ? Colors.white10 : Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -1098,7 +1100,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
              BoxShadow(
-               color: Colors.black.withOpacity(0.05),
+               color: Colors.black.withValues(alpha:0.05),
                blurRadius: 10,
                offset: const Offset(0, 4),
              )

@@ -9,7 +9,6 @@ import 'package:sss/core/services/local_server_service.dart';
 import 'package:sss/features/orders/presentation/screens/staff_panel.dart';
 import 'package:sss/features/admin/presentation/screens/tenant_setup_screen.dart';
 import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:sss/features/auth/domain/entities/tenant.dart';
 import 'package:sss/core/services/cloud_heartbeat_service.dart';
@@ -363,15 +362,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _clearData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Local data cleared!')),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

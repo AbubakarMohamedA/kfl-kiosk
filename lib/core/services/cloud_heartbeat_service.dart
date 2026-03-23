@@ -1,9 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:io';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:sss/core/database/app_database.dart' hide Tier;
-import 'package:sss/features/auth/domain/entities/tier.dart';
 import 'package:sss/features/auth/domain/services/tenant_service.dart';
 import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,7 +22,6 @@ class CloudHeartbeatService {
   final AuthRepository _authRepository;
   final LocalServerService _localServerService;
   final RoleConfig _roleConfig;
-  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   CloudHeartbeatService(
     this._configRepo, 
@@ -75,7 +69,7 @@ class CloudHeartbeatService {
       
       // Fetch specific tenant status after sync for local checks
       final tenant = _tenantService.getTenants().firstWhere((t) => t.id == tenantId);
-      final tierId = tenant.status; // status? No, tierId.
+// status? No, tierId.
       
       // Check for license expiration (Skip for 'alone' tier)
       if (tenant.tierId != 'alone') {

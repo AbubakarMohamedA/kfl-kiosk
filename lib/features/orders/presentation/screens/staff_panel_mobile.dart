@@ -8,7 +8,6 @@ import 'package:sss/features/cart/domain/entities/cart_item.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_bloc.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_state.dart';
 import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
-// TODO: Re-enable when new features are implemented
 // import 'package:sss/features/insights/presentation/screens/analytics_screen.dart';
 // import 'package:sss/features/warehouse/presentation/screens/inventory_screen.dart';
 // import 'package:sss/features/admin/presentation/screens/staff_management_screen.dart';
@@ -16,7 +15,6 @@ import 'package:sss/features/settings/presentation/screens/settings_screen.dart'
 import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
 import 'package:sss/features/warehouse/presentation/screens/warehouse_selector_screen.dart';
 import 'package:sss/features/auth/domain/services/tenant_service.dart';
-import 'package:sss/features/home/presentation/screens/home_screen_desktop.dart';
 import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
 import 'package:sss/features/admin/presentation/screens/super_admin_screen.dart';
 import 'package:sss/features/insights/presentation/screens/business_insights_screen.dart';
@@ -28,7 +26,6 @@ import 'package:sss/features/warehouse/presentation/screens/warehouse_management
 import 'package:sss/features/products/presentation/screens/product_management_screen.dart';
 import 'package:sss/features/settings/presentation/screens/mobile_config_screen.dart'; // ✅ NEW
 import 'package:sss/core/widgets/desktop/staff_order_card.dart';
-import 'package:sss/features/auth/domain/entities/branch.dart'; // Added import
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -47,7 +44,6 @@ class StaffPanelMobile extends StatefulWidget {
 enum ScreenType {
   dashboard,
   orderHistory,
-  // TODO: Re-enable when new features are implemented
   // analytics,
   // inventory,
   // staffManagement,
@@ -76,7 +72,6 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
   ScreenType _currentScreen = ScreenType.dashboard;
   Warehouse? _selectedWarehouse;
   bool _isDarkMode = false;
-  DateTime _currentTime = DateTime.now();
   int _paidOrdersCount = 0;
 
   // ✅ NEW: Configuration tracking for mode awareness
@@ -84,9 +79,6 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
   bool _isConfigLoading = true;
 
   // Analytics data
-  int _peakHourOrders = 0;
-  double _averagePrepTime = 0.0;
-  List<Map<String, dynamic>> _hourlyData = [];
 
   // Role & Tier helpers
   bool get isEnterprise => _currentConfig.tierId == 'enterprise';
@@ -120,7 +112,6 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
-          _currentTime = DateTime.now();
         });
       }
     });
@@ -154,17 +145,6 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
   }
 
   void _generateMockAnalytics() {
-    _hourlyData = List.generate(24, (index) {
-      return {
-        'hour': index,
-        'orders': math.Random().nextInt(20) + 5,
-        'revenue': (math.Random().nextDouble() * 5000) + 1000,
-      };
-    });
-    _peakHourOrders = _hourlyData
-        .map((e) => e['orders'] as int)
-        .fold(0, (prev, current) => math.max(prev, current));
-    _averagePrepTime = 8.5 + (math.Random().nextDouble() * 6);
   }
 
   @override
@@ -632,393 +612,8 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
   }
 
 
-  Widget _buildSidebar() {
-    final roleConfig = getIt<RoleConfig>();
-    final tenantId = _currentConfig.tenantId ?? '';
-    final tenantService = TenantService();
-    final isSuperAdmin = tenantService.isSuperAdmin(tenantId);
 
-    // Feature checks
-    final canViewOrders =
-        isSuperAdmin || tenantService.canAccessFeature(tenantId, 'orders');
-    final canViewHistory =
-        isSuperAdmin || tenantService.canAccessFeature(tenantId, 'history');
-    final canViewInsights =
-        isSuperAdmin || tenantService.canAccessFeature(tenantId, 'insights');
 
-    return Container(
-      width: 280,
-      decoration: BoxDecoration(
-        color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
-        border: Border(
-          right: BorderSide(
-            color: _isDarkMode
-                ? Colors.white.withValues(alpha: 0.1)
-                : Colors.grey[200]!,
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          // ✅ NEW: Branch Indicator (Only for Enterprise Tier or Branch Managers)
-          // Since Branch Managers inherit the Enterprise Tier ID configuration,
-          // checking for 'enterprise' tier and presence of branchId covers both.
-          if (_currentConfig.branchId != null && isEnterprise && isManager)
-            _buildBranchIndicator(),
-
-          if (_currentConfig.branchId != null && isEnterprise && isManager)
-            const SizedBox(height: 20),
-
-          if (canViewOrders)
-            _buildSidebarItem(
-              icon: Icons.dashboard_rounded,
-              label: 'Dashboard',
-              maintenanceKey: 'orders',
-              isSelected:
-                  _currentScreen == ScreenType.dashboard && !_showHistory,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.dashboard;
-                  _showHistory = false;
-                });
-              },
-            ),
-          if (canViewHistory)
-            _buildSidebarItem(
-              icon: Icons.history_rounded,
-              label: 'Order History',
-              maintenanceKey: 'history',
-              isSelected:
-                  _currentScreen == ScreenType.dashboard && _showHistory,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.dashboard;
-                  _showHistory = true;
-                });
-              },
-            ),
-          // ✅ FIXED: Only show warehouse stations in item-level mode
-          if (_currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
-            _buildSidebarItem(
-              icon: Icons.warehouse,
-              label: 'Warehouse Stations',
-              maintenanceKey: 'warehouse',
-              isSelected: _currentScreen == ScreenType.warehouseSelector,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.warehouseSelector;
-                  _showHistory = false;
-                });
-              },
-            ),
-          // ✅ NEW: Warehouse Management for Branch Managers
-          if (_currentConfig.branchId != null && isEnterprise && isManager)
-            _buildSidebarItem(
-              icon: Icons.warehouse_rounded,
-              label: 'Manage Warehouses',
-              isSelected: _currentScreen == ScreenType.warehouseManagement,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.warehouseManagement;
-                  _showHistory = false;
-                });
-              },
-            ),
-
-          // ✅ NEW: Product Management
-          // Visible to all tenants as per requirement (if feature enabled)
-          if (_currentConfig.tenantId != null &&
-              TenantService().canAccessFeature(
-                _currentConfig.tenantId!,
-                'products',
-              ))
-            _buildSidebarItem(
-              icon: Icons.inventory_2_rounded,
-              label: 'Products',
-              maintenanceKey: 'products',
-              isSelected: _currentScreen == ScreenType.productManagement,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.productManagement;
-                  _showHistory = false;
-                });
-              },
-            ),
-
-          // ✅ NEW: Mobile App Config Item
-          _buildSidebarItem(
-            icon: Icons.phonelink_setup,
-            label: 'Terminal',
-            isSelected: _currentScreen == ScreenType.mobileConfig,
-            onTap: () {
-              setState(() => _currentScreen = ScreenType.mobileConfig);
-            },
-          ),
-
-          // Always show Business Insights (Gated by Paywall) - BUT hide if disabled in features
-          if (canViewInsights)
-            _buildSidebarItem(
-              icon: Icons.insights,
-              label: 'Business Insights',
-              maintenanceKey: 'insights',
-              isSelected: _currentScreen == ScreenType.businessInsights,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.businessInsights;
-                  _showHistory = false;
-                });
-              },
-            ),
-
-          const Divider(height: 20),
-
-          // Only show Admin/Kiosk for Super Admin
-          if (TenantService().isSuperAdmin(_currentConfig.tenantId ?? '')) ...[
-            _buildSidebarItem(
-              icon: Icons.storefront_rounded,
-              label: 'Customer Kiosk',
-              onTap: () {
-                showDialog(
-                  context: context,
-                  barrierDismissible: true,
-                  builder: (context) => const HomeScreenDesktop(),
-                );
-              },
-            ),
-            _buildSidebarItem(
-              icon: Icons.admin_panel_settings,
-              label: 'Super Admin',
-              isSelected: _currentScreen == ScreenType.superAdmin,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.superAdmin;
-                  _showHistory = false;
-                });
-              },
-            ),
-          ],
-          const Spacer(),
-          // Container(
-          //   margin: const EdgeInsets.all(8),
-          //   padding: const EdgeInsets.all(8),
-          //   decoration: BoxDecoration(
-          //     gradient: LinearGradient(
-          //       colors: [
-          //         const Color(AppColors.primaryBlue).withValues(alpha: 0.1),
-          //         const Color(AppColors.primaryBlue).withValues(alpha: 0.05),
-          //       ],
-          //     ),
-          //     borderRadius: BorderRadius.circular(12),
-          //     border: Border.all(
-          //       color: const Color(AppColors.primaryBlue).withValues(alpha: 0.2),
-          //     ),
-          //   ),
-          //   child: BlocBuilder<OrderBloc, OrderState>(
-          //     builder: (context, state) {
-          //       if (state is OrdersLoaded) {
-          //         return Column(
-          //           crossAxisAlignment: CrossAxisAlignment.start,
-          //           children: [
-          //             Text(
-          //               'Today\'s Overview',
-          //               style: TextStyle(
-          //                 fontSize: 12,
-          //                 fontWeight: FontWeight.w600,
-          //                 color: _isDarkMode ? Colors.white70 : Colors.grey[700],
-          //               ),
-          //             ),
-          //             const SizedBox(height: 8),
-          //             _buildSidebarStat('Orders', '${state.todaysOrderCount}'),
-          //             _buildSidebarStat(
-          //                 'Revenue', 'KSh ${state.todaysSales.toStringAsFixed(0)}'),
-          //             _buildSidebarStat(
-          //                 'Active', '${state.paidCount + state.preparingCount + state.readyCount}'),
-          //           ],
-          //         );
-          //       }
-          //       return const SizedBox.shrink();
-          //     },
-          //   ),
-          // ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBranchIndicator() {
-    final branchId = _currentConfig.branchId;
-    if (branchId == null) return const SizedBox.shrink();
-
-    // FutureBuilder handles the async list fetching
-    return FutureBuilder<List<Branch>>(
-      future: TenantService().getBranchesForTenant(
-        _currentConfig.tenantId ?? '',
-      ),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
-
-        final branches = snapshot.data!;
-        Branch? branch;
-        try {
-          branch = branches.firstWhere((b) => b.id == branchId);
-        } catch (_) {
-          branch = const Branch(
-            id: '',
-            tenantId: '',
-            name: 'Unknown Branch',
-            location: '',
-            contactPhone: '',
-            managerName: '',
-            loginUsername: '',
-            loginPassword: '',
-          );
-        }
-
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1a237e).withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFF1a237e).withValues(alpha: 0.1),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.store_rounded,
-                  color: Color(0xFF1a237e),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'CURRENT BRANCH',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      branch.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: Color(0xFF1a237e),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSidebarItem({
-    required IconData icon,
-    required String label,
-    bool isSelected = false,
-    required VoidCallback onTap,
-    String? maintenanceKey,
-    // bool isSelected = false,  <-- Duplicate removed
-  }) {
-    final tenantId = _currentConfig.tenantId ?? '';
-    final isSuperAdmin = TenantService().isSuperAdmin(tenantId);
-
-    // Check immunity
-    final isImmune = TenantService().isTenantImmune(
-      tenantId,
-      fallbackTierId: _currentConfig.tierId,
-    );
-
-    final isUnderMaintenance =
-        maintenanceKey != null &&
-        TenantService().isModuleUnderMaintenance(maintenanceKey);
-
-    // Locked if under maintenance AND not super admin AND not immune
-    final isLocked = isUnderMaintenance && !isSuperAdmin && !isImmune;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Material(
-        color: isSelected
-            ? const Color(AppColors.primaryBlue).withValues(alpha: 0.1)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: isLocked
-              ? () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'This module is currently under maintenance',
-                      ),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
-              : onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Icon(
-                  isLocked ? Icons.lock_outline : icon,
-                  size: 22,
-                  color: isLocked
-                      ? Colors.grey
-                      : isSelected
-                      ? const Color(AppColors.primaryBlue)
-                      : (_isDarkMode ? Colors.white70 : Colors.grey[600]),
-                ),
-                const SizedBox(width: 14),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isLocked
-                        ? Colors.grey
-                        : isSelected
-                        ? const Color(AppColors.primaryBlue)
-                        : (_isDarkMode ? Colors.white70 : Colors.grey[700]),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   /*
   Widget _buildSidebarStat(String label, String value) {
@@ -1049,304 +644,9 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
 */
 
   // ✅ FIXED: Right panel only shown in item-level mode
-  Widget _buildRightPanel() {
-    return Container(
-      width: 320,
-      decoration: BoxDecoration(
-        color: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
-        border: Border(
-          left: BorderSide(
-            color: _isDarkMode
-                ? Colors.white.withValues(alpha: 0.1)
-                : Colors.grey[200]!,
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: _isDarkMode
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : Colors.grey[200]!,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.show_chart_rounded,
-                  color: _isDarkMode ? Colors.white70 : Colors.grey[700],
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Live Insights',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: _isDarkMode ? Colors.white : Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: BlocBuilder<OrderBloc, OrderState>(
-              builder: (context, state) {
-                if (state is OrdersLoaded) {
-                  final completedToday = state.orders
-                      .where(
-                        (o) =>
-                            o.status == AppConstants.statusFulfilled &&
-                            _isToday(o.timestamp),
-                      )
-                      .length;
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        _buildInsightCard(
-                          'Order Flow',
-                          'Real-time status',
-                          Icons.waterfall_chart,
-                          Colors.blue,
-                          [
-                            _buildInsightRow(
-                              'Paid',
-                              state.paidCount,
-                              Colors.blue,
-                            ),
-                            _buildInsightRow(
-                              'Preparing',
-                              state.preparingCount,
-                              Colors.orange,
-                            ),
-                            _buildInsightRow(
-                              'Ready',
-                              state.readyCount,
-                              Colors.purple,
-                            ),
-                            _buildInsightRow(
-                              'Completed',
-                              completedToday,
-                              Colors.green,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildInsightCard(
-                          'Performance',
-                          'Today\'s metrics',
-                          Icons.speed,
-                          Colors.green,
-                          [
-                            _buildInsightRow(
-                              'Completion Rate',
-                              state.todaysOrderCount > 0
-                                  ? '${((completedToday / state.todaysOrderCount) * 100).toStringAsFixed(0)}%'
-                                  : '0%',
-                              Colors.green,
-                            ),
-                            _buildInsightRow(
-                              'Avg Prep Time',
-                              '${_averagePrepTime.toStringAsFixed(1)} min',
-                              Colors.teal,
-                            ),
-                            _buildInsightRow(
-                              'Peak Hour',
-                              '$_peakHourOrders orders',
-                              Colors.indigo,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildInsightCard(
-                          'Revenue',
-                          'Financial summary',
-                          Icons.attach_money,
-                          Colors.green,
-                          [
-                            _buildInsightRow(
-                              'Today',
-                              'KSh ${state.todaysSales.toStringAsFixed(0)}',
-                              Colors.green,
-                            ),
-                            _buildInsightRow(
-                              'Avg Order',
-                              state.todaysOrderCount > 0
-                                  ? 'KSh ${(state.todaysSales / state.todaysOrderCount).toStringAsFixed(0)}'
-                                  : 'KSh 0',
-                              Colors.blue,
-                            ),
-                            _buildInsightRow(
-                              'Orders',
-                              '${state.todaysOrderCount}',
-                              Colors.purple,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTrendChart(state),
-                      ],
-                    ),
-                  );
-                }
-                return const Center(child: CircularProgressIndicator());
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildInsightCard(
-    String title,
-    String subtitle,
-    IconData icon,
-    Color color,
-    List<Widget> children,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _isDarkMode
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.grey[200]!,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _isDarkMode ? Colors.white : Colors.grey[800],
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _isDarkMode ? Colors.white60 : Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...children,
-        ],
-      ),
-    );
-  }
 
-  Widget _buildInsightRow(String label, dynamic value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: _isDarkMode ? Colors.white70 : Colors.grey[600],
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              value.toString(),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildTrendChart(OrdersLoaded state) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _isDarkMode ? const Color(0xFF252b3b) : Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _isDarkMode
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.grey[200]!,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.trending_up, color: Colors.green, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Hourly Trends',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _isDarkMode ? Colors.white : Colors.grey[800],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 120,
-            child: CustomPaint(
-              size: const Size(double.infinity, 120),
-              painter: SimpleTrendChartPainter(
-                data: _hourlyData,
-                isDarkMode: _isDarkMode,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildActiveHeader() {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
@@ -2952,12 +2252,6 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
     );
   }
 
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
-  }
 
   Widget _buildDashboardContent() {
     return Column(
@@ -3094,98 +2388,6 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
     });
   }
 
-  void _showMoreOptionsBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
-      builder: (context) {
-        final tenantId = _currentConfig.tenantId ?? "";
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_currentConfig.branchId != null &&
-                    isEnterprise &&
-                    isManager)
-                  ListTile(
-                    leading: const Icon(Icons.warehouse_rounded),
-                    title: const Text("Manage Warehouses"),
-                    onTap: () {
-                      Navigator.pop(context);
-                      setState(
-                        () => _currentScreen = ScreenType.warehouseManagement,
-                      );
-                    },
-                  ),
-                if (_currentConfig.statusTrackingMode ==
-                        StatusTrackingMode.itemLevel &&
-                    _currentConfig.branchId != null)
-                  ListTile(
-                    leading: const Icon(Icons.warehouse_rounded),
-                    title: const Text("Warehouse Stations"),
-                    onTap: () {
-                      Navigator.pop(context);
-                      setState(
-                        () => _currentScreen = ScreenType.warehouseSelector,
-                      );
-                    },
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.phonelink_setup),
-                  title: const Text("Terminal Config"),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() => _currentScreen = ScreenType.mobileConfig);
-                  },
-                ),
-                if (TenantService().isSuperAdmin(tenantId) ||
-                    TenantService().canAccessFeature(tenantId, "insights"))
-                  ListTile(
-                    leading: const Icon(Icons.insights),
-                    title: const Text("Business Insights"),
-                    onTap: () {
-                      Navigator.pop(context);
-                      setState(
-                        () => _currentScreen = ScreenType.businessInsights,
-                      );
-                    },
-                  ),
-                if (TenantService().isSuperAdmin(tenantId))
-                  ListTile(
-                    leading: const Icon(Icons.admin_panel_settings),
-                    title: const Text("Super Admin"),
-                    onTap: () {
-                      Navigator.pop(context);
-                      setState(() => _currentScreen = ScreenType.superAdmin);
-                    },
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.settings),
-                  title: const Text("Settings"),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() => _currentScreen = ScreenType.settings);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.red),
-                  title: const Text(
-                    "Logout",
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _handleLogout();
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildMobileDashboardContent() {
     return _buildDashboardContent();

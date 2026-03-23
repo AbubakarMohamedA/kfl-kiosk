@@ -57,6 +57,8 @@ class OrderRemoteDataSource implements OrderDataSource {
 
   @override
   Future<OrderModel?> getOrderById(String id) async {
+    return null;
+  
     // Ideally use backend endpoint if available, but for now filtering list or using sync
     // Assuming backend supports /orders/:id
     /* 
@@ -69,7 +71,6 @@ class OrderRemoteDataSource implements OrderDataSource {
     // Fallback to fetching all and filtering for now if server doesn't support direct get by ID fully or if we assume local sync behavior
     // But implementation plan says "Use http client".
     // Let's assume standard REST
-    return null; // TODO: Implement specific endpoint logic if server supports it, otherwise relies on sync
   }
 
   @override
@@ -88,7 +89,6 @@ class OrderRemoteDataSource implements OrderDataSource {
 
   @override
   Future<int> getOrderCounter({String? tenantId, String? branchId}) async {
-    // TODO: Pass tenantId and branchId to backend
     final response = await client.get(Uri.parse('${ApiConfig.baseUrl}/orders/counter'));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);

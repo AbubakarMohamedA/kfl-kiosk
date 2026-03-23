@@ -412,7 +412,9 @@ class TenantService {
   }
 
   Map<String, dynamic> getStats() {
+    // ignore: avoid_types_as_parameter_names
     final totalRevenue = _cacheTenants.fold<double>(0, (sum, t) => sum + t.revenue);
+    // ignore: avoid_types_as_parameter_names
     final totalOrders = _cacheTenants.fold<int>(0, (sum, t) => sum + t.ordersCount);
     final activeTenants = _cacheTenants.where((t) => t.status == 'Active').length;
     
@@ -1057,38 +1059,42 @@ class TenantService {
 
       // 2. Branch Manager / Staff Login (Role Restricted)
       if (role == AppRole.staff || role == AppRole.manager) {
-        final tenantsSnapshot = await _firestore.collection('tenants').get();
-        for (final tDoc in tenantsSnapshot.docs) {
-          final branchesSnapshot = await tDoc.reference.collection('branches')
-              .where('loginUsername', isEqualTo: identifier)
-              .where('loginPassword', isEqualTo: password)
-              .get();
-              
-          if (branchesSnapshot.docs.isNotEmpty) {
-             final bDoc = branchesSnapshot.docs.first;
-             return {
-               'type': 'branch', 
-               'data': bDoc.data(), 
-               'id': bDoc.id, 
-               'tenantId': tDoc.id, 
-               'tenantData': tDoc.data()
-             };
+        final branchesSnapshot = await _firestore.collectionGroup('branches')
+            .where('loginUsername', isEqualTo: identifier)
+            .where('loginPassword', isEqualTo: password)
+            .get();
+
+        if (branchesSnapshot.docs.isNotEmpty) {
+          final bDoc = branchesSnapshot.docs.first;
+          final tDocRef = bDoc.reference.parent.parent;
+          if (tDocRef != null) {
+            final tDoc = await tDocRef.get();
+            return {
+              'type': 'branch',
+              'data': bDoc.data(),
+              'id': bDoc.id,
+              'tenantId': tDoc.id,
+              'tenantData': tDoc.data()
+            };
           }
         }
       }
 
       // 3. Warehouse Staff Login
       if (role == AppRole.warehouse) {
-        final tenantsSnapshot = await _firestore.collection('tenants').get();
-        for (final tDoc in tenantsSnapshot.docs) {
-          final branchesSnapshot = await tDoc.reference.collection('branches').get();
-          for (final bDoc in branchesSnapshot.docs) {
-             final whSnapshot = await bDoc.reference.collection('warehouses')
-                 .where('loginUsername', isEqualTo: identifier)
-                 .where('loginPassword', isEqualTo: password)
-                 .get();
-             if (whSnapshot.docs.isNotEmpty) {
-                final whDoc = whSnapshot.docs.first;
+        final whSnapshot = await _firestore.collectionGroup('warehouses')
+            .where('loginUsername', isEqualTo: identifier)
+            .where('loginPassword', isEqualTo: password)
+            .get();
+
+        if (whSnapshot.docs.isNotEmpty) {
+          final whDoc = whSnapshot.docs.first;
+          final bDocRef = whDoc.reference.parent.parent;
+          if (bDocRef != null) {
+            final tDocRef = bDocRef.parent.parent;
+            if (tDocRef != null) {
+                final tDoc = await tDocRef.get();
+                final bDoc = await bDocRef.get();
                 return {
                   'type': 'warehouse', 
                   'data': whDoc.data(), 
@@ -1098,7 +1104,7 @@ class TenantService {
                   'branchId': bDoc.id,
                   'branchData': bDoc.data()
                 };
-             }
+            }
           }
         }
       }

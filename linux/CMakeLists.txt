@@ -4,11 +4,11 @@ project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-if(DEFINED ENV{FLAVOR})
-  set(BINARY_NAME "kflkiosk_$ENV{FLAVOR}")
-else()
-  set(BINARY_NAME "kflkiosk")
-endif()
+# Flutter SDK's `flutter run` parses this file with a literal regex and explicitly
+# expects to find the output bundle in `bundle/` and the executable identically named.
+# Do NOT use $ENV{FLAVOR} here, or `flutter run` will fail to launch because it 
+# cannot resolve the environment variable. Packaging workflows can rename the executable.
+set(BINARY_NAME "kflkiosk")
 
 if(DEFINED ENV{FLAVOR})
   set(APP_FLAVOR "$ENV{FLAVOR}")
@@ -111,11 +111,10 @@ include(flutter/generated_plugins.cmake)
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
 # directory.
-if(DEFINED ENV{FLAVOR})
-  set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle_$ENV{FLAVOR}")
-else()
-  set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle")
-endif()
+# This MUST remain "bundle" (not "bundle_$ENV{FLAVOR}") because Flutter's
+# Linux runner hardcodes "bundle" inside the build directory when looking
+# for the executable to launch.
+set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle")
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)

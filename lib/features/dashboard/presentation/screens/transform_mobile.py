@@ -265,7 +265,7 @@ new_overview = """Widget _buildOverviewTab(bool isDarkMode) {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                  BoxShadow(
-                   color: Colors.black.withOpacity(0.05),
+                   color: Colors.black.withValues(alpha:0.05),
                    blurRadius: 10,
                    offset: const Offset(0, 4),
                  )
@@ -290,7 +290,7 @@ new_overview = """Widget _buildOverviewTab(bool isDarkMode) {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                    BoxShadow(
-                     color: Colors.black.withOpacity(0.05),
+                     color: Colors.black.withValues(alpha:0.05),
                      blurRadius: 10,
                      offset: const Offset(0, 4),
                    )
@@ -433,7 +433,7 @@ new_analytics = """Widget _buildAnalyticsTab(bool isDarkMode) {
               color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                 BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                 BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 10, offset: const Offset(0, 4))
               ]
             ),
             child: Column(
@@ -454,7 +454,7 @@ new_analytics = """Widget _buildAnalyticsTab(bool isDarkMode) {
               color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                 BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                 BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 10, offset: const Offset(0, 4))
               ]
             ),
             child: Column(
@@ -475,7 +475,7 @@ new_analytics = """Widget _buildAnalyticsTab(bool isDarkMode) {
               color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 10, offset: const Offset(0, 4))
               ]
             ),
             child: Column(
@@ -611,7 +611,7 @@ new_metric_card = """Widget _buildMetricCard(String title, String value, IconDat
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
            BoxShadow(
-             color: Colors.black.withOpacity(0.05),
+             color: Colors.black.withValues(alpha:0.05),
              blurRadius: 10,
              offset: const Offset(0, 4),
            )

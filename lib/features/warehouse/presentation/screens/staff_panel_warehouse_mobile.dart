@@ -658,16 +658,6 @@ class _StaffPanelWarehouseMobileState extends State<StaffPanelWarehouseMobile> {
     );
   }
 
-  int _getPendingWarehouseItems(OrdersLoaded state) {
-    return state.getWarehouseItemCountByStatus(
-          widget.warehouse.categories,
-          AppConstants.statusPaid,
-        ) +
-        state.getWarehouseItemCountByStatus(
-          widget.warehouse.categories,
-          AppConstants.statusPreparing,
-        );
-  }
 
   Widget _buildActiveOrdersView() {
     return BlocBuilder<OrderBloc, OrderState>(

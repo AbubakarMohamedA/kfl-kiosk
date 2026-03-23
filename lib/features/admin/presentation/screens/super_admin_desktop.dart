@@ -17,6 +17,7 @@ import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 import 'package:sss/core/models/terminal_info.dart';
 
 import '../../../../core/models/update_info.dart';
+import '../../../../core/services/firebase_rest_service.dart';
 import '../../../../core/services/github_update_service.dart';
 
 class SuperAdminDesktop extends StatefulWidget {
@@ -1290,20 +1291,70 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 45,
+            child: OutlinedButton.icon(
+              onPressed: () => _pullAllFromCloud(),
+              icon: const Icon(Icons.cloud_download, size: 18),
+              label: const Text('Pull Data from Cloud'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF1565C0),
+                side: const BorderSide(color: Color(0xFF1565C0)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
           const SizedBox(height: 48),
         ],
       ),
     );
   }
 
-  Future<void> _syncAllToCloud() async {
-    if (Platform.isLinux) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cloud sync is disabled on Linux.')),
-      );
-      return;
-    }
+  Future<void> _pullAllFromCloud() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Pulling from cloud...'),
+          ],
+        ),
+      ),
+    );
 
+    try {
+      await _tenantService.pullTiersFromCloud();
+      await _tenantService.pullTenantsFromCloud();
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        _loadTenants(); // Refresh UI list
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Successfully pulled all data from cloud'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error pulling from cloud: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _syncAllToCloud() async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2389,7 +2440,64 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
 
   Widget _buildLicenseList() {
     if (Platform.isLinux) {
-      return const Center(child: Text('Cloud License List is unavailable on Linux Local-Only mode.'));
+      return FutureBuilder<List<Map<String, dynamic>>>(
+        future: getIt<FirebaseRestService>().getCollection('licenses'),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Text('Error: ${snapshot.error}');
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+          var docs = snapshot.data ?? [];
+          if (docs.isEmpty) return const Center(child: Text('No licenses generated yet.'));
+
+          // Sort by createdAt descending
+          docs.sort((a, b) {
+             final aDate = a['createdAt'] is DateTime ? a['createdAt'] as DateTime : DateTime.now();
+             final bDate = b['createdAt'] is DateTime ? b['createdAt'] as DateTime : DateTime.now();
+             return bDate.compareTo(aDate);
+          });
+
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: docs.length,
+            separatorBuilder: (context, index) => const Divider(),
+            itemBuilder: (context, index) {
+              final data = docs[index];
+              final tenantId = data['tenantId'] as String? ?? 'Unknown';
+              final tenant = _tenants.firstWhere((t) => t.id == tenantId, orElse: () => Tenant(id: tenantId, name: 'Unknown', businessName: 'Unknown Tenant', email: '', phone: '', status: '', tierId: '', createdDate: DateTime.now(), lastLogin: DateTime.now(), ordersCount: 0, revenue: 0, isMaintenanceMode: false, enabledFeatures: []));
+              
+              final expiresAt = data['expiresAt'];
+              final expiry = expiresAt is DateTime ? expiresAt : DateTime.now();
+              final status = data['status'] as String? ?? 'unknown';
+              final key = data['key'] as String? ?? '';
+
+              return ListTile(
+                title: Text(key, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+                subtitle: Text('${tenant.businessName} • Expires: ${DateFormat('yyyy-MM-dd').format(expiry)}'),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: status == 'active' ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      color: status == 'active' ? Colors.green : Colors.orange,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                onTap: () {
+                   Clipboard.setData(ClipboardData(text: key));
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Key copied')));
+                },
+              );
+            },
+          );
+        },
+      );
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -2547,7 +2655,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
           //      children: [
           //        const Icon(Icons.check_circle, color: Colors.green),
           //        const SizedBox(width: 8),
-          //        Text('Default: ${GitHubUpdateService.DEFAULT_OWNER}/${GitHubUpdateService.DEFAULT_REPO}', 
+          //        Text('Default: ${GitHubUpdateService.defaultOwner}/${GitHubUpdateService.defaultRepo}', 
           //          style: const TextStyle(fontWeight: FontWeight.bold)),
           //      ],
           //    ),
@@ -2560,7 +2668,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
           //            decoration: const InputDecoration(
           //              labelText: 'GitHub Owner (Override)',
           //              border: OutlineInputBorder(),
-          //              hintText: GitHubUpdateService.DEFAULT_OWNER,
+          //              hintText: GitHubUpdateService.defaultOwner,
           //            ),
           //          ),
           //        ),
@@ -2571,7 +2679,7 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
           //            decoration: const InputDecoration(
           //              labelText: 'GitHub Repo (Override)',
           //              border: OutlineInputBorder(),
-          //              hintText: GitHubUpdateService.DEFAULT_REPO,
+          //              hintText: GitHubUpdateService.defaultRepo,
           //            ),
           //          ),
           //        ),
@@ -2924,10 +3032,10 @@ class _SuperAdminDesktopState extends State<SuperAdminDesktop>
         allowedPlatforms: _allowedPlatforms,
         githubOwner: _githubOwnerController.text.isNotEmpty 
             ? _githubOwnerController.text 
-            : GitHubUpdateService.DEFAULT_OWNER,
+            : GitHubUpdateService.defaultOwner,
         githubRepo: _githubRepoController.text.isNotEmpty 
             ? _githubRepoController.text 
-            : GitHubUpdateService.DEFAULT_REPO,
+            : GitHubUpdateService.defaultRepo,
         githubToken: _githubTokenController.text.isNotEmpty ? _githubTokenController.text : null,
         releaseDate: DateTime.now(),
       );

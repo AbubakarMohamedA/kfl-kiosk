@@ -135,7 +135,7 @@ void main() {
 
   group('Feature Flags', () {
     test('Standard tier should have products feature enabled', () {
-       final hasAccess = TenantService().canAccessFeature('standard_tenant_id', 'products'); 
+       TenantService().canAccessFeature('standard_tenant_id', 'products'); 
        // We need a tenant with standard tier.
        // TenantService relies on cached tenants and tiers.
        // Let's add a test tenant.

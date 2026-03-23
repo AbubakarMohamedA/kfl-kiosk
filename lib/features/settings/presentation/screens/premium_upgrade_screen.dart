@@ -18,7 +18,7 @@ class PremiumUpgradeScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha:0.05),
                   blurRadius: 20,
                   offset: const Offset(0, 4),
                 ),
@@ -32,7 +32,7 @@ class PremiumUpgradeScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFD700).withOpacity(0.1),
+                    color: const Color(0xFFFFD700).withValues(alpha:0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -81,7 +81,6 @@ class PremiumUpgradeScreen extends StatelessWidget {
                   height: 56,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      // TODO: Implement contact flow or email trigger
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Contact support to upgrade!')),
                       );

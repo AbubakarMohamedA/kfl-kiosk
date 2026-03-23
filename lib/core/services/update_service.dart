@@ -74,7 +74,6 @@ class UpdateService {
   final TenantService _tenantService;
   
   static const String _keyLastCheckTime = 'update_last_check_time';
-  static const String _keyDismissedVersion = 'update_dismissed_version';
 
   UpdateService(this._configRepo, this._roleConfig, this._tenantService);
 
@@ -180,8 +179,8 @@ class UpdateService {
     }
 
     final githubService = GitHubUpdateService(
-      owner: manifest.githubOwner ?? GitHubUpdateService.DEFAULT_OWNER,
-      repo: manifest.githubRepo ?? GitHubUpdateService.DEFAULT_REPO,
+      owner: manifest.githubOwner ?? GitHubUpdateService.defaultOwner,
+      repo: manifest.githubRepo ?? GitHubUpdateService.defaultRepo,
       githubToken: manifest.githubToken,
     );
     

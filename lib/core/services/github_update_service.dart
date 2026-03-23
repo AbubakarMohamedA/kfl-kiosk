@@ -6,16 +6,16 @@ import '../services/platform_service.dart';
 /// Service for checking updates from GitHub Releases
 /// Perfect for desktop apps and Linux where Firebase isn't available
 class GitHubUpdateService {
-  static const String DEFAULT_OWNER = 'AbubakarMohamedA';
-  static const String DEFAULT_REPO = 'kfl-kiosk';
+  static const String defaultOwner = 'AbubakarMohamedA';
+  static const String defaultRepo = 'kfl-kiosk';
 
   final String owner;
   final String repo;
   final String? githubToken; // Optional: for private repos
 
   GitHubUpdateService({
-    this.owner = DEFAULT_OWNER,
-    this.repo = DEFAULT_REPO,
+    this.owner = defaultOwner,
+    this.repo = defaultRepo,
     this.githubToken,
   });
 

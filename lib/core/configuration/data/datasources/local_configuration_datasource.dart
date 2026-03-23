@@ -25,6 +25,7 @@ class LocalConfigurationDataSource {
           await saveConfiguration(config);
           await prefs.setBool(_migrationDoneKey, true);
           return config;
+        // ignore: empty_catches
         } catch (e) {}
       }
       await prefs.setBool(_migrationDoneKey, true);
@@ -35,6 +36,7 @@ class LocalConfigurationDataSource {
     if (row != null) {
       try {
         return AppConfiguration.fromJson(jsonDecode(row.value));
+      // ignore: empty_catches
       } catch (e) {}
     }
     return AppConfiguration();

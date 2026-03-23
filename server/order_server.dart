@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -34,21 +36,8 @@ void main() async {
       .map((addr) => addr.address)
       .toList();
   
-  print('╔══════════════════════════════════════════════════════════════╗');
-  print('║           SSS Kiosk Order Sync Server Started                ║');
-  print('╠══════════════════════════════════════════════════════════════╣');
-  print('║ Server running on port 8080                                  ║');
-  print('║                                                              ║');
-  print('║ Connect your devices using one of these addresses:          ║');
   for (final ip in ips) {
-    print('${'║   http://$ip:8080'.padRight(63)}║');
   }
-  print('║                                                              ║');
-  print('║ In the app, set the server URL in Settings.                 ║');
-  print('╚══════════════════════════════════════════════════════════════╝');
-  print('');
-  print('Waiting for connections...');
-  print('');
 
   await for (final request in server) {
     // Enable CORS
@@ -70,7 +59,6 @@ void main() async {
     try {
       // GET /orders - List all orders
       if (method == 'GET' && path == '/orders') {
-        print('[${DateTime.now()}] GET /orders - Returning ${orders.length} orders');
         request.response.write(jsonEncode({
           'orders': orders, 
           'counter': orderCounter,
@@ -86,10 +74,8 @@ void main() async {
         final existingIndex = orders.indexWhere((o) => o['id'] == order['id']);
         if (existingIndex != -1) {
           orders[existingIndex] = order;
-          print('[${DateTime.now()}] POST /orders - Updated order ${order['id']}');
         } else {
           orders.add(order);
-          print('[${DateTime.now()}] POST /orders - Added order ${order['id']}');
         }
         
         request.response.write(jsonEncode({'success': true, 'orderId': order['id']}));
@@ -103,7 +89,6 @@ void main() async {
         final index = orders.indexWhere((o) => o['id'] == orderId);
         if (index != -1) {
           orders[index] = {...orders[index], ...updates};
-          print('[${DateTime.now()}] PUT /orders/$orderId - Updated');
           request.response.write(jsonEncode({'success': true}));
         } else {
           request.response.statusCode = 404;
@@ -114,7 +99,6 @@ void main() async {
       else if (method == 'DELETE' && path.startsWith('/orders/')) {
         final orderId = path.split('/').last;
         orders.removeWhere((o) => o['id'] == orderId);
-        print('[${DateTime.now()}] DELETE /orders/$orderId - Deleted');
         request.response.write(jsonEncode({'success': true}));
       }
       // GET /orders/counter - Get counter
@@ -133,10 +117,8 @@ void main() async {
           final String key = data['key'];
           final int count = data['counter'];
           counterMap[key] = count;
-          print('[${DateTime.now()}] POST /orders/counter - Set $key to $count');
         } else {
           orderCounter = data['counter'] ?? orderCounter;
-          print('[${DateTime.now()}] POST /orders/counter - Set global to $orderCounter');
         }
         
         request.response.write(jsonEncode({
@@ -148,7 +130,6 @@ void main() async {
       // DELETE /orders - Clear all orders
       else if (method == 'DELETE' && path == '/orders') {
         orders.clear();
-        print('[${DateTime.now()}] DELETE /orders - Cleared all orders');
         request.response.write(jsonEncode({'success': true}));
       }
       // Health check
@@ -166,7 +147,6 @@ void main() async {
         request.response.write(jsonEncode({'error': 'Not found'}));
       }
     } catch (e) {
-      print('[${DateTime.now()}] ERROR: $e');
       request.response.statusCode = 500;
       request.response.write(jsonEncode({'error': e.toString()}));
     }

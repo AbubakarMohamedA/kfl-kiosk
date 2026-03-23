@@ -29,17 +29,6 @@ class _MobileConfigScreenState extends State<MobileConfigScreen> {
   Color _secondaryColor = const Color(0xFFffd700);
   
   String? _backgroundPath;
-  final List<String> _availableBackgrounds = [
-    'assets/bg/Pattern_Blue.svg',
-    'assets/bg/Pattern_Gold.svg',
-    'assets/bg/Pattern_Green.svg',
-    'assets/bg/Pattern_Indigo.svg',
-    'assets/bg/Pattern_Orange.svg',
-    'assets/bg/Pattern_Pink.svg',
-    'assets/bg/Pattern_Purple.svg',
-    'assets/bg/Pattern_Red.svg',
-    'assets/bg/Pattern_Teal.svg',
-  ];
   
   String _serverIp = 'Loading...';
   bool _isLoading = true;

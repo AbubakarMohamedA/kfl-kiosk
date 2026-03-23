@@ -62,7 +62,7 @@ class AccountDisabledScreen extends StatelessWidget {
                 backgroundColor: Colors.red[50], // Light red background
                 foregroundColor: Colors.red, // Red text/icon
                 elevation: 0,
-                side: BorderSide(color: Colors.red.withOpacity(0.2)),
+                side: BorderSide(color: Colors.red.withValues(alpha:0.2)),
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               ),
             ),

@@ -1121,7 +1121,6 @@ class _SettingsScreenState extends State<SettingsScreen>
       // This method saves other settings (business info, tax, receipt settings, etc.)
       
       // Save other settings here...
-      // TODO: Implement saving for business details, tax config, receipt settings, etc.
       
       final orderDataSource = getIt<LocalOrderDataSource>();
       await orderDataSource.setTerminalId(_terminalId);

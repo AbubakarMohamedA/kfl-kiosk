@@ -234,7 +234,6 @@ class LocalOrderDataSource implements OrderDataSource {
             .map((json) => OrderModel.fromJson(json as Map<String, dynamic>))
             .toList();
         
-        // TODO: Update server sync logic for new map-based counters if needed
 
         // Update cache if orders changed
         if (_hasOrdersChanged(newOrders)) {

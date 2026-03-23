@@ -61,8 +61,7 @@ class RoleConfig {
           showManagerUI: true,
         );
       case AppRole.kiosk:
-      default:
-        return const RoleConfig(
+      return const RoleConfig(
           role: AppRole.kiosk,
           appName: 'SSS Kiosk Terminal',
           showKioskUI: true,
