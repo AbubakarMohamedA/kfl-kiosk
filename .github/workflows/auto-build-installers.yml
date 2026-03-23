@@ -820,421 +820,366 @@ jobs:
           retention-days: 30
 
   build-linux:
-  needs: [parse-metadata, compute-matrix]
-  if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'linux'
-  strategy:
-    fail-fast: false
-    matrix:
-      arch: [x64]
-      flavor: ${{ fromJson(needs.compute-matrix.outputs.flavors) }}
-  runs-on: ubuntu-latest
-  timeout-minutes: 60
-  env:
-    APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
-    FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
-    FLAVOR: ${{ matrix.flavor }}
-    VERSION: ${{ needs.parse-metadata.outputs.version }}
-    VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
-    TARGETARCH: ${{ matrix.arch }}
-  steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
+    needs: [parse-metadata, compute-matrix]
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'linux'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64]
+        flavor: ${{ fromJson(needs.compute-matrix.outputs.flavors) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
+      FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
+      FLAVOR: ${{ matrix.flavor }}
+      VERSION: ${{ needs.parse-metadata.outputs.version }}
+      VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
+      TARGETARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.flutter
+            ~/.pub-cache
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
 
-    - name: Cache Flutter SDK
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.flutter
-          ~/.pub-cache
-        key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-flutter-
-
-    - name: Install bsdiff for delta updates
-      run: |
-        set -e
-        sudo apt-get update
-        sudo apt-get install -y bsdiff
-        if ! command -v bsdiff &> /dev/null; then
-          echo "bsdiff command not found after installation"
-          exit 1
-        fi
-        if ! command -v bspatch &> /dev/null; then
-          echo "bspatch command not found after installation"
-          exit 1
-        fi
-        echo "BSDIFF_PATH=$(which bsdiff)" >> $GITHUB_ENV
-        echo "BSPATCH_PATH=$(which bspatch)" >> $GITHUB_ENV
-        echo "✓ bsdiff/bspatch installed successfully"
-
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        channel: stable
-        cache: true
-        cache-key: flutter-linux-${{ hashFiles('**/pubspec.lock') }}
-
-    - name: Install Linux dependencies
-      timeout-minutes: 10
-      run: |
-        set -e
-        sudo apt-get update
-        sudo apt-get install -y \
-          clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-          libglu1-mesa-dev mesa-common-dev libxtst-dev libxrandr-dev \
-          libxinerama-dev libxcursor-dev libxi-dev libxrender-dev \
-          libxcomposite-dev libasound2-dev libpulse-dev libgl1-mesa-dev \
-          libdrm-dev libgbm-dev libxkbcommon-dev libwayland-dev \
-          libegl1-mesa-dev libsecret-1-dev libayatana-appindicator3-dev \
-          imagemagick file zsync desktop-file-utils fakeroot libarchive-tools
-        flutter pub get
-        flutter config --enable-linux-desktop
-        flutter doctor -v
-
-    - name: Build Flutter Linux app
-      timeout-minutes: 20
-      run: |
-        set -e
-        ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
-        if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
-        if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
-
-        export FLAVOR=${{ matrix.flavor }}
-        flutter build linux --release -t "$ENTRY_FILE"
-
-    - name: Create Tarball with Installer
-      timeout-minutes: 10
-      run: |
-        set -e
-        echo "Creating tarball for ${FLAVOR_APP_NAME} version ${VERSION}"
-        mkdir -p dist artifacts
-
-        BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
-        if [ ! -d "$BUNDLE_DIR" ]; then
-          BUNDLE_DIR="build/linux/x64/release/bundle"
-        fi
-        if [ ! -d "$BUNDLE_DIR" ]; then
-          echo "Error: Bundle directory not found"
-          exit 1
-        fi
-
-        # Rename binary to flavor-specific name
-        if [ -f "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" ]; then
-          mv "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" "$BUNDLE_DIR/${FLAVOR_APP_NAME}"
-        elif [ -f "$BUNDLE_DIR/kflkiosk" ]; then
-          mv "$BUNDLE_DIR/kflkiosk" "$BUNDLE_DIR/${FLAVOR_APP_NAME}"
-        fi
-
-        PACKAGE_DIR="${FLAVOR_APP_NAME}-${VERSION}-linux-x64"
-        mkdir -p "$PACKAGE_DIR"
-        cp -r "${BUNDLE_DIR}"/* "$PACKAGE_DIR/"
-        chmod +x "$PACKAGE_DIR/${FLAVOR_APP_NAME}"
-
-        # Determine human-readable app title and app ID from flavor
-        case "${{ matrix.flavor }}" in
-          superadmin) APP_TITLE="SSS Admin" ;;
-          manager)    APP_TITLE="SSS Manager" ;;
-          staff)      APP_TITLE="SSS Staff" ;;
-          warehouse)  APP_TITLE="SSS Warehouse" ;;
-          dashboard)  APP_TITLE="SSS Dashboard" ;;
-          kiosk)      APP_TITLE="SSS Kiosk" ;;
-          *)          APP_TITLE="${FLAVOR_APP_NAME}" ;;
-        esac
-        APP_ID="com.techbizafrica.kflkiosk.${{ matrix.flavor }}"
-
-        # Remove any .desktop file baked in by CMake (absolute Exec path,
-        # won't work on the end-user's machine).
-        rm -f "$PACKAGE_DIR"/*.desktop
-
-        # Write the portable .desktop using echo statements to avoid any
-        # YAML-unsafe characters (apostrophes, etc.) inside a heredoc.
-        # The Exec line uses env -C to cd to the .desktop file's directory
-        # before invoking run.sh — compatible with all major desktop environments.
-        {
-          echo "[Desktop Entry]"
-          echo "Version=1.0"
-          echo "Type=Application"
-          echo "Name=${APP_TITLE}"
-          echo "GenericName=${APP_TITLE}"
-          echo "Comment=KFL Kiosk Desktop Application"
-          echo "Exec=env -C %d ./run.sh"
-          echo "Icon=utilities-terminal"
-          echo "Categories=Utility;"
-          echo "Terminal=false"
-          echo "StartupNotify=true"
-          echo "StartupWMClass=${APP_ID}"
-        } > "$PACKAGE_DIR/${APP_ID}.desktop"
-        chmod +x "$PACKAGE_DIR/${APP_ID}.desktop"
-
-        # run.sh — written via python3 so no single quotes appear in YAML.
-        # The binary name is baked in at CI generation time.
-        python3 -c "
-import os, sys
-content = [
-    '#!/bin/bash',
-    'SCRIPT_DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"',
-    'cd \"\$SCRIPT_DIR\"',
-    'exec \"./${FLAVOR_APP_NAME}\" \"\$@\"',
-]
-with open('$PACKAGE_DIR/run.sh', 'w') as f:
-    f.write('\n'.join(content) + '\n')
-os.chmod('$PACKAGE_DIR/run.sh', 0o755)
-"
-
-        # install.sh — written via python3 to avoid any single quotes in YAML.
-        # All shell syntax that needs literal dollar signs is passed as a plain
-        # string inside a Python triple-quoted string, then written to disk.
-        python3 - "$PACKAGE_DIR/install.sh" <<PYEOF
-import sys
-path = sys.argv[1]
-content = r"""#!/bin/bash
-set -e
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="\$(basename "\$SCRIPT_DIR" | sed "s/-[0-9].*//g")"
-
-if [ "\$APP_NAME" = "kflkiosk" ]; then
-  APP_ID="com.techbizafrica.kflkiosk"
-else
-  FLAVOR_PART="\${APP_NAME#kflkiosk-}"
-  APP_ID="com.techbizafrica.kflkiosk.\${FLAVOR_PART}"
-fi
-
-echo "Installing \$APP_NAME..."
-INSTALL_DIR="\$HOME/.local/share/\$APP_NAME"
-BIN_DIR="\$HOME/.local/bin"
-DESKTOP_DIR="\$HOME/.local/share/applications"
-mkdir -p "\$INSTALL_DIR" "\$BIN_DIR" "\$DESKTOP_DIR"
-
-echo "Copying application files..."
-cp -r "\$SCRIPT_DIR"/* "\$INSTALL_DIR/"
-
-echo "Creating launcher..."
-ln -sf "\$INSTALL_DIR/\$APP_NAME" "\$BIN_DIR/\$APP_NAME"
-
-ICON_PATH=""
-for icon_location in \
-  "\$INSTALL_DIR/data/flutter_assets/assets/images/logo.png" \
-  "\$INSTALL_DIR/data/flutter_assets/assets/icons/icon.png" \
-  "\$INSTALL_DIR/data/flutter_assets/assets/icon.png" \
-  "\$INSTALL_DIR/assets/images/logo.png" \
-  "\$INSTALL_DIR/assets/icons/icon.png" \
-  "\$INSTALL_DIR/assets/icon.png"; do
-  if [ -f "\$icon_location" ]; then
-    ICON_PATH="\$icon_location"
-    break
-  fi
-done
-
-echo "Creating menu entry..."
-{
-  echo "[Desktop Entry]"
-  echo "Type=Application"
-  echo "Name=\$APP_NAME"
-  echo "Exec=\$BIN_DIR/\$APP_NAME"
-  if [ -n "\$ICON_PATH" ]; then echo "Icon=\$ICON_PATH"; fi
-  echo "Categories=Utility;"
-  echo "Terminal=false"
-  echo "StartupWMClass=\$APP_ID"
-} > "\$DESKTOP_DIR/\$APP_NAME.desktop"
-chmod +x "\$DESKTOP_DIR/\$APP_NAME.desktop"
-
-if command -v update-desktop-database &> /dev/null; then
-  update-desktop-database "\$DESKTOP_DIR" 2>/dev/null || true
-fi
-
-echo ""
-echo "Installation complete!"
-echo "  You can now run \$APP_NAME from the terminal or find it in your applications menu."
-echo ""
-echo "  To uninstall, run:"
-echo "  rm -rf \$INSTALL_DIR \$BIN_DIR/\$APP_NAME \$DESKTOP_DIR/\$APP_NAME.desktop"
-"""
-with open(path, "w") as f:
-    f.write(content)
-PYEOF
-        chmod +x "$PACKAGE_DIR/install.sh"
-
-        cat > "$PACKAGE_DIR/README.txt" <<README_EOF
-${FLAVOR_APP_NAME} - Linux Installation
-================================
-Quick Start:
-1. Run: ./install.sh
-2. Log out and log back in (or run: source ~/.profile)
-3. Launch from your application menu or run ${FLAVOR_APP_NAME} in terminal
-
-Manual Run (Portable):
-- Run directly: ./run.sh
-- Or execute: ./${FLAVOR_APP_NAME}
-
-Uninstall:
-- Run the command shown at the end of installation
-README_EOF
-
-        tar -czf "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "$PACKAGE_DIR"
-        TAR_EXIT=$?
-        if [ $TAR_EXIT -ne 0 ] && [ $TAR_EXIT -ne 2 ]; then
-          echo "Error: tar failed with exit code $TAR_EXIT"
-          exit $TAR_EXIT
-        fi
-        echo "✓ Successfully created tarball: dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz"
-
-        # Save tarball for delta generation
-        cp "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "artifacts/${FLAVOR_APP_NAME}.tar.gz"
-
-    - name: Create AppImage
-      timeout-minutes: 15
-      run: |
-        set -e
-        echo "Building AppImage for ${FLAVOR_APP_NAME} version ${VERSION}"
-
-        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
-          -O appimagetool
-        chmod +x appimagetool
-        ./appimagetool --appimage-extract > /dev/null 2>&1
-
-        APP_DIR="${FLAVOR_APP_NAME}.AppDir"
-        rm -rf "${APP_DIR}"
-        mkdir -p \
-          "${APP_DIR}/usr/bin" \
-          "${APP_DIR}/usr/lib" \
-          "${APP_DIR}/usr/share/icons/hicolor/256x256/apps" \
-          "${APP_DIR}/usr/share/applications"
-
-        BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
-        if [ ! -d "$BUNDLE_DIR" ]; then
-          BUNDLE_DIR="build/linux/x64/release/bundle"
-        fi
-        cp -r "${BUNDLE_DIR}"/* "${APP_DIR}/usr/bin/"
-
-        # Rename binary to flavor-specific name BEFORE AppRun is written,
-        # since AppRun hard-codes FLAVOR_APP_NAME.
-        if [ -f "${APP_DIR}/usr/bin/kflkiosk" ] && [ "${FLAVOR_APP_NAME}" != "kflkiosk" ]; then
-          mv "${APP_DIR}/usr/bin/kflkiosk" "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
-          echo "Renamed binary: kflkiosk → ${FLAVOR_APP_NAME}"
-        fi
-        chmod +x "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
-
-        # Icon resolution — try source tree first, then bundled flutter_assets
-        ICON_CREATED=false
-        for icon_path in \
-          "assets/images/logo.png" \
-          "linux/icons/logo.png" \
-          "assets/icons/icon.png" \
-          "assets/images/icon.png" \
-          "assets/icon.png" \
-          "linux/app_icon.png" \
-          "icons/icon.png" \
-          "images/icon.png"; do
-          if [ -f "$icon_path" ]; then
-            echo "Found icon at $icon_path"
-            convert "$icon_path" -resize 256x256 "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
-            convert "$icon_path" -resize 256x256 \
-              "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
-            ICON_CREATED=true
-            break
+      - name: Install bsdiff for delta updates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bsdiff
+          # Verify installation
+          if ! command -v bsdiff &> /dev/null; then
+            echo "bsdiff command not found after installation"
+            exit 1
           fi
-        done
-
-        if [ "$ICON_CREATED" = false ]; then
-          BUNDLED_ICON="${APP_DIR}/usr/bin/data/flutter_assets/assets/images/logo.png"
-          if [ -f "$BUNDLED_ICON" ]; then
-            echo "Using bundled flutter_assets icon as fallback"
-            convert "$BUNDLED_ICON" -resize 256x256 "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
-            convert "$BUNDLED_ICON" -resize 256x256 \
-              "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
-            ICON_CREATED=true
+          if ! command -v bspatch &> /dev/null; then
+            echo "bspatch command not found after installation"
+            exit 1
           fi
-        fi
+          echo "BSDIFF_PATH=$(which bsdiff)" >> $GITHUB_ENV
+          echo "BSPATCH_PATH=$(which bspatch)" >> $GITHUB_ENV
+          echo "✓ bsdiff/bspatch installed successfully"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-key: flutter-linux-${{ hashFiles('**/pubspec.lock') }}
+      - name: Install Linux dependencies
+        timeout-minutes: 10
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libglu1-mesa-dev mesa-common-dev libxtst-dev libxrandr-dev \
+            libxinerama-dev libxcursor-dev libxi-dev libxrender-dev \
+            libxcomposite-dev libasound2-dev libpulse-dev libgl1-mesa-dev \
+            libdrm-dev libgbm-dev libxkbcommon-dev libwayland-dev \
+            libegl1-mesa-dev libsecret-1-dev libayatana-appindicator3-dev \
+            imagemagick file zsync desktop-file-utils fakeroot libarchive-tools
+          flutter pub get
+          flutter config --enable-linux-desktop
+          flutter doctor -v
+      - name: Build Flutter Linux app
+        timeout-minutes: 20
+        run: |
+          set -e
+          ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
+          if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
+          if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+          
+          export FLAVOR=${{ matrix.flavor }}
+          flutter build linux --release -t $ENTRY_FILE
+      - name: Create Tarball with Installer
+        timeout-minutes: 10
+        run: |
+          set -e
+          echo "Creating tarball for $FLAVOR_APP_NAME version $VERSION"
+          mkdir -p dist
+          BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="build/linux/x64/release/bundle"
+          fi
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Error: Bundle directory not found"
+            exit 1
+          fi
+          
+          # The binary compiled by CMake on Linux may be flavor-aware now
+          if [ -f "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" ]; then
+            mv "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" "$BUNDLE_DIR/$FLAVOR_APP_NAME"
+          elif [ -f "$BUNDLE_DIR/kflkiosk" ]; then
+            mv "$BUNDLE_DIR/kflkiosk" "$BUNDLE_DIR/$FLAVOR_APP_NAME"
+          fi
+          
+          PACKAGE_DIR="${FLAVOR_APP_NAME}-${VERSION}-linux-x64"
+          mkdir -p "$PACKAGE_DIR"
+          cp -r "${BUNDLE_DIR}"/* "$PACKAGE_DIR/"
 
-        if [ "$ICON_CREATED" = false ]; then
-          echo "No icon found, generating placeholder"
-          convert -size 256x256 xc:#4285F4 -pointsize 120 -fill white -gravity center \
-            -annotate +0+0 "${FLAVOR_APP_NAME:0:1}" "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
-          cp "${APP_DIR}/${FLAVOR_APP_NAME}.png" \
-            "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
-        fi
+          # Determine human-readable app title and app ID from flavor
+          case "${{ matrix.flavor }}" in
+            superadmin) APP_TITLE="SSS Admin" ;;
+            manager)    APP_TITLE="SSS Manager" ;;
+            staff)      APP_TITLE="SSS Staff" ;;
+            warehouse)  APP_TITLE="SSS Warehouse" ;;
+            dashboard)  APP_TITLE="SSS Dashboard" ;;
+            kiosk)      APP_TITLE="SSS Kiosk" ;;
+            *)          APP_TITLE="$FLAVOR_APP_NAME" ;;
+          esac
+          APP_ID="com.techbizafrica.kflkiosk.${{ matrix.flavor }}"
 
-        # Bake APP_ID at generation time
-        if [ "${FLAVOR}" = "default" ] || [ -z "${FLAVOR}" ]; then
-          APP_ID="com.techbizafrica.kflkiosk"
-        else
-          APP_ID="com.techbizafrica.kflkiosk.${FLAVOR}"
-        fi
+          # Remove any .desktop file baked in by CMake (it has an absolute Exec
+          # path pointing to the CI runner's build directory, which won't exist
+          # on the end-user's machine).
+          rm -f "$PACKAGE_DIR"/*.desktop
 
-        # .desktop file — written with echo statements to guarantee no leading whitespace
-        {
-          echo "[Desktop Entry]"
-          echo "Type=Application"
-          echo "Name=${FLAVOR_APP_NAME}"
-          echo "Exec=${FLAVOR_APP_NAME}"
-          echo "Icon=${FLAVOR_APP_NAME}"
-          echo "Categories=Utility;Application;"
-          echo "Terminal=false"
-          echo "Comment=${FLAVOR_APP_NAME} Application"
-          echo "StartupWMClass=${APP_ID}"
-          echo "X-AppImage-Version=${VERSION}"
-        } > "${APP_DIR}/${FLAVOR_APP_NAME}.desktop"
-        cp "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" \
-           "${APP_DIR}/usr/share/applications/${FLAVOR_APP_NAME}.desktop"
+          # Write a portable .desktop file. The Exec uses 'bash -c' with %k
+          # (the path to this .desktop file) so double-clicking from inside the
+          # extracted folder resolves the correct directory and runs run.sh.
+          # After install.sh is run, the installed .desktop uses the binary on
+          # PATH instead, so this file is only relevant for portable use.
+          cat > "$PACKAGE_DIR/${APP_ID}.desktop" << DESKTOP_EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=${APP_TITLE}
+          GenericName=${APP_TITLE}
+          Comment=KFL Kiosk Desktop Application
+          Exec=bash -c 'cd "\$(dirname "%k")" && ./run.sh'
+          Icon=utilities-terminal
+          Categories=Utility;
+          Terminal=false
+          StartupNotify=true
+          StartupWMClass=${APP_ID}
+          DESKTOP_EOF
+          chmod +x "$PACKAGE_DIR/${APP_ID}.desktop"
 
-        desktop-file-validate "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" \
-          || echo "Warning: Desktop file validation failed"
+          cat > "$PACKAGE_DIR/run.sh" << EOF
+          #!/bin/bash
+          SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+          cd "\$SCRIPT_DIR"
+          ./${FLAVOR_APP_NAME} "\$@"
+          EOF
+          chmod +x "$PACKAGE_DIR/run.sh"
+          chmod +x "$PACKAGE_DIR/${FLAVOR_APP_NAME}"
+          cat > "$PACKAGE_DIR/install.sh" << 'INSTALL_EOF'
+          #!/bin/bash
+          set -e
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          APP_NAME="$(basename "$SCRIPT_DIR" | sed 's/-[0-9].*//')"
+          
+          if [ "$APP_NAME" = "kflkiosk" ]; then
+            APP_ID="com.techbizafrica.kflkiosk"
+          else
+            FLAVOR_PART="${APP_NAME#kflkiosk-}"
+            APP_ID="com.techbizafrica.kflkiosk.${FLAVOR_PART}"
+          fi
 
-        # AppRun — all runtime variables baked in at generation time.
-        # auto_integrate() is fully self-contained: the icon copy and
-        # update-desktop-database call are correctly scoped inside the outer
-        # "if desktop file not yet present" block.
-        cat > "${APP_DIR}/AppRun" <<APPRUN_EOF
+          echo "Installing $APP_NAME..."
+          INSTALL_DIR="$HOME/.local/share/$APP_NAME"
+          BIN_DIR="$HOME/.local/bin"
+          DESKTOP_DIR="$HOME/.local/share/applications"
+          mkdir -p "$INSTALL_DIR"
+          mkdir -p "$BIN_DIR"
+          mkdir -p "$DESKTOP_DIR"
+          echo "Copying application files..."
+          cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+          echo "Creating launcher..."
+          ln -sf "$INSTALL_DIR/$APP_NAME" "$BIN_DIR/$APP_NAME"
+          ICON_PATH=""
+          for icon_location in \
+            "$INSTALL_DIR/data/flutter_assets/assets/images/logo.png" \
+            "$INSTALL_DIR/data/flutter_assets/assets/icons/icon.png" \
+            "$INSTALL_DIR/data/flutter_assets/assets/icon.png" \
+            "$INSTALL_DIR/assets/images/logo.png" \
+            "$INSTALL_DIR/assets/icons/icon.png" \
+            "$INSTALL_DIR/assets/icon.png"; do
+            if [ -f "$icon_location" ]; then
+              ICON_PATH="$icon_location"
+              break
+            fi
+          done
+          echo "Creating menu entry..."
+          cat > "$DESKTOP_DIR/$APP_NAME.desktop" << EOF
+          [Desktop Entry]
+          Type=Application
+          Name=$APP_NAME
+          Exec=$BIN_DIR/$APP_NAME
+          $(if [ -n "$ICON_PATH" ]; then echo "Icon=$ICON_PATH"; fi)
+          Categories=Utility;
+          Terminal=false
+          StartupWMClass=$APP_ID
+          EOF
+          chmod +x "$DESKTOP_DIR/$APP_NAME.desktop"
+          if command -v update-desktop-database &> /dev/null; then
+            update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+          fi
+          echo ""
+          echo "✓ Installation complete!"
+          echo "  You can now run '$APP_NAME' from the terminal or find it in your applications menu."
+          echo ""
+          echo "  To uninstall, run:"
+          echo "  rm -rf $INSTALL_DIR $BIN_DIR/$APP_NAME $DESKTOP_DIR/$APP_NAME.desktop"
+          INSTALL_EOF
+          chmod +x "$PACKAGE_DIR/install.sh"
+          cat > "$PACKAGE_DIR/README.txt" << EOF
+          $FLAVOR_APP_NAME - Linux Installation
+          ================================
+          Quick Start:
+          1. Run: ./install.sh
+          2. Log out and log back in (or run: source ~/.profile)
+          3. Launch from your application menu or run '$FLAVOR_APP_NAME' in terminal
+          
+          Manual Run (Portable):
+          - Run directly: ./run.sh
+          - Or execute: ./$FLAVOR_APP_NAME
+          
+          Uninstall:
+          - Run the command shown at the end of installation
+          EOF
+          tar -czf "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "$PACKAGE_DIR" || if [ $? -eq 2 ]; then echo "Tar warning ignored"; else exit 1; fi
+          echo "✓ Successfully created tarball: dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz"
+          # Save tarball for delta generation
+          mkdir -p artifacts
+          cp "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "artifacts/${FLAVOR_APP_NAME}.tar.gz"
+      - name: Create AppImage
+        timeout-minutes: 15
+        run: |
+          set -e
+          echo "Building AppImage for $FLAVOR_APP_NAME version $VERSION"
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract > /dev/null 2>&1
+          APP_DIR="${FLAVOR_APP_NAME}.AppDir"
+          rm -rf "${APP_DIR}"
+          mkdir -p "${APP_DIR}/usr/bin"
+          mkdir -p "${APP_DIR}/usr/lib"
+          mkdir -p "${APP_DIR}/usr/share/icons/hicolor/256x256/apps"
+          mkdir -p "${APP_DIR}/usr/share/applications"
+          BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="build/linux/x64/release/bundle"
+          fi
+          cp -r "${BUNDLE_DIR}"/* "${APP_DIR}/usr/bin/"
+          # Rename the binary from generic "kflkiosk" to the flavor-specific name.
+          # This MUST happen before AppRun is written, since AppRun hard-codes FLAVOR_APP_NAME.
+          if [ -f "${APP_DIR}/usr/bin/kflkiosk" ] && [ "${FLAVOR_APP_NAME}" != "kflkiosk" ]; then
+            mv "${APP_DIR}/usr/bin/kflkiosk" "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
+            echo "Renamed binary: kflkiosk → ${FLAVOR_APP_NAME}"
+          fi
+          chmod +x "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
+          ICON_CREATED=false
+          for icon_path in \
+            "assets/images/logo.png" \
+            "linux/icons/logo.png" \
+            "assets/icons/icon.png" \
+            "assets/images/icon.png" \
+            "assets/icon.png" \
+            "linux/app_icon.png" \
+            "icons/icon.png" \
+            "images/icon.png"; do
+            if [ -f "$icon_path" ]; then
+              echo "Found icon at $icon_path"
+              convert "$icon_path" -resize 256x256 "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              convert "$icon_path" -resize 256x256 "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              ICON_CREATED=true
+              break
+            fi
+          done
+          # Fallback: copy the logo already bundled inside flutter_assets
+          if [ "$ICON_CREATED" = false ]; then
+            BUNDLED_ICON="${APP_DIR}/usr/bin/data/flutter_assets/assets/images/logo.png"
+            if [ -f "$BUNDLED_ICON" ]; then
+              echo "Using bundled flutter_assets icon as fallback"
+              convert "$BUNDLED_ICON" -resize 256x256 "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              convert "$BUNDLED_ICON" -resize 256x256 "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              ICON_CREATED=true
+            fi
+          fi
+          if [ "$ICON_CREATED" = false ]; then
+            echo "No icon found, generating placeholder"
+            convert -size 256x256 xc:#4285F4 -pointsize 120 -fill white -gravity center \
+              -annotate +0+0 "${FLAVOR_APP_NAME:0:1}" "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+            cp "${APP_DIR}/${FLAVOR_APP_NAME}.png" "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+          fi
+          
+          if [ "$FLAVOR" = "default" ] || [ -z "$FLAVOR" ]; then
+            APP_ID="com.techbizafrica.kflkiosk"
+          else
+            APP_ID="com.techbizafrica.kflkiosk.${FLAVOR}"
+          fi
+          
+          cat > "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" << EOF
+          [Desktop Entry]
+          Type=Application
+          Name=${FLAVOR_APP_NAME}
+          Exec=${FLAVOR_APP_NAME}
+          Icon=${FLAVOR_APP_NAME}
+          Categories=Utility;Application;
+          Terminal=false
+          Comment=${FLAVOR_APP_NAME} Application
+          StartupWMClass=${APP_ID}
+          X-AppImage-Version=${VERSION}
+          EOF
+          cp "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" "${APP_DIR}/usr/share/applications/${FLAVOR_APP_NAME}.desktop"
+          desktop-file-validate "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" || echo "Warning: Desktop file validation failed"
+          # Create AppRun script.
+          # We bake APP_NAME and APP_ID at generation time so AppRun doesn't have to scan
+          # the directory (which risks picking up .desktop files or helper scripts).
+          if [ "${FLAVOR_APP_NAME}" = "kflkiosk" ] || [ -z "${FLAVOR}" ]; then
+            BAKED_APP_ID="com.techbizafrica.kflkiosk"
+          else
+            BAKED_APP_ID="com.techbizafrica.kflkiosk.${FLAVOR}"
+          fi
+          BAKED_APP_NAME="${FLAVOR_APP_NAME}"
+          cat > "${APP_DIR}/AppRun" << APPRUN_EOF
 #!/bin/bash
 set -e
 APPDIR="\$(dirname "\$(readlink -f "\${0}")")"
 APPIMAGE="\${APPIMAGE:-\$(readlink -f "\${0}")}"
-APP_NAME="${FLAVOR_APP_NAME}"
-APP_ID="${APP_ID}"
-
+APP_NAME="${BAKED_APP_NAME}"
+APP_ID="${BAKED_APP_ID}"
 auto_integrate() {
   local desktop_dir="\$HOME/.local/share/applications"
   local desktop_file="\$desktop_dir/\$APP_NAME.desktop"
   local icon_dest="\$HOME/.local/share/icons/hicolor/256x256/apps/\$APP_NAME.png"
-
-  if [[ ! -f "\$desktop_file" ]] && \
-     [[ "\$APPIMAGE" == */Downloads/* || "\$APPIMAGE" == */tmp/* || \
-        "\$APPIMAGE" == */Temp/* || "\$APPIMAGE" == */Desktop/* ]]; then
-
-    echo "First run: integrating ${FLAVOR_APP_NAME} with system menu..."
-    mkdir -p "\$desktop_dir" "\$HOME/.local/share/icons/hicolor/256x256/apps"
-
-    {
-      echo "[Desktop Entry]"
-      echo "Type=Application"
-      echo "Name=${FLAVOR_APP_NAME}"
-      echo "Exec=\"\$APPIMAGE\" %U"
-      echo "Icon=\$icon_dest"
-      echo "Categories=Utility;Application;"
-      echo "Terminal=false"
-      echo "Comment=${FLAVOR_APP_NAME} Application"
-      echo "StartupWMClass=${APP_ID}"
-    } > "\$desktop_file"
-
-    if [ -f "\$APPDIR/${FLAVOR_APP_NAME}.png" ]; then
-      cp "\$APPDIR/${FLAVOR_APP_NAME}.png" "\$icon_dest"
+  if [[ ! -f "\$desktop_file" ]] && [[ "\$APPIMAGE" == */Downloads/* || "\$APPIMAGE" == */tmp/* || "\$APPIMAGE" == */Temp/* || "\$APPIMAGE" == */Desktop/* ]]; then
+    echo "First run: integrating ${BAKED_APP_NAME} with system menu..."
+    mkdir -p "\$desktop_dir"
+    mkdir -p "\$HOME/.local/share/icons/hicolor/256x256/apps"
+    cat > "\$desktop_file" << INNER_EOF
+[Desktop Entry]
+Type=Application
+Name=${BAKED_APP_NAME}
+Exec="\$APPIMAGE" %U
+Icon=\$HOME/.local/share/icons/hicolor/256x256/apps/${BAKED_APP_NAME}.png
+Categories=Utility;Application;
+Terminal=false
+Comment=${BAKED_APP_NAME} Application
+StartupWMClass=${BAKED_APP_ID}
+INNER_EOF
+    if [ -f "\$APPDIR/${BAKED_APP_NAME}.png" ]; then
+      cp "\$APPDIR/${BAKED_APP_NAME}.png" "\$icon_dest"
     fi
-
     if command -v update-desktop-database &> /dev/null; then
       update-desktop-database "\$desktop_dir" 2>/dev/null || true
     fi
-
-    echo "✓ ${FLAVOR_APP_NAME} has been added to your application menu!"
+    echo "✓ ${BAKED_APP_NAME} has been added to your application menu!"
     echo "  Tip: Move this AppImage to ~/Applications or ~/.local/bin for permanent installation."
   fi
 }
-
 auto_integrate &
-
 export LD_LIBRARY_PATH="\${APPDIR}/usr/lib:\${LD_LIBRARY_PATH}"
 cd "\${APPDIR}/usr/bin"
-exec "./${FLAVOR_APP_NAME}" "\$@"
+exec "./${BAKED_APP_NAME}" "\$@"
 APPRUN_EOF
         chmod +x "${APP_DIR}/AppRun"
 
@@ -1275,6 +1220,7 @@ APPRUN_EOF
           artifacts/*.AppImage
           artifacts/*.tar.gz
         retention-days: 30
+
 
   build-android:
     needs: [parse-metadata, compute-matrix]
