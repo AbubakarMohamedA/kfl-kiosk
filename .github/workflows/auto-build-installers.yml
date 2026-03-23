@@ -1,0 +1,1980 @@
+name: Auto-Build Installers
+permissions:
+  contents: write
+  id-token: write
+  actions: read
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      target_platform:
+        description: 'Target Platform (windows, macos, linux, android, ios, all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - macos
+          - linux
+          - android
+          - ios
+      target_flavor:
+        description: 'Target Flavor (all, kiosk, staff, etc.)'
+        required: true
+        default: 'all'
+        type: string
+      create_release:
+        description: 'Create/Update GitHub Release?'
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Tag for release (if manual). Leave empty to use version from pubspec.'
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TARGET_PLATFORM: ${{ github.event.inputs.target_platform || 'all' }}
+  TARGET_FLAVOR: ${{ github.event.inputs.target_flavor || 'all' }}
+
+jobs:
+  parse-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      app_name: ${{ steps.parse.outputs.app_name }}
+      version: ${{ steps.parse.outputs.version }}
+      version_tag: ${{ steps.parse.outputs.version_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Parse app metadata
+        id: parse
+        run: |
+          APP_NAME=$(grep "name:" pubspec.yaml | head -1 | sed 's/name://g' | tr -d '[:space:]')
+          VERSION_FULL=$(grep "version:" pubspec.yaml | head -1 | sed 's/version://g' | tr -d '[:space:]')
+          VERSION=$(echo "$VERSION_FULL" | cut -d'+' -f1)
+          VERSION_TAG="${GITHUB_REF_NAME#v}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+          echo "Parsed meta"
+          echo "App Name: $APP_NAME"
+          echo "Version: $VERSION"
+          echo "Version Tag: $VERSION_TAG"
+
+  compute-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      flavors: ${{ steps.set-matrix.outputs.flavors }}
+    steps:
+      - name: Compute flavor matrix
+        id: set-matrix
+        run: |
+          ALL_FLAVORS='["superadmin","manager","staff","warehouse","dashboard","kiosk"]'
+          TARGET_FLAVOR="${{ github.event.inputs.target_flavor || 'all' }}"
+          if [ "${{ github.event_name }}" != 'workflow_dispatch' ] || [ "$TARGET_FLAVOR" = 'all' ] || [ -z "$TARGET_FLAVOR" ]; then
+            echo "flavors=$ALL_FLAVORS" >> $GITHUB_OUTPUT
+          else
+            echo "flavors=[\"$TARGET_FLAVOR\"]" >> $GITHUB_OUTPUT
+          fi
+          echo "Computed matrix: $(cat $GITHUB_OUTPUT | grep flavors)"
+
+  build-windows:
+    needs: [parse-metadata, compute-matrix]
+    if: (github.event_name == 'push') || (github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'windows')
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ${{ fromJson(needs.compute-matrix.outputs.flavors) }}
+    env:
+      APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
+      FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
+      FLAVOR: ${{ matrix.flavor }}
+      VERSION: ${{ needs.parse-metadata.outputs.version }}
+      VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\Users\runneradmin\AppData\Local\Pub\Cache
+            C:\Users\runneradmin\AppData\Local\flutter
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-key: flutter-windows-${{ hashFiles('**/pubspec.lock') }}
+      
+      - name: Install dependencies
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          flutter pub get
+          flutter config --enable-windows-desktop
+          flutter doctor -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      
+      - name: Build Flutter Windows app
+        shell: pwsh
+        timeout-minutes: 20
+        run: |
+          $entryFile = "lib\main_$($env:FLAVOR).dart"
+          if ($env:FLAVOR -eq "manager") { $entryFile = "lib\main_branch.dart" }
+          if ($env:FLAVOR -eq "kiosk") { $entryFile = "lib\main_terminal.dart" }
+          flutter build windows --release -t $entryFile
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Flutter build failed"
+            exit $LASTEXITCODE
+          }
+      
+      - name: Verify Windows build
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $releaseDir = "build\windows\x64\runner\Release"
+          $exeFile = Get-ChildItem -Path $releaseDir -Filter "*.exe" | Where-Object { $_.Name -notmatch "uninstall" } | Select-Object -First 1
+          
+          if ($exeFile) {
+            Write-Host "Found executable: $($exeFile.Name)"
+            Rename-Item -Path $exeFile.FullName -NewName "$env:FLAVOR_APP_NAME.exe"
+            Write-Host "Renamed to: $env:FLAVOR_APP_NAME.exe"
+            $exePath = Join-Path $releaseDir "$env:FLAVOR_APP_NAME.exe"
+            Write-Host "✓ Build verified: $exePath"
+          } else {
+            Write-Error "Build failed: no executable found in $releaseDir"
+            exit 1
+          }
+          # Create artifacts directory (files will be copied after signing)
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+      
+      - name: Sign Windows executable
+        shell: pwsh
+        timeout-minutes: 15
+        continue-on-error: true
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $exePath = "build\windows\x64\runner\Release\$env:FLAVOR_APP_NAME.exe"
+          $certPath = Join-Path $env:TEMP "cert.pfx"
+          $certPassword = ""
+          
+          if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            Write-Host "Using provided code signing certificate from secrets..."
+            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            [IO.File]::WriteAllBytes($certPath, $certBytes)
+            $certPassword = $env:WINDOWS_CERTIFICATE_PASSWORD
+          } else {
+            Write-Host "Generating self-signed certificate for TECHBIZ LIMITED..."
+            $cert = New-SelfSignedCertificate -Subject "CN=TECHBIZ LIMITED" -Type CodeSigningCert -CertStoreLocation "Cert:\CurrentUser\My"
+            $securePwd = ConvertTo-SecureString -String "Techbiz123" -Force -AsPlainText
+            Export-PfxCertificate -Cert $cert -FilePath $certPath -Password $securePwd | Out-Null
+            $certPassword = "Techbiz123"
+            
+            # Export for the installer signing step
+            "WIN_CERT_PATH=$certPath" | Out-File -FilePath "$env:GITHUB_ENV" -Append -Encoding utf8
+            "WIN_CERT_PASSWORD=$certPassword" | Out-File -FilePath "$env:GITHUB_ENV" -Append -Encoding utf8
+          }
+          
+          try {
+            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
+              Where-Object { $_.Directory.FullName -match "\\x64$" } |
+              Select-Object -First 1 -ExpandProperty FullName
+            
+            if (-not $signToolPath) {
+              Write-Warning "signtool.exe not found - skipping signing"
+              exit 0
+            }
+            
+            Write-Host "Using signtool from: $signToolPath"
+            
+            # Sign the executable
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              & $signToolPath sign /f $certPath /p $certPassword /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 $exePath
+            } else {
+              & $signToolPath sign /f $certPath /p $certPassword /fd SHA256 $exePath
+            }
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Code signing failed with exit code $LASTEXITCODE"
+              exit 0
+            }
+            
+            Write-Host "✓ Executable signed successfully"
+          }
+          catch {
+            Write-Warning "Code signing error: $_"
+          }
+          finally {
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              if (Test-Path $certPath) { Remove-Item $certPath -Force -ErrorAction SilentlyContinue }
+            }
+          }
+      - name: Save signed executable to artifacts
+        shell: pwsh
+        run: |
+          $exePath = "build\windows\x64\runner\Release\$env:FLAVOR_APP_NAME.exe"
+          Copy-Item -Path $exePath -Destination "artifacts\$env:FLAVOR_APP_NAME.exe"
+          Write-Host "✓ Executable saved to artifacts (signed or unsigned based on previous step)"
+      
+      - name: Install NSIS
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          Write-Host "Installing NSIS..."
+          
+          # Try Chocolatey first with retries
+          $maxRetries = 3
+          $retryCount = 0
+          $chocoSuccess = $false
+          
+          while ($retryCount -lt $maxRetries -and -not $chocoSuccess) {
+            try {
+              Write-Host "Attempt $($retryCount + 1) of $maxRetries..."
+              choco install nsis -y --no-progress 2>&1 | Out-Null
+              
+              # Refresh environment and check if NSIS exists
+              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+              $nsisPath = "C:\Program Files (x86)\NSIS"
+              
+              if (Test-Path "$nsisPath\makensis.exe") {
+                $chocoSuccess = $true
+                Write-Host "✓ NSIS installed successfully via Chocolatey"
+                break
+              }
+            }
+            catch {
+              Write-Host "Chocolatey attempt failed: $_"
+            }
+            
+            $retryCount++
+            if ($retryCount -lt $maxRetries) {
+              Start-Sleep -Seconds 5
+            }
+          }
+          
+          # If Chocolatey failed, download directly
+          if (-not $chocoSuccess) {
+            Write-Host "Chocolatey failed after $maxRetries attempts, trying direct download..."
+            
+            try {
+              $nsisVersion = "3.10"
+              $nsisUrl = "https://sourceforge.net/projects/nsis/files/NSIS%203/$nsisVersion/nsis-$nsisVersion-setup.exe/download"
+              $installerPath = "$env:TEMP\nsis-setup.exe"
+              
+              Write-Host "Downloading NSIS from SourceForge..."
+              Invoke-WebRequest -Uri $nsisUrl -OutFile $installerPath -UseBasicParsing
+              
+              Write-Host "Installing NSIS silently..."
+              Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait -NoNewWindow
+              
+              # Wait a moment for installation to complete
+              Start-Sleep -Seconds 3
+              
+              # Check installation
+              $nsisPath = "C:\Program Files (x86)\NSIS"
+              if (Test-Path "$nsisPath\makensis.exe") {
+                Write-Host "✓ NSIS installed successfully via direct download"
+              } else {
+                throw "NSIS executable not found after installation"
+              }
+              
+              # Clean up
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+              Write-Error "Direct download also failed: $_"
+              Write-Host "Trying alternative mirror..."
+              
+              # Try alternative download (GitHub mirror)
+              try {
+                $altUrl = "https://github.com/NSIS-Dev/nsis-mirror/releases/download/v3.10/nsis-3.10-setup.exe"
+                $installerPath = "$env:TEMP\nsis-setup2.exe"
+                
+                Invoke-WebRequest -Uri $altUrl -OutFile $installerPath -UseBasicParsing
+                Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait -NoNewWindow
+                Start-Sleep -Seconds 3
+                
+                Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+              }
+              catch {
+                Write-Error "All NSIS installation methods failed"
+                exit 1
+              }
+            }
+          }
+          
+          # Final verification and PATH setup
+          $nsisPath = "C:\Program Files (x86)\NSIS"
+          if (Test-Path "$nsisPath\makensis.exe") {
+            # Add to PATH for this session
+            $env:Path = "$nsisPath;$env:Path"
+            # Add to GITHUB_PATH for subsequent steps
+            echo "$nsisPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "✓ NSIS is ready at: $nsisPath"
+          } else {
+            Write-Error "NSIS installation failed - makensis.exe not found"
+            exit 1
+          }
+      
+      - name: Create Windows installer
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          # Ensure NSIS is in PATH
+          $nsisPath = "C:\Program Files (x86)\NSIS"
+          if (Test-Path $nsisPath) {
+            $env:Path = "$nsisPath;$env:Path"
+          }
+          
+          $distDir = "dist"
+          if (!(Test-Path $distDir)) {
+            New-Item -ItemType Directory -Force -Path $distDir
+          }
+          
+          Write-Host "Building installer with NSIS..."
+          
+          # Create NSIS script content as an array to avoid escaping issues
+          $nsisScript = @(
+            '!include MUI2.nsh'
+            '!include FileFunc.nsh'
+            '!include LogicLib.nsh'
+            ''
+            "Name `"$env:FLAVOR_APP_NAME`""
+            "OutFile `"$distDir\$env:FLAVOR_APP_NAME-$env:VERSION-Setup.exe`""
+            'InstallDir "$PROGRAMFILES\' + $env:FLAVOR_APP_NAME + '"'
+            'RequestExecutionLevel admin'
+            ''
+            'CRCCheck on'
+            'ShowInstDetails show'
+            'SetCompressor /SOLID lzma'
+            ''
+            '!insertmacro MUI_PAGE_WELCOME'
+            '!insertmacro MUI_PAGE_INSTFILES'
+            '!insertmacro MUI_PAGE_FINISH'
+            ''
+            '!insertmacro MUI_UNPAGE_CONFIRM'
+            '!insertmacro MUI_UNPAGE_INSTFILES'
+            ''
+            'Function .onInit'
+            '  UserInfo::GetAccountType'
+            '  Pop $0'
+            '  StrCmp $0 "Admin" +3'
+            '    MessageBox MB_ICONSTOP "Administrator rights required!"'
+            '    Quit'
+            'FunctionEnd'
+            ''
+            'Section "MainSection" SEC01'
+            '  SetOutPath "$INSTDIR"'
+            '  SetOverwrite on'
+            '  SetOverwrite try'
+            '  SetOverwrite ifnewer'
+            '  '
+            '  ClearErrors'
+            '  File /r "build\windows\x64\runner\Release\*"'
+            '  '
+            '  IfErrors 0 +3'
+            '    MessageBox MB_ICONEXCLAMATION|MB_RETRYCANCEL "Error copying files. Some files may be in use." IDRETRY -4'
+            '    Abort "Installation failed"'
+            '  '
+            '  CreateDirectory "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '"'
+            '  CreateShortcut "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '\' + $env:FLAVOR_APP_NAME + '.lnk" "$INSTDIR\' + $env:FLAVOR_APP_NAME + '.exe"'
+            '  CreateShortcut "$DESKTOP\' + $env:FLAVOR_APP_NAME + '.lnk" "$INSTDIR\' + $env:FLAVOR_APP_NAME + '.exe"'
+            '  '
+            '  WriteUninstaller "$INSTDIR\uninstall.exe"'
+            '  '
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayName" "' + $env:FLAVOR_APP_NAME + '"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "UninstallString" "$INSTDIR\uninstall.exe"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "Publisher" "TECHBIZ LIMITED"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayVersion" "' + $env:VERSION + '"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "InstallLocation" "$INSTDIR"'
+            '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "DisplayIcon" "$INSTDIR\' + $env:FLAVOR_APP_NAME + '.exe"'
+            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "NoModify" 1'
+            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "NoRepair" 1'
+            '  '
+            '  ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2'
+            '  IntFmt $0 "0x%08X" $0'
+            '  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '" "EstimatedSize" "$0"'
+            'SectionEnd'
+            ''
+            'Section "Uninstall"'
+            '  Delete "$INSTDIR\uninstall.exe"'
+            '  RMDir /r "$INSTDIR"'
+            '  Delete "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '\' + $env:FLAVOR_APP_NAME + '.lnk"'
+            '  RMDir "$SMPROGRAMS\' + $env:FLAVOR_APP_NAME + '"'
+            '  Delete "$DESKTOP\' + $env:FLAVOR_APP_NAME + '.lnk"'
+            '  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $env:FLAVOR_APP_NAME + '"'
+            'SectionEnd'
+            ''
+            '!insertmacro MUI_LANGUAGE "English"'
+          )
+          
+          # Write script to file
+          $nsisScript | Out-File -FilePath "installer.nsi" -Encoding ASCII
+          
+          # Build installer
+          makensis.exe installer.nsi
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "NSIS build failed"
+            exit $LASTEXITCODE
+          }
+          
+          $installerPath = "$distDir\$env:FLAVOR_APP_NAME-$env:VERSION-Setup.exe"
+          if (!(Test-Path $installerPath)) {
+            Write-Error "Installer not created at $installerPath"
+            exit 1
+          }
+          
+          Write-Host "✓ Windows installer created: $installerPath"
+      
+      - name: Sign Windows installer
+        shell: pwsh
+        timeout-minutes: 15
+        continue-on-error: true
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $installerPath = "dist\${env:FLAVOR_APP_NAME}-${env:VERSION}-Setup.exe"
+          $certPath = ""
+          $certPassword = ""
+          
+          if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            $certPath = Join-Path $env:TEMP "cert_installer.pfx"
+            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            [IO.File]::WriteAllBytes($certPath, $certBytes)
+            $certPassword = $env:WINDOWS_CERTIFICATE_PASSWORD
+          } elseif ($env:WIN_CERT_PATH -and $env:WIN_CERT_PASSWORD) {
+            $certPath = $env:WIN_CERT_PATH
+            $certPassword = $env:WIN_CERT_PASSWORD
+          } else {
+            Write-Warning "No certificate found for installer signing."
+            exit 0
+          }
+          
+          try {
+            $signToolPath = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin\" -Recurse -Include "signtool.exe" -ErrorAction SilentlyContinue |
+              Where-Object { $_.Directory.FullName -match "\\x64$" } |
+              Select-Object -First 1 -ExpandProperty FullName
+            
+            if (-not $signToolPath) {
+              Write-Warning "signtool.exe not found - skipping installer signing"
+              exit 0
+            }
+            
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              & $signToolPath sign /f $certPath /p $certPassword /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 $installerPath
+            } else {
+               & $signToolPath sign /f $certPath /p $certPassword /fd SHA256 $installerPath
+            }
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Installer signing failed with exit code $LASTEXITCODE"
+              exit 0
+            }
+            
+            Write-Host "✓ Installer signed successfully"
+          }
+          catch {
+            Write-Warning "Installer signing error: $_"
+          }
+          finally {
+            if ($env:WINDOWS_CERTIFICATE -and $env:WINDOWS_CERTIFICATE_PASSWORD) {
+              if (Test-Path $certPath) { Remove-Item $certPath -Force -ErrorAction SilentlyContinue }
+            }
+          }
+      - name: Save signed installer to artifacts
+        shell: pwsh
+        run: |
+          $installerPath = "dist\${env:FLAVOR_APP_NAME}-${env:VERSION}-Setup.exe"
+          Copy-Item -Path $installerPath -Destination "artifacts\$env:FLAVOR_APP_NAME-Setup.exe"
+          Write-Host "✓ Installer saved to artifacts (signed or unsigned based on previous step)"
+      
+      - name: Generate Windows checksum
+        shell: pwsh
+        run: |
+          $installerPath = "dist\${env:FLAVOR_APP_NAME}-${env:VERSION}-Setup.exe"
+          $hash = (Get-FileHash -Path $installerPath -Algorithm SHA256).Hash
+          Write-Host "Windows Installer SHA256: $hash"
+          $hash | Out-File -FilePath "dist\${env:FLAVOR_APP_NAME}-${env:VERSION}-Setup.exe.sha256" -Encoding ASCII -NoNewline
+          Write-Host "✓ Checksum saved"
+      
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}
+          path: |
+            dist/*.exe
+            dist/*.sha256
+            artifacts/*.exe
+            artifacts/*.txt
+          retention-days: 30
+
+  build-macos:
+    needs: [parse-metadata, compute-matrix]
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'macos'
+    runs-on: macos-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ${{ fromJson(needs.compute-matrix.outputs.flavors) }}
+    env:
+      APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
+      FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
+      FLAVOR: ${{ matrix.flavor }}
+      VERSION: ${{ needs.parse-metadata.outputs.version }}
+      VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/flutter
+            ~/Library/Caches/pub
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ios/Pods
+            macos/Pods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cocoapods-
+      - name: Install bsdiff for delta updates
+        run: |
+          # Install bsdiff using brew (available on GitHub Actions macOS runners)
+          brew install bsdiff
+          # Verify installation by checking if binaries exist
+          if ! command -v bsdiff &> /dev/null; then
+            echo "bsdiff command not found after installation"
+            exit 1
+          fi
+          if ! command -v bspatch &> /dev/null; then
+            echo "bspatch command not found after installation"
+            exit 1
+          fi
+          echo "BSDIFF_PATH=$(which bsdiff)" >> $GITHUB_ENV
+          echo "BSPATCH_PATH=$(which bspatch)" >> $GITHUB_ENV
+          echo "✓ bsdiff/bspatch installed successfully"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-key: flutter-macos-${{ hashFiles('**/pubspec.lock') }}
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: |
+          set -e
+          flutter pub get
+          flutter config --enable-macos-desktop
+          flutter doctor -v
+          
+      - name: Resolve Provisioning Profile Config
+        id: resolve-profile
+        env:
+          PROFILE_SUPERADMIN: ${{ secrets.MACOS_PROFILE_SUPERADMIN }}
+          PROFILE_MANAGER: ${{ secrets.MACOS_PROFILE_MANAGER }}
+          PROFILE_STAFF: ${{ secrets.MACOS_PROFILE_STAFF }}
+          PROFILE_WAREHOUSE: ${{ secrets.MACOS_PROFILE_WAREHOUSE }}
+          PROFILE_DASHBOARD: ${{ secrets.MACOS_PROFILE_DASHBOARD }}
+          PROFILE_KIOSK: ${{ secrets.MACOS_PROFILE_KIOSK }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          FLAVOR_UPPER=$(echo "${{ matrix.flavor }}" | tr '[:lower:]' '[:upper:]')
+          PROFILE_VAR="PROFILE_${FLAVOR_UPPER}"
+          PROFILE_VALUE="${!PROFILE_VAR}"
+          
+          if [ -n "$MACOS_CERTIFICATE" ] && [ -n "$MACOS_CERTIFICATE_PASSWORD" ] && [ -n "$MACOS_SIGNING_IDENTITY" ] && [ -n "$PROFILE_VALUE" ]; then
+            echo "ENABLE_MACOS_SIGNING=true" >> $GITHUB_ENV
+            echo "::add-mask::$PROFILE_VALUE"
+            echo "MACOS_PROVISIONING_PROFILE=$PROFILE_VALUE" >> $GITHUB_ENV
+            echo "Found matching provisioning profile secret for flavor: ${{ matrix.flavor }}"
+          else
+            echo "ENABLE_MACOS_SIGNING=false" >> $GITHUB_ENV
+            echo "Signing disabled for flavor: ${{ matrix.flavor }} (Missing certificate, identity, or specific profile: MACOS_PROFILE_${FLAVOR_UPPER})"
+          fi
+          
+      - name: Import Code-Signing Certificates & Profile
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE: ${{ env.MACOS_PROVISIONING_PROFILE }}
+        run: |
+          CERT_DIR=$(mktemp -d)
+          CERT_PATH="$CERT_DIR/cert.p12"
+
+          # Step 1: Check secret is not empty
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "ERROR: MACOS_CERTIFICATE secret is empty or not set"
+            exit 1
+          fi
+          echo "✓ Secret exists, length: ${#MACOS_CERTIFICATE}"
+
+          # Step 2: Decode
+          echo "$MACOS_CERTIFICATE" | tr -d '[:space:]' | base64 --decode > "$CERT_PATH"
+          echo "✓ Decoded file size: $(wc -c < $CERT_PATH) bytes"
+
+          # Step 3: Verify it's actually a valid p12
+          if ! openssl pkcs12 -in "$CERT_PATH" -passin pass:"$MACOS_CERTIFICATE_PASSWORD" -nokeys -noout 2>&1; then
+            echo "ERROR: p12 file is invalid or password is wrong"
+            exit 1
+          fi
+          echo "✓ p12 file is valid"
+
+          # Step 4: Create keychain
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          echo "✓ Keychain created"
+
+          # Step 5: Import certificate
+          security import "$CERT_PATH" -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -A
+          echo "Import exit code: $?"
+
+          # Step 6: Set partition list
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+          echo "✓ Partition list set"
+
+          # Step 7: Check what's actually in the keychain
+          echo "=== All certs in keychain ==="
+          security find-certificate -a build.keychain 2>&1 || echo "No certs found"
+          echo "=== Codesigning identities ==="
+          security find-identity -v -p codesigning build.keychain 2>&1
+          echo "=== All identities ==="
+          security find-identity -v build.keychain 2>&1
+
+          security list-keychains -d user -s build.keychain login.keychain-db
+          echo "✓ Done"
+
+      - name: Verify certificate in keychain
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          echo "Looking for identity: $MACOS_SIGNING_IDENTITY"
+          security find-identity -v -p codesigning ~/Library/Keychains/build.keychain-db
+          security find-certificate -c "$MACOS_SIGNING_IDENTITY" ~/Library/Keychains/build.keychain-db
+
+      - name: Build Flutter macOS app
+        timeout-minutes: 60
+        run: |
+          set -e
+          chmod +x ./set_flavor.sh
+          ./set_flavor.sh ${{ matrix.flavor }}
+          
+          ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
+          if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
+          if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+          
+          flutter build macos --release -t $ENTRY_FILE
+      - name: Verify macOS build
+        timeout-minutes: 5
+        run: |
+          set -e
+          APP_PATH=$(find build/macos/Build/Products/Release -name "*.app" -type d -maxdepth 1 | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app bundle"
+            exit 1
+          fi
+          echo "✓ Build verified: $APP_PATH"
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          # Save app bundle for delta generation later
+          mkdir -p artifacts
+          cp -R "$APP_PATH" "artifacts/${FLAVOR_APP_NAME}.app"
+      - name: Code sign macOS app
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
+        timeout-minutes: 10
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          set -e
+          if [ -z "$APP_PATH" ]; then
+            echo "APP_PATH not set"
+            exit 1
+          fi
+          echo "Code signing $APP_PATH"
+          codesign --force --deep --sign "$MACOS_SIGNING_IDENTITY" \
+            --options runtime \
+            --entitlements macos/Runner/Release.entitlements \
+            --keychain ~/Library/Keychains/build.keychain-db \
+            "$APP_PATH"
+          
+          # Verify the signature
+          codesign --verify --verbose "$APP_PATH"
+          echo "✓ App signed and verified successfully"
+      - name: Notarize macOS app
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
+        timeout-minutes: 30
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "Skipping notarization - missing required credentials"
+            exit 0
+          fi
+          set -e
+          if [ -z "$APP_PATH" ]; then
+            echo "APP_PATH not set"
+            exit 1
+          fi
+          ditto -c -k --keepParent "$APP_PATH" "${FLAVOR_APP_NAME}.zip"
+          xcrun notarytool submit "${FLAVOR_APP_NAME}.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$APP_PATH"
+          rm "${FLAVOR_APP_NAME}.zip"
+          echo "✓ App notarized and stapled successfully"
+      - name: Create polished DMG
+        timeout-minutes: 10
+        run: |
+          set -e
+          mkdir -p dist
+          if [ -z "$APP_PATH" ]; then
+            echo "APP_PATH not set"
+            exit 1
+          fi
+          TEMP_APP="${FLAVOR_APP_NAME}.app"
+          cp -R "$APP_PATH" "$TEMP_APP"
+          DMG_NAME="dist/${FLAVOR_APP_NAME}-${VERSION}.dmg"
+          VOLUME_NAME="${FLAVOR_APP_NAME} ${VERSION}"
+          mkdir -p dmg_root
+          cp -R "$TEMP_APP" dmg_root/
+          ln -s /Applications dmg_root/Applications
+          hdiutil create -volname "$VOLUME_NAME" -srcfolder dmg_root -ov -format UDZO "$DMG_NAME"
+          rm -rf "$TEMP_APP" dmg_root
+          echo "✓ DMG created: $DMG_NAME"
+          # Save DMG for delta generation
+          mkdir -p artifacts
+          cp "$DMG_NAME" "artifacts/${FLAVOR_APP_NAME}.dmg"
+      - name: Sign DMG
+        if: ${{ env.ENABLE_MACOS_SIGNING == 'true' }}
+        timeout-minutes: 5
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          set -e
+          DMG_PATH="dist/${FLAVOR_APP_NAME}-${VERSION}.dmg"
+          if [ ! -f "$DMG_PATH" ]; then
+            echo "DMG not found at $DMG_PATH"
+            exit 1
+          fi
+          codesign --sign "$MACOS_SIGNING_IDENTITY" "$DMG_PATH"
+          echo "✓ DMG signed successfully"
+      # Generate checksum for auto-updater
+      - name: Generate macOS checksum
+        run: |
+          DMG_PATH="dist/${FLAVOR_APP_NAME}-${VERSION}.dmg"
+          shasum -a 256 "$DMG_PATH" | awk '{print $1}' > "${DMG_PATH}.sha256"
+          echo "macOS DMG SHA256: $(cat ${DMG_PATH}.sha256)"
+          echo "✓ Checksum saved"
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+            artifacts/*.app
+            artifacts/*.dmg
+          retention-days: 30
+
+  build-linux:
+    needs: [parse-metadata, compute-matrix]
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'linux'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64]
+        flavor: ${{ fromJson(needs.compute-matrix.outputs.flavors) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
+      FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
+      FLAVOR: ${{ matrix.flavor }}
+      VERSION: ${{ needs.parse-metadata.outputs.version }}
+      VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
+      TARGETARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.flutter
+            ~/.pub-cache
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Install bsdiff for delta updates
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bsdiff
+          # Verify installation
+          if ! command -v bsdiff &> /dev/null; then
+            echo "bsdiff command not found after installation"
+            exit 1
+          fi
+          if ! command -v bspatch &> /dev/null; then
+            echo "bspatch command not found after installation"
+            exit 1
+          fi
+          echo "BSDIFF_PATH=$(which bsdiff)" >> $GITHUB_ENV
+          echo "BSPATCH_PATH=$(which bspatch)" >> $GITHUB_ENV
+          echo "✓ bsdiff/bspatch installed successfully"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-key: flutter-linux-${{ hashFiles('**/pubspec.lock') }}
+      - name: Install Linux dependencies
+        timeout-minutes: 10
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libglu1-mesa-dev mesa-common-dev libxtst-dev libxrandr-dev \
+            libxinerama-dev libxcursor-dev libxi-dev libxrender-dev \
+            libxcomposite-dev libasound2-dev libpulse-dev libgl1-mesa-dev \
+            libdrm-dev libgbm-dev libxkbcommon-dev libwayland-dev \
+            libegl1-mesa-dev libsecret-1-dev libayatana-appindicator3-dev \
+            imagemagick file zsync desktop-file-utils fakeroot libarchive-tools
+          flutter pub get
+          flutter config --enable-linux-desktop
+          flutter doctor -v
+      - name: Build Flutter Linux app
+        timeout-minutes: 20
+        run: |
+          set -e
+          ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
+          if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
+          if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+          
+          export FLAVOR=${{ matrix.flavor }}
+          flutter build linux --release -t $ENTRY_FILE
+      - name: Create Tarball with Installer
+        timeout-minutes: 10
+        run: |
+          set -e
+          echo "Creating tarball for $FLAVOR_APP_NAME version $VERSION"
+          mkdir -p dist
+          BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="build/linux/x64/release/bundle"
+          fi
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Error: Bundle directory not found"
+            exit 1
+          fi
+          
+          # The binary compiled by CMake on Linux may be flavor-aware now
+          if [ -f "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" ]; then
+            mv "$BUNDLE_DIR/kflkiosk_${{ matrix.flavor }}" "$BUNDLE_DIR/$FLAVOR_APP_NAME"
+          elif [ -f "$BUNDLE_DIR/kflkiosk" ]; then
+            mv "$BUNDLE_DIR/kflkiosk" "$BUNDLE_DIR/$FLAVOR_APP_NAME"
+          fi
+          
+          PACKAGE_DIR="${FLAVOR_APP_NAME}-${VERSION}-linux-x64"
+          mkdir -p "$PACKAGE_DIR"
+          cp -r "${BUNDLE_DIR}"/* "$PACKAGE_DIR/"
+
+          # Determine human-readable app title and app ID from flavor
+          case "${{ matrix.flavor }}" in
+            superadmin) APP_TITLE="SSS Admin" ;;
+            manager)    APP_TITLE="SSS Manager" ;;
+            staff)      APP_TITLE="SSS Staff" ;;
+            warehouse)  APP_TITLE="SSS Warehouse" ;;
+            dashboard)  APP_TITLE="SSS Dashboard" ;;
+            kiosk)      APP_TITLE="SSS Kiosk" ;;
+            *)          APP_TITLE="$FLAVOR_APP_NAME" ;;
+          esac
+          APP_ID="com.techbizafrica.kflkiosk.${{ matrix.flavor }}"
+
+          # Remove any .desktop file baked in by CMake (it has an absolute Exec
+          # path pointing to the CI runner's build directory, which won't exist
+          # on the end-user's machine).
+          rm -f "$PACKAGE_DIR"/*.desktop
+
+          # Write a portable .desktop file. The Exec uses 'bash -c' with %k
+          # (the path to this .desktop file) so double-clicking from inside the
+          # extracted folder resolves the correct directory and runs run.sh.
+          # After install.sh is run, the installed .desktop uses the binary on
+          # PATH instead, so this file is only relevant for portable use.
+          cat > "$PACKAGE_DIR/${APP_ID}.desktop" << DESKTOP_EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=${APP_TITLE}
+          GenericName=${APP_TITLE}
+          Comment=KFL Kiosk Desktop Application
+          Exec=bash -c 'cd "\$(dirname "%k")" && ./run.sh'
+          Icon=utilities-terminal
+          Categories=Utility;
+          Terminal=false
+          StartupNotify=true
+          StartupWMClass=${APP_ID}
+          DESKTOP_EOF
+          chmod +x "$PACKAGE_DIR/${APP_ID}.desktop"
+
+          cat > "$PACKAGE_DIR/run.sh" << EOF
+          #!/bin/bash
+          SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+          cd "\$SCRIPT_DIR"
+          ./${FLAVOR_APP_NAME} "\$@"
+          EOF
+          chmod +x "$PACKAGE_DIR/run.sh"
+          chmod +x "$PACKAGE_DIR/${FLAVOR_APP_NAME}"
+          cat > "$PACKAGE_DIR/install.sh" << 'INSTALL_EOF'
+          #!/bin/bash
+          set -e
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          APP_NAME="$(basename "$SCRIPT_DIR" | sed 's/-[0-9].*//')"
+          
+          if [ "$APP_NAME" = "kflkiosk" ]; then
+            APP_ID="com.techbizafrica.kflkiosk"
+          else
+            FLAVOR_PART="${APP_NAME#kflkiosk-}"
+            APP_ID="com.techbizafrica.kflkiosk.${FLAVOR_PART}"
+          fi
+
+          echo "Installing $APP_NAME..."
+          INSTALL_DIR="$HOME/.local/share/$APP_NAME"
+          BIN_DIR="$HOME/.local/bin"
+          DESKTOP_DIR="$HOME/.local/share/applications"
+          mkdir -p "$INSTALL_DIR"
+          mkdir -p "$BIN_DIR"
+          mkdir -p "$DESKTOP_DIR"
+          echo "Copying application files..."
+          cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+          echo "Creating launcher..."
+          ln -sf "$INSTALL_DIR/$APP_NAME" "$BIN_DIR/$APP_NAME"
+          ICON_PATH=""
+          for icon_location in \
+            "$INSTALL_DIR/data/flutter_assets/assets/images/logo.png" \
+            "$INSTALL_DIR/data/flutter_assets/assets/icons/icon.png" \
+            "$INSTALL_DIR/data/flutter_assets/assets/icon.png" \
+            "$INSTALL_DIR/assets/images/logo.png" \
+            "$INSTALL_DIR/assets/icons/icon.png" \
+            "$INSTALL_DIR/assets/icon.png"; do
+            if [ -f "$icon_location" ]; then
+              ICON_PATH="$icon_location"
+              break
+            fi
+          done
+          echo "Creating menu entry..."
+          cat > "$DESKTOP_DIR/$APP_NAME.desktop" << EOF
+          [Desktop Entry]
+          Type=Application
+          Name=$APP_NAME
+          Exec=$BIN_DIR/$APP_NAME
+          $(if [ -n "$ICON_PATH" ]; then echo "Icon=$ICON_PATH"; fi)
+          Categories=Utility;
+          Terminal=false
+          StartupWMClass=$APP_ID
+          EOF
+          chmod +x "$DESKTOP_DIR/$APP_NAME.desktop"
+          if command -v update-desktop-database &> /dev/null; then
+            update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+          fi
+          echo ""
+          echo "✓ Installation complete!"
+          echo "  You can now run '$APP_NAME' from the terminal or find it in your applications menu."
+          echo ""
+          echo "  To uninstall, run:"
+          echo "  rm -rf $INSTALL_DIR $BIN_DIR/$APP_NAME $DESKTOP_DIR/$APP_NAME.desktop"
+          INSTALL_EOF
+          chmod +x "$PACKAGE_DIR/install.sh"
+          cat > "$PACKAGE_DIR/README.txt" << EOF
+          $FLAVOR_APP_NAME - Linux Installation
+          ================================
+          Quick Start:
+          1. Run: ./install.sh
+          2. Log out and log back in (or run: source ~/.profile)
+          3. Launch from your application menu or run '$FLAVOR_APP_NAME' in terminal
+          
+          Manual Run (Portable):
+          - Run directly: ./run.sh
+          - Or execute: ./$FLAVOR_APP_NAME
+          
+          Uninstall:
+          - Run the command shown at the end of installation
+          EOF
+          tar -czf "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "$PACKAGE_DIR" || if [ $? -eq 2 ]; then echo "Tar warning ignored"; else exit 1; fi
+          echo "✓ Successfully created tarball: dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz"
+          # Save tarball for delta generation
+          mkdir -p artifacts
+          cp "dist/${FLAVOR_APP_NAME}-${VERSION}-linux-x64.tar.gz" "artifacts/${FLAVOR_APP_NAME}.tar.gz"
+      - name: Create AppImage
+        timeout-minutes: 15
+        run: |
+          set -e
+          echo "Building AppImage for $FLAVOR_APP_NAME version $VERSION"
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract > /dev/null 2>&1
+          APP_DIR="${FLAVOR_APP_NAME}.AppDir"
+          rm -rf "${APP_DIR}"
+          mkdir -p "${APP_DIR}/usr/bin"
+          mkdir -p "${APP_DIR}/usr/lib"
+          mkdir -p "${APP_DIR}/usr/share/icons/hicolor/256x256/apps"
+          mkdir -p "${APP_DIR}/usr/share/applications"
+          BUNDLE_DIR="build/linux/x64/release/bundle_${{ matrix.flavor }}"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="build/linux/x64/release/bundle"
+          fi
+          cp -r "${BUNDLE_DIR}"/* "${APP_DIR}/usr/bin/"
+          if [ -f "${APP_DIR}/usr/bin/kflkiosk" ] && [ "${FLAVOR_APP_NAME}" != "kflkiosk" ]; then
+            mv "${APP_DIR}/usr/bin/kflkiosk" "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
+            echo "Renamed binary: kflkiosk → ${FLAVOR_APP_NAME}"
+          fi
+          chmod +x "${APP_DIR}/usr/bin/${FLAVOR_APP_NAME}"
+          ICON_CREATED=false
+          for icon_path in \
+            "assets/images/logo.png" \
+            "linux/icons/logo.png" \
+            "assets/icons/icon.png" \
+            "assets/images/icon.png" \
+            "assets/icon.png" \
+            "linux/app_icon.png" \
+            "icons/icon.png" \
+            "images/icon.png"; do
+            if [ -f "$icon_path" ]; then
+              echo "Found icon at $icon_path"
+              convert "$icon_path" -resize 256x256 "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              convert "$icon_path" -resize 256x256 "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              ICON_CREATED=true
+              break
+            fi
+          done
+          if [ "$ICON_CREATED" = false ]; then
+            BUNDLED_ICON="${APP_DIR}/usr/bin/data/flutter_assets/assets/images/logo.png"
+            if [ -f "$BUNDLED_ICON" ]; then
+              echo "Using bundled flutter_assets icon as fallback"
+              convert "$BUNDLED_ICON" -resize 256x256 "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              convert "$BUNDLED_ICON" -resize 256x256 "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+              ICON_CREATED=true
+            fi
+          fi
+          if [ "$ICON_CREATED" = false ]; then
+            echo "No icon found, generating placeholder"
+            convert -size 256x256 xc:#4285F4 -pointsize 120 -fill white -gravity center \
+              -annotate +0+0 "${FLAVOR_APP_NAME:0:1}" "${APP_DIR}/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+            cp "${APP_DIR}/${FLAVOR_APP_NAME}.png" "${APP_DIR}/usr/share/icons/hicolor/256x256/apps/${FLAVOR_APP_NAME}.png" 2>/dev/null || true
+          fi
+          if [ "$FLAVOR" = "default" ] || [ -z "$FLAVOR" ]; then
+            APP_ID="com.techbizafrica.kflkiosk"
+          else
+            APP_ID="com.techbizafrica.kflkiosk.${FLAVOR}"
+          fi
+          cat > "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" << EOF
+          [Desktop Entry]
+          Type=Application
+          Name=${FLAVOR_APP_NAME}
+          Exec=${FLAVOR_APP_NAME}
+          Icon=${FLAVOR_APP_NAME}
+          Categories=Utility;Application;
+          Terminal=false
+          Comment=${FLAVOR_APP_NAME} Application
+          StartupWMClass=${APP_ID}
+          X-AppImage-Version=${VERSION}
+          EOF
+          cp "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" "${APP_DIR}/usr/share/applications/${FLAVOR_APP_NAME}.desktop"
+          desktop-file-validate "${APP_DIR}/${FLAVOR_APP_NAME}.desktop" || echo "Warning: Desktop file validation failed"
+          if [ "${FLAVOR_APP_NAME}" = "kflkiosk" ] || [ -z "${FLAVOR}" ]; then
+            BAKED_APP_ID="com.techbizafrica.kflkiosk"
+          else
+            BAKED_APP_ID="com.techbizafrica.kflkiosk.${FLAVOR}"
+          fi
+          BAKED_APP_NAME="${FLAVOR_APP_NAME}"
+          # Write AppRun to a temp file first, then move it — avoids heredoc-in-YAML issues
+          APPRUN_FILE="${APP_DIR}/AppRun"
+          printf '%s\n' '#!/bin/bash' 'set -e' \
+            'APPDIR="$(dirname "$(readlink -f "${0}")")"' \
+            'APPIMAGE="${APPIMAGE:-$(readlink -f "${0}")}"' \
+            "APP_NAME=\"${BAKED_APP_NAME}\"" \
+            "APP_ID=\"${BAKED_APP_ID}\"" \
+            'auto_integrate() {' \
+            '  local desktop_dir="$HOME/.local/share/applications"' \
+            '  local desktop_file="$desktop_dir/$APP_NAME.desktop"' \
+            '  local icon_dest="$HOME/.local/share/icons/hicolor/256x256/apps/$APP_NAME.png"' \
+            '  if [[ ! -f "$desktop_file" ]] && [[ "$APPIMAGE" == */Downloads/* || "$APPIMAGE" == */tmp/* || "$APPIMAGE" == */Temp/* || "$APPIMAGE" == */Desktop/* ]]; then' \
+            "    echo \"First run: integrating ${BAKED_APP_NAME} with system menu...\"" \
+            '    mkdir -p "$desktop_dir"' \
+            '    mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"' \
+            '    {' \
+            '      echo "[Desktop Entry]"' \
+            '      echo "Type=Application"' \
+            "      echo \"Name=${BAKED_APP_NAME}\"" \
+            '      echo "Exec=\"\$APPIMAGE\" %U"' \
+            "      echo \"Icon=\$HOME/.local/share/icons/hicolor/256x256/apps/${BAKED_APP_NAME}.png\"" \
+            '      echo "Categories=Utility;Application;"' \
+            '      echo "Terminal=false"' \
+            "      echo \"Comment=${BAKED_APP_NAME} Application\"" \
+            "      echo \"StartupWMClass=${BAKED_APP_ID}\"" \
+            '    } > "$desktop_file"' \
+            "    if [ -f \"\$APPDIR/${BAKED_APP_NAME}.png\" ]; then" \
+            "      cp \"\$APPDIR/${BAKED_APP_NAME}.png\" \"\$icon_dest\"" \
+            '    fi' \
+            '    if command -v update-desktop-database &> /dev/null; then' \
+            '      update-desktop-database "$desktop_dir" 2>/dev/null || true' \
+            '    fi' \
+            "    echo \"✓ ${BAKED_APP_NAME} has been added to your application menu!\"" \
+            '    echo "  Tip: Move this AppImage to ~/Applications or ~/.local/bin for permanent installation."' \
+            '  fi' \
+            '}' \
+            'auto_integrate &' \
+            '# Ensure icon is available for taskbar' \
+            'mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"' \
+            "if [ -f \"\${APPDIR}/${BAKED_APP_NAME}.png\" ] && [ ! -f \"\$HOME/.local/share/icons/hicolor/256x256/apps/${BAKED_APP_NAME}.png\" ]; then" \
+            "  cp \"\${APPDIR}/${BAKED_APP_NAME}.png\" \"\$HOME/.local/share/icons/hicolor/256x256/apps/${BAKED_APP_NAME}.png\"" \
+            '  gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true' \
+            'fi' \
+            'export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${LD_LIBRARY_PATH}"' \
+            'cd "${APPDIR}/usr/bin"' \
+            "exec \"./${BAKED_APP_NAME}\" --name=\"${BAKED_APP_ID}\" \"\$@\"" \
+            > "$APPRUN_FILE"
+          chmod +x "${APP_DIR}/AppRun"
+          echo "Building AppImage..."
+          mkdir -p dist artifacts
+          ARCH=x86_64 ./squashfs-root/AppRun \
+            "${APP_DIR}" "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
+          if [ -f "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" ]; then
+            chmod +x "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
+            echo "✓ Successfully created AppImage!"
+            ls -lh "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage"
+            cp "dist/${FLAVOR_APP_NAME}-${VERSION}-x86_64.AppImage" \
+               "artifacts/${FLAVOR_APP_NAME}.AppImage"
+          else
+            echo "Warning: AppImage creation failed"
+          fi
+      - name: Generate Linux checksums
+        run: |
+          cd dist
+          for file in *.tar.gz *.AppImage; do
+            if [ -f "$file" ]; then
+              shasum -a 256 "$file" | awk '{print $1}' > "${file}.sha256"
+              echo "Generated checksum for $file: $(cat "${file}.sha256")"
+            fi
+          done
+          echo "✓ All checksums generated"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}-${{ matrix.arch }}
+          path: |
+            dist/*.AppImage
+            dist/*.tar.gz
+            dist/*.sha256
+            artifacts/*.AppImage
+            artifacts/*.tar.gz
+          retention-days: 30
+
+
+  build-android:
+    needs: [parse-metadata, compute-matrix]
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'android'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ${{ fromJson(needs.compute-matrix.outputs.flavors) }}
+    env:
+      FLAVOR: ${{ matrix.flavor }}
+      FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
+      VERSION: ${{ needs.parse-metadata.outputs.version }}
+      VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          
+      - name: Install dependencies
+        run: flutter pub get
+        
+      - name: Build APK for Android
+        run: |
+          ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
+          if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
+          if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+          
+          flutter build apk --flavor ${{ matrix.flavor }} --split-per-abi -t $ENTRY_FILE
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-${{ matrix.flavor }}-release.apk dist/${FLAVOR_APP_NAME}-${VERSION}.apk
+          
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}
+          path: dist/*.apk
+
+  build-ios:
+    needs: [parse-metadata, compute-matrix]
+    if: github.event_name == 'push' || github.event.inputs.target_platform == 'all' || github.event.inputs.target_platform == 'ios'
+    runs-on: macos-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ${{ fromJson(needs.compute-matrix.outputs.flavors) }}
+    env:
+      FLAVOR: ${{ matrix.flavor }}
+      FLAVOR_APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}-${{ matrix.flavor }}
+      VERSION: ${{ needs.parse-metadata.outputs.version }}
+      VERSION_TAG: ${{ needs.parse-metadata.outputs.version_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install xcpretty
+        run: gem install xcpretty  
+        
+      - name: Resolve Provisioning Profile Config
+        id: resolve-profile
+        env:
+          PROFILE_SUPERADMIN: ${{ secrets.IOS_PROFILE_SUPERADMIN }}
+          PROFILE_MANAGER: ${{ secrets.IOS_PROFILE_MANAGER }}
+          PROFILE_STAFF: ${{ secrets.IOS_PROFILE_STAFF }}
+          PROFILE_WAREHOUSE: ${{ secrets.IOS_PROFILE_WAREHOUSE }}
+          PROFILE_DASHBOARD: ${{ secrets.IOS_PROFILE_DASHBOARD }}
+          PROFILE_KIOSK: ${{ secrets.IOS_PROFILE_KIOSK }}
+          IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          FLAVOR_UPPER=$(echo "${{ matrix.flavor }}" | tr '[:lower:]' '[:upper:]')
+          PROFILE_VAR="PROFILE_${FLAVOR_UPPER}"
+          PROFILE_VALUE="${!PROFILE_VAR}"
+          
+          if [ -n "$IOS_CERTIFICATE" ] && [ -n "$IOS_CERTIFICATE_PASSWORD" ] && [ -n "$PROFILE_VALUE" ]; then
+            echo "ENABLE_IOS_SIGNING=true" >> $GITHUB_ENV
+            echo "::add-mask::$PROFILE_VALUE"
+            echo "IOS_PROVISIONING_PROFILE=$PROFILE_VALUE" >> $GITHUB_ENV
+            echo "Found matching provisioning profile secret for flavor: ${{ matrix.flavor }}"
+          else
+            echo "ENABLE_IOS_SIGNING=false" >> $GITHUB_ENV
+            echo "Signing disabled for flavor: ${{ matrix.flavor }} (Missing certificate or specific profile: IOS_PROFILE_${FLAVOR_UPPER})"
+          fi
+          
+      - name: Build iOS App without signing (Simulator/Archive)
+        if: ${{ env.ENABLE_IOS_SIGNING != 'true' }}
+        run: |
+          chmod +x ./set_flavor.sh
+          ./set_flavor.sh ${{ matrix.flavor }}
+          
+          ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
+          if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
+          if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+          
+          # Building ios with no-codesign for CI artifact generation without certs
+          flutter build ios --release --no-codesign -t $ENTRY_FILE
+          
+          mkdir -p dist
+          # Compress the .app so it can be downloaded as an artifact easily
+          cd build/ios/iphoneos
+          tar -czf ../../../dist/${FLAVOR_APP_NAME}-ios-${VERSION}.tar.gz Runner.app
+          
+      - name: Install Apple Certificate and Provisioning Profile
+        if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ env.IOS_PROVISIONING_PROFILE }}
+          KEYCHAIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Step 1: Check secrets
+          if [ -z "$BUILD_CERTIFICATE_BASE64" ]; then
+            echo "ERROR: IOS_CERTIFICATE secret is empty"
+            exit 1
+          fi
+          echo "✓ Certificate secret length: ${#BUILD_CERTIFICATE_BASE64}"
+
+          if [ -z "$BUILD_PROVISION_PROFILE_BASE64" ]; then
+            echo "ERROR: Provisioning profile secret is empty"
+            exit 1
+          fi
+          echo "✓ Profile secret length: ${#BUILD_PROVISION_PROFILE_BASE64}"
+
+          # Step 2: Decode
+          echo "$BUILD_CERTIFICATE_BASE64" | tr -d '[:space:]' | base64 --decode > $CERTIFICATE_PATH
+          echo "✓ Certificate decoded: $(wc -c < $CERTIFICATE_PATH) bytes"
+
+          echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '[:space:]' | base64 --decode > $PP_PATH
+          echo "✓ Profile decoded: $(wc -c < $PP_PATH) bytes"
+
+          # Step 3: Validate p12
+          echo "=== Validating p12 ==="
+          if ! openssl pkcs12 -in "$CERTIFICATE_PATH" -passin pass:"$P12_PASSWORD" -nokeys -noout 2>&1; then
+            echo "ERROR: p12 invalid or wrong password"
+            openssl pkcs12 -in "$CERTIFICATE_PATH" -passin pass: -nokeys -noout 2>&1 || echo "Empty password also failed"
+            exit 1
+          fi
+          echo "✓ p12 is valid"
+
+          # Step 4: Create keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          echo "✓ Keychain created"
+
+          # Step 5: Import
+          security import $CERTIFICATE_PATH \
+            -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k $KEYCHAIN_PATH
+          echo "Import exit code: $?"
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          echo "✓ Partition list set"
+
+          # Step 6: Check keychain contents
+          echo "=== All certs in keychain ==="
+          security find-certificate -a $KEYCHAIN_PATH 2>&1 || echo "No certs found"
+          echo "=== Codesigning identities ==="
+          security find-identity -v -p codesigning $KEYCHAIN_PATH 2>&1
+          echo "=== All identities ==="
+          security find-identity -v $KEYCHAIN_PATH 2>&1
+
+          security list-keychains -d user -s $KEYCHAIN_PATH login.keychain-db
+
+          # Step 7: Install profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          PROFILE_UUID=$(security cms -D -i "$PP_PATH" | plutil -extract UUID raw -)
+          echo "✓ Profile UUID: $PROFILE_UUID"
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
+          echo "✓ Profile installed"
+
+
+      - name: Verify iOS certificate in keychain
+        if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo "=== Identities in keychain ==="
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+          echo "=== Installed provisioning profiles ==="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "=== Profile details ==="
+          for f in ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision; do
+            echo "--- $f ---"
+            security cms -D -i "$f" | grep -E "Name|UUID|TeamName|application-identifier" | head -10
+          done
+          
+      - name: Verify iOS certificate in keychain
+        if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo "=== Identities in keychain ==="
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+          echo "=== Installed provisioning profiles ==="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "=== Profile details ==="
+          for f in ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision; do
+            echo "--- $f ---"
+            security cms -D -i "$f" | grep -E "Name|UUID|TeamName|application-identifier" | head -10
+          done
+
+      - name: Build Signed iOS App (IPA)
+        if: ${{ env.ENABLE_IOS_SIGNING == 'true' }}
+        env:
+          KEYCHAIN_PATH: ${{ runner.temp }}/app-signing.keychain-db
+        run: |
+          chmod +x ./set_flavor.sh
+          ./set_flavor.sh ${{ matrix.flavor }}
+
+          ENTRY_FILE="lib/main_${{ matrix.flavor }}.dart"
+          if [ "${{ matrix.flavor }}" == "manager" ]; then ENTRY_FILE="lib/main_branch.dart"; fi
+          if [ "${{ matrix.flavor }}" == "kiosk" ]; then ENTRY_FILE="lib/main_terminal.dart"; fi
+
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security unlock-keychain -p "${{ secrets.GITHUB_TOKEN }}" $KEYCHAIN_PATH
+
+          # Find installed profile UUID
+          PROFILE_UUID=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/ | head -1 | sed 's/.mobileprovision//')
+          echo "Using profile UUID: $PROFILE_UUID"
+
+          # Create xcconfig to override signing ONLY for Runner target
+          cat > /tmp/signing_override.xcconfig << EOF
+          CODE_SIGN_STYLE = Manual
+          CODE_SIGN_IDENTITY = iPhone Distribution: TECHBIZ LIMITED (45XP48S67P)
+          DEVELOPMENT_TEAM = 45XP48S67P
+          PROVISIONING_PROFILE = $PROFILE_UUID
+          PROVISIONING_PROFILE_SPECIFIER = $PROFILE_UUID
+          EOF
+
+          cd ios && pod install && cd ..
+
+          # Archive - use xcconfig only for Runner, Pods use their own settings
+          set -o pipefail && xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/Runner.xcarchive \
+            -destination "generic/platform=iOS" \
+            -xcconfig /tmp/signing_override.xcconfig \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
+            FLUTTER_TARGET=$ENTRY_FILE \
+            archive 2>&1 | tee xcodebuild.log
+
+          if [ ! -d "$RUNNER_TEMP/Runner.xcarchive" ]; then
+            echo "=== BUILD ERRORS ==="
+            grep "error:" xcodebuild.log | head -30
+            exit 1
+          fi
+          echo "✓ Archive created"
+
+          # Export IPA
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Runner.xcarchive \
+            -exportOptionsPlist ios/export_options/${{ matrix.flavor }}.plist \
+            -exportPath $RUNNER_TEMP/export \
+            2>&1 | tee export.log
+
+          mkdir -p dist
+          cp $RUNNER_TEMP/export/*.ipa dist/${FLAVOR_APP_NAME}-${VERSION}.ipa
+          echo "✓ IPA created"
+
+          
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}
+          path: |
+            dist/*.tar.gz
+            dist/*.ipa
+
+  release:
+    needs: [parse-metadata, compute-matrix, build-windows, build-macos, build-linux, build-android, build-ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_release == 'true'
+    env:
+      APP_NAME: ${{ needs.parse-metadata.outputs.app_name }}
+      VERSION: ${{ needs.parse-metadata.outputs.version }}
+      # If manual tag provided, use it. If tag push, use current tag. Otherwise use v + pubspec version.
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', needs.parse-metadata.outputs.version)) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Debug - Show artifact structure
+        run: |
+          echo "=== Artifacts Directory Structure ==="
+          find artifacts -type f | sort
+          echo ""
+          echo "Total files: $(find artifacts -type f | wc -l)"
+
+      - name: Organize release files
+        run: |
+          set -e
+          echo "Organizing release files..."
+          mkdir -p release_files
+
+          echo "Copying mobile artifacts..."
+          find artifacts -type f -name "*.apk"            -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*-ios-*.tar.gz"   -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.ipa"            -exec cp {} release_files/ \; 2>/dev/null || true
+
+          echo "Copying installers and packages..."
+          find artifacts -type f -name "*-Setup.exe"      -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.dmg"            -exec cp {} release_files/ \; 2>/dev/null || true
+          find artifacts -type f -name "*.AppImage"       -exec cp {} release_files/ \; 2>/dev/null || true
+
+          # Exclude ios tarballs already copied above
+          find artifacts -type f -name "*.tar.gz" ! -name "*-ios-*" -exec cp {} release_files/ \; 2>/dev/null || true
+
+          echo "Copying checksums..."
+          find artifacts -type f -name "*.sha256"         -exec cp {} release_files/ \; 2>/dev/null || true
+
+          echo ""
+          echo "=== Files to be released ==="
+          ls -lh release_files/
+          echo "Total files: $(ls -1 release_files/ | wc -l)"
+
+      # ---------------------------------------------------------------
+      # Delta updates
+      # ---------------------------------------------------------------
+      - name: Get previous release artifacts
+        id: prev_release
+        run: |
+          set -e
+          echo "Getting previous release artifacts for delta generation..."
+
+          CURRENT_TAG=$(git describe --tags --abbrev=0)
+          PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, skipping delta updates"
+            echo "HAS_PREVIOUS_RELEASE=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "Previous tag: $PREV_TAG"
+          echo "HAS_PREVIOUS_RELEASE=true"  >> $GITHUB_ENV
+          echo "PREV_TAG=$PREV_TAG"         >> $GITHUB_ENV   # <-- exported so next step can use it
+
+          mkdir -p previous_release
+
+          REPO_OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f1)
+          REPO_NAME=$(echo "$GITHUB_REPOSITORY"  | cut -d'/' -f2)
+
+          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${PREV_TAG}")
+
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "Previous release not found in GitHub, skipping delta updates"
+            echo "HAS_PREVIOUS_RELEASE=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "$RESPONSE" | jq -r \
+            '.assets[] | select(.name | test("Setup\\.exe$|\\.dmg$|\\.AppImage$")) | "\(.name) \(.browser_download_url)"' \
+            > asset_urls.txt
+
+          while IFS=' ' read -r ASSET_NAME URL; do
+            [ -z "$ASSET_NAME" ] && continue
+            echo "Downloading previous: $ASSET_NAME"
+            curl -s -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -o "previous_release/$ASSET_NAME" "$URL"
+          done < asset_urls.txt
+
+          echo "Previous release assets:"
+          ls -lh previous_release/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Install bsdiff
+        if: env.HAS_PREVIOUS_RELEASE == 'true'
+        run: sudo apt-get install -y bsdiff
+
+      - name: Generate delta updates
+        if: env.HAS_PREVIOUS_RELEASE == 'true'
+        run: |
+          set -e
+          echo "Generating delta updates (PREV_TAG=${PREV_TAG})..."
+          mkdir -p deltas
+
+          PREV_VER="${PREV_TAG#v}"
+
+          # We have one patch per platform (not per flavor) — pick the first matching file
+          # Windows
+          PREV_WIN=$(find previous_release -name "*-Setup.exe" | head -1)
+          NEW_WIN=$(find artifacts -name "*-Setup.exe" | head -1)
+          if [ -n "$PREV_WIN" ] && [ -n "$NEW_WIN" ]; then
+            echo "Generating Windows delta..."
+            bsdiff "$PREV_WIN" "$NEW_WIN" "deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-windows.patch"
+            echo "✓ Windows delta generated"
+          fi
+
+          # macOS
+          PREV_DMG=$(find previous_release -name "*.dmg" | head -1)
+          NEW_DMG=$(find artifacts -name "*.dmg" | head -1)
+          if [ -n "$PREV_DMG" ] && [ -n "$NEW_DMG" ]; then
+            echo "Generating macOS delta..."
+            bsdiff "$PREV_DMG" "$NEW_DMG" "deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-macos.patch"
+            echo "✓ macOS delta generated"
+          fi
+
+          # Linux AppImage
+          PREV_AI=$(find previous_release -name "*.AppImage" | head -1)
+          NEW_AI=$(find artifacts -name "*.AppImage" | head -1)
+          if [ -n "$PREV_AI" ] && [ -n "$NEW_AI" ]; then
+            echo "Generating Linux AppImage delta..."
+            bsdiff "$PREV_AI" "$NEW_AI" "deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-linux.patch"
+            echo "✓ Linux delta generated"
+          fi
+
+          echo "Delta files:"
+          ls -lh deltas/ || echo "(none generated)"
+
+          # Copy patches into release_files for upload
+          find deltas -name "*.patch" -exec cp {} release_files/ \; 2>/dev/null || true
+        continue-on-error: true
+
+      # ---------------------------------------------------------------
+      # Update manifest  (plain JSON — no subshells inside heredoc)
+      # ---------------------------------------------------------------
+      - name: Generate update manifest
+        run: |
+          set -e
+          echo "Generating auto-updater manifest..."
+
+          PREV_VER="${PREV_TAG#v}"
+
+          # ---- checksums (pick first matching file per platform) ----
+          WINDOWS_CHECKSUM=""
+          MACOS_CHECKSUM=""
+          LINUX_AI_CHECKSUM=""
+          LINUX_TGZ_CHECKSUM=""
+
+          WIN_SHA=$(find artifacts -name "*-Setup.exe.sha256" | head -1)
+          MAC_SHA=$(find artifacts -name "*.dmg.sha256"       | head -1)
+          AI_SHA=$(find artifacts  -name "*.AppImage.sha256"  | head -1)
+          TGZ_SHA=$(find artifacts -name "*.tar.gz.sha256" ! -name "*-ios-*" | head -1)
+
+          [ -f "$WIN_SHA"  ] && WINDOWS_CHECKSUM=$(cat "$WIN_SHA")
+          [ -f "$MAC_SHA"  ] && MACOS_CHECKSUM=$(cat "$MAC_SHA")
+          [ -f "$AI_SHA"   ] && LINUX_AI_CHECKSUM=$(cat "$AI_SHA")
+          [ -f "$TGZ_SHA"  ] && LINUX_TGZ_CHECKSUM=$(cat "$TGZ_SHA")
+
+          # ---- file sizes ----
+          WIN_FILE=$(find artifacts  -name "*-Setup.exe"            | head -1)
+          MAC_FILE=$(find artifacts  -name "*.dmg"                  | head -1)
+          AI_FILE=$(find artifacts   -name "*.AppImage"             | head -1)
+          TGZ_FILE=$(find artifacts  -name "*.tar.gz" ! -name "*-ios-*" | head -1)
+
+          WINDOWS_SIZE=0; MACOS_SIZE=0; LINUX_AI_SIZE=0; LINUX_TGZ_SIZE=0
+          [ -f "$WIN_FILE"  ] && WINDOWS_SIZE=$(stat -c%s "$WIN_FILE")
+          [ -f "$MAC_FILE"  ] && MACOS_SIZE=$(stat -c%s "$MAC_FILE")
+          [ -f "$AI_FILE"   ] && LINUX_AI_SIZE=$(stat -c%s "$AI_FILE")
+          [ -f "$TGZ_FILE"  ] && LINUX_TGZ_SIZE=$(stat -c%s "$TGZ_FILE")
+
+          WIN_FNAME=$(basename "$WIN_FILE"  2>/dev/null || echo "")
+          MAC_FNAME=$(basename "$MAC_FILE"  2>/dev/null || echo "")
+          AI_FNAME=$(basename "$AI_FILE"    2>/dev/null || echo "")
+          TGZ_FNAME=$(basename "$TGZ_FILE"  2>/dev/null || echo "")
+
+          # ---- delta info ----
+          WIN_PATCH="deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-windows.patch"
+          MAC_PATCH="deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-macos.patch"
+          AI_PATCH="deltas/${APP_NAME}-${PREV_VER}-to-${VERSION}-linux.patch"
+
+          WIN_DELTA_JSON="null"
+          MAC_DELTA_JSON="null"
+          AI_DELTA_JSON="null"
+
+          if [ "$HAS_PREVIOUS_RELEASE" = "true" ] && [ -f "$WIN_PATCH" ]; then
+            WIN_PATCH_CHECKSUM=$(shasum -a 256 "$WIN_PATCH" | awk '{print $1}')
+            WIN_PATCH_SIZE=$(stat -c%s "$WIN_PATCH")
+            WIN_PATCH_FNAME=$(basename "$WIN_PATCH")
+            WIN_DELTA_JSON="{\"url\":\"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${WIN_PATCH_FNAME}\",\"checksum\":\"${WIN_PATCH_CHECKSUM}\",\"checksum_algorithm\":\"sha256\",\"size_bytes\":${WIN_PATCH_SIZE},\"base_version\":\"${PREV_VER}\"}"
+          fi
+
+          if [ "$HAS_PREVIOUS_RELEASE" = "true" ] && [ -f "$MAC_PATCH" ]; then
+            MAC_PATCH_CHECKSUM=$(shasum -a 256 "$MAC_PATCH" | awk '{print $1}')
+            MAC_PATCH_SIZE=$(stat -c%s "$MAC_PATCH")
+            MAC_PATCH_FNAME=$(basename "$MAC_PATCH")
+            MAC_DELTA_JSON="{\"url\":\"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${MAC_PATCH_FNAME}\",\"checksum\":\"${MAC_PATCH_CHECKSUM}\",\"checksum_algorithm\":\"sha256\",\"size_bytes\":${MAC_PATCH_SIZE},\"base_version\":\"${PREV_VER}\"}"
+          fi
+
+          if [ "$HAS_PREVIOUS_RELEASE" = "true" ] && [ -f "$AI_PATCH" ]; then
+            AI_PATCH_CHECKSUM=$(shasum -a 256 "$AI_PATCH" | awk '{print $1}')
+            AI_PATCH_SIZE=$(stat -c%s "$AI_PATCH")
+            AI_PATCH_FNAME=$(basename "$AI_PATCH")
+            AI_DELTA_JSON="{\"url\":\"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${AI_PATCH_FNAME}\",\"checksum\":\"${AI_PATCH_CHECKSUM}\",\"checksum_algorithm\":\"sha256\",\"size_bytes\":${AI_PATCH_SIZE},\"base_version\":\"${PREV_VER}\"}"
+          fi
+
+          # ---- write manifest using jq (guarantees valid JSON) ----
+          jq -n \
+            --arg  version           "$VERSION" \
+            --arg  release_date      "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+            --arg  release_notes_url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${VERSION}" \
+            --arg  win_url           "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${WIN_FNAME}" \
+            --arg  win_checksum      "$WINDOWS_CHECKSUM" \
+            --argjson win_size       "$WINDOWS_SIZE" \
+            --argjson win_delta      "$WIN_DELTA_JSON" \
+            --arg  mac_url           "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${MAC_FNAME}" \
+            --arg  mac_checksum      "$MACOS_CHECKSUM" \
+            --argjson mac_size       "$MACOS_SIZE" \
+            --argjson mac_delta      "$MAC_DELTA_JSON" \
+            --arg  ai_url            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${AI_FNAME}" \
+            --arg  ai_checksum       "$LINUX_AI_CHECKSUM" \
+            --argjson ai_size        "$LINUX_AI_SIZE" \
+            --argjson ai_delta       "$AI_DELTA_JSON" \
+            --arg  tgz_url           "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${TGZ_FNAME}" \
+            --arg  tgz_checksum      "$LINUX_TGZ_CHECKSUM" \
+            --argjson tgz_size       "$LINUX_TGZ_SIZE" \
+            '{
+              version: $version,
+              release_date: $release_date,
+              release_notes_url: $release_notes_url,
+              platforms: {
+                windows: {
+                  full:  { url: $win_url,  checksum: $win_checksum,  checksum_algorithm: "sha256", size_bytes: $win_size },
+                  delta: $win_delta
+                },
+                macos: {
+                  full:  { url: $mac_url,  checksum: $mac_checksum,  checksum_algorithm: "sha256", size_bytes: $mac_size },
+                  delta: $mac_delta
+                },
+                linux: {
+                  appimage: {
+                    full:  { url: $ai_url,  checksum: $ai_checksum,  checksum_algorithm: "sha256", size_bytes: $ai_size },
+                    delta: $ai_delta
+                  },
+                  tarball: {
+                    full:  { url: $tgz_url, checksum: $tgz_checksum, checksum_algorithm: "sha256", size_bytes: $tgz_size }
+                  }
+                }
+              },
+              minimum_version: $version,
+              force_update: false
+            }' > release_files/update-manifest.json
+
+          echo "✓ Update manifest created"
+          cat release_files/update-manifest.json
+
+      # ---------------------------------------------------------------
+      # Release notes
+      # ---------------------------------------------------------------
+      - name: Generate Release Notes
+        id: release_notes
+        timeout-minutes: 5
+        run: |
+          set -e
+          USE_AUTO="true"
+
+          if [ -f "CHANGELOG.md" ] && [ -s "CHANGELOG.md" ]; then
+            VERSION_TO_FIND="${RELEASE_TAG#v}"
+            if grep -qi "## \[?${VERSION_TO_FIND}\]?" CHANGELOG.md; then
+              sed -n "/## \[?${VERSION_TO_FIND}\]?/,/^## /p" CHANGELOG.md | sed '$d' > release_notes.txt
+              if [ -s release_notes.txt ]; then
+                echo "Found changelog section for v${VERSION_TO_FIND}"
+                USE_AUTO="false"
+              fi
+            fi
+          fi
+
+          echo "use_auto_notes=$USE_AUTO" >> $GITHUB_OUTPUT
+
+          if [ "$USE_AUTO" = "true" ]; then
+            PREV_TAG_FOR_NOTES=$(git describe --tags --abbrev=0 "$(git describe --tags --abbrev=0)^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG_FOR_NOTES" ]; then
+              git log "${PREV_TAG_FOR_NOTES}..HEAD" --pretty=format:"- %s" > auto_notes.txt
+            else
+              git log --pretty=format:"- %s" -10 > auto_notes.txt
+            fi
+          fi
+
+      - name: Create GitHub Release with CHANGELOG
+        if: steps.release_notes.outputs.use_auto_notes == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_files/*
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.APP_NAME }} ${{ env.RELEASE_TAG }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          discussion_category_name: Announcements
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release with Auto Notes
+        if: steps.release_notes.outputs.use_auto_notes == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_files/*
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.APP_NAME }} ${{ env.RELEASE_TAG }}
+          body_path: auto_notes.txt
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          discussion_category_name: Announcements
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---------------------------------------------------------------
+      # Security scan  (Trivy via apt repo — reliable, no version pinning)
+      # ---------------------------------------------------------------
+      - name: Generate Security Report
+        timeout-minutes: 10
+        run: |
+          set -e
+
+          # Install Trivy via the official apt repository
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+          trivy fs --format table --output security-report.txt . \
+            || echo "Trivy scan completed with warnings, continuing..."
+
+          echo "✓ Security report generated"
+          cat security-report.txt
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ env.RELEASE_TAG }}
+          path: security-report.txt
+          retention-days: 90
+
+  auto-update-cert-pins:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Checkout pins branch or initialize
+        run: |
+          mkdir -p pins-repo
+          cd pins-repo
+          git init
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          
+          # Try to fetch the branch
+          if git fetch origin pins-branch; then
+            echo "Branch exists, checking out..."
+            git checkout -b pins-branch FETCH_HEAD
+          else
+            echo "Branch does not exist, initializing..."
+            git checkout --orphan pins-branch
+            git rm -rf . || true
+            echo "{}" > latest.json
+            git add latest.json
+            git commit -m "Initial pins file"
+            git push -u origin pins-branch
+          fi
+          cd ..
+      - name: Get current GitHub certificate pins
+        id: get_pins
+        working-directory: pins-repo
+        run: |
+          echo "=== Calculating GitHub Certificate Pins ==="
+          # Get pins for all GitHub domains used in your app
+          GITHUB_PIN=$(openssl s_client -connect github.com:443 -servername github.com 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl base64)
+          API_PIN=$(openssl s_client -connect api.github.com:443 -servername api.github.com 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl base64)
+          OBJECTS_PIN=$(openssl s_client -connect objects.githubusercontent.com:443 -servername objects.githubusercontent.com 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl base64)
+          # Create pins directory if it doesn't exist
+          mkdir -p pins
+          # Generate pins config with metadata
+          cat > pins/latest.json << EOF
+          {
+            "github_pins": {
+              "github.com": ["sha256/$GITHUB_PIN"],
+              "api.github.com": ["sha256/$API_PIN"],
+              "objects.githubusercontent.com": ["sha256/$OBJECTS_PIN"]
+            },
+            "metadata": {
+              "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+              "valid_until": "$(date -u -d "+90 days" +"%Y-%m-%dT%H:%M:%SZ")",
+              "source": "github-actions-auto-update",
+              "repository": "${GITHUB_REPOSITORY}"
+            }
+          }
+          EOF
+          echo "✓ Pins config generated:"
+          cat pins/latest.json
+          # Set outputs for logging
+          echo "github_com_pin=sha256/$GITHUB_PIN" >> $GITHUB_OUTPUT
+          echo "api_github_com_pin=sha256/$API_PIN" >> $GITHUB_OUTPUT
+          echo "objects_github_com_pin=sha256/$OBJECTS_PIN" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: Commit and push pins update
+        working-directory: pins-repo
+        run: |
+          git config user.name "Auto-Pin-Updater"
+          git config user.email "auto-updater@github.com"
+          # Stage and commit changes
+          git add pins/latest.json
+          # Only commit if there are changes
+          if git diff --cached --quiet; then
+            echo "No changes to pins config - skipping commit"
+          else
+            git commit -m "Auto-update GitHub certificate pins - $(date -u +"%Y-%m-%d %H:%M:%SZ")"
+            git push origin pins-branch
+            echo "✓ Pins updated and pushed to pins-branch"
+          fi
+        shell: bash
+      - name: Set up GitHub Pages (if first time)
+        if: failure()
+        working-directory: pins-repo
+        run: |
+          echo "⚠️ First-time setup may be required:"
+          echo "1. Create a branch named 'pins-branch'"
+          echo "2. Go to your repository Settings → Pages"
+          echo "3. Set source to 'pins-branch' and folder to '/ (root)'"
+          echo "4. Wait ~1 minute for GitHub Pages to activate"
+          echo "5. Your pins will be available at: https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY##*/}/pins/latest.json"
+        shell: bash
