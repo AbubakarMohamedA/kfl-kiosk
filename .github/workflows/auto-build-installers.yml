@@ -1187,28 +1187,28 @@ jobs:
           else
             echo "Warning: AppImage creation failed"
           fi
-    - name: Generate Linux checksums
-      run: |
-        cd dist
-        for file in *.tar.gz *.AppImage; do
-          if [ -f "$file" ]; then
-            shasum -a 256 "$file" | awk '{print $1}' > "${file}.sha256"
-            echo "Generated checksum for $file: $(cat "${file}.sha256")"
-          fi
-        done
-        echo "✓ All checksums generated"
+      - name: Generate Linux checksums
+        run: |
+          cd dist
+          for file in *.tar.gz *.AppImage; do
+            if [ -f "$file" ]; then
+              shasum -a 256 "$file" | awk '{print $1}' > "${file}.sha256"
+              echo "Generated checksum for $file: $(cat "${file}.sha256")"
+            fi
+          done
+          echo "✓ All checksums generated"
 
-    - name: Upload Linux artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}-${{ matrix.arch }}
-        path: |
-          dist/*.AppImage
-          dist/*.tar.gz
-          dist/*.sha256
-          artifacts/*.AppImage
-          artifacts/*.tar.gz
-        retention-days: 30
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts-${{ matrix.flavor }}-${{ needs.parse-metadata.outputs.version_tag }}-${{ matrix.arch }}
+          path: |
+            dist/*.AppImage
+            dist/*.tar.gz
+            dist/*.sha256
+            artifacts/*.AppImage
+            artifacts/*.tar.gz
+          retention-days: 30
 
 
   build-android:
