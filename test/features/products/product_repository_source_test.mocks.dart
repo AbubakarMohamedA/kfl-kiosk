@@ -105,6 +105,12 @@ class MockLocalProductDataSource extends _i1.Mock
             returnValueForMissingStub: _i6.Future<void>.value(),
           )
           as _i6.Future<void>);
+
+  @override
+  void clearCache() => super.noSuchMethod(
+    Invocation.method(#clearCache, []),
+    returnValueForMissingStub: null,
+  );
 }
 
 /// A class which mocks [ProductRemoteDataSource].
@@ -168,6 +174,12 @@ class MockProductRemoteDataSource extends _i1.Mock
             returnValueForMissingStub: _i6.Future<void>.value(),
           )
           as _i6.Future<void>);
+
+  @override
+  void clearCache() => super.noSuchMethod(
+    Invocation.method(#clearCache, []),
+    returnValueForMissingStub: null,
+  );
 }
 
 /// A class which mocks [SapProductDataSource].
@@ -186,6 +198,13 @@ class MockSapProductDataSource extends _i1.Mock
             returnValue: _FakeClient_0(this, Invocation.getter(#client)),
           )
           as _i2.Client);
+
+  @override
+  void updateLocalImage(String? productId, String? imageUrl) =>
+      super.noSuchMethod(
+        Invocation.method(#updateLocalImage, [productId, imageUrl]),
+        returnValueForMissingStub: null,
+      );
 
   @override
   _i6.Future<List<_i7.ProductModel>> fetchProducts({String? tenantId}) =>
@@ -231,6 +250,12 @@ class MockSapProductDataSource extends _i1.Mock
             returnValueForMissingStub: _i6.Future<void>.value(),
           )
           as _i6.Future<void>);
+
+  @override
+  void clearCache() => super.noSuchMethod(
+    Invocation.method(#clearCache, []),
+    returnValueForMissingStub: null,
+  );
 }
 
 /// A class which mocks [AuthRepository].

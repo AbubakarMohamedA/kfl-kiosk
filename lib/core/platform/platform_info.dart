@@ -50,7 +50,7 @@ class PlatformInfo {
     if (isWeb) return DeviceType.web;
     
     if (isMobile) {
-      return width > 600 ? DeviceType.tablet : DeviceType.mobile;
+      return width >= 600 ? DeviceType.tablet : DeviceType.mobile;
     }
     
     if (isDesktop) {

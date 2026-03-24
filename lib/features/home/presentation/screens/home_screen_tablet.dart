@@ -262,7 +262,18 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
+    final size = MediaQuery.of(context).size;
+    final orientation = MediaQuery.of(context).orientation;
+    final isLandscape = orientation == Orientation.landscape;
+
+    final logoWidth = isLandscape ? size.width * 0.12 : size.width * 0.18;
+    final welcomeSize = isLandscape ? size.width * 0.04 : size.width * 0.06;
+    final buttonPaddingH = isLandscape ? size.width * 0.06 : size.width * 0.1;
+    final buttonPaddingV = isLandscape ? size.height * 0.02 : size.height * 0.025;
+    final buttonTextSize = isLandscape ? size.width * 0.022 : size.width * 0.035;
+    final langPaddingH = isLandscape ? size.width * 0.03 : size.width * 0.05;
+    final langPaddingV = isLandscape ? size.height * 0.015 : size.height * 0.02;
+    final langTextSize = isLandscape ? size.width * 0.015 : size.width * 0.022;
 
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
@@ -277,204 +288,215 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
         }
       },
       child: Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: _primaryColor, // Base green color or custom from config
-        ),
-        child: Stack(
-          children: [
-            // Pattern background
-            Positioned.fill(
-              child: _backgroundPath != null && _backgroundPath!.isNotEmpty && _backgroundPath!.endsWith('.svg')
-                  ? SvgPicture.asset(
-                      _backgroundPath!,
-                      fit: BoxFit.cover,
-                    )
-                  : SvgPicture.asset(
-                      'assets/images/Pattern.svg',
-                      fit: BoxFit.cover,
-                    ),
-            ),
-            
-            // Settings and Auth buttons at top right
-            Positioned(
-              top: 16,
-              right: 16,
-              child: SafeArea(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Connection Status & Settings (Login removed)
-                    GestureDetector(
-                      onTap: () {
-                        _tapResetTimer?.cancel();
-                        setState(() {
-                          _cloudTapCount++;
-                        });
-                        if (_cloudTapCount >= 5) {
+      body: SizedBox.expand(
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: _primaryColor, // Base green color or custom from config
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Pattern background
+              Positioned.fill(
+                child: _backgroundPath != null && _backgroundPath!.isNotEmpty && _backgroundPath!.endsWith('.svg')
+                    ? SvgPicture.asset(
+                        _backgroundPath!,
+                        fit: BoxFit.cover,
+                      )
+                    : SvgPicture.asset(
+                        'assets/images/Pattern.svg',
+                        fit: BoxFit.cover,
+                      ),
+              ),
+              
+              // Settings and Auth buttons at top right
+              Positioned(
+                top: 16,
+                right: 16,
+                child: SafeArea(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Connection Status & Settings (Login removed)
+                      GestureDetector(
+                        onTap: () {
+                          _tapResetTimer?.cancel();
                           setState(() {
-                            _cloudTapCount = 0;
+                            _cloudTapCount++;
                           });
-                          _showServerUrlDialog();
-                        } else {
-                          _tapResetTimer = Timer(const Duration(seconds: 2), () {
-                            if (mounted) {
-                              setState(() {
-                                _cloudTapCount = 0;
-                              });
-                            }
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _isConnected ? Icons.cloud_done : Icons.cloud_off,
-                              color: _isConnected ? Colors.greenAccent : Colors.white70,
-                              size: 24,
+                          if (_cloudTapCount >= 5) {
+                            setState(() {
+                              _cloudTapCount = 0;
+                            });
+                            _showServerUrlDialog();
+                          } else {
+                            _tapResetTimer = Timer(const Duration(seconds: 2), () {
+                              if (mounted) {
+                                setState(() {
+                                  _cloudTapCount = 0;
+                                });
+                              }
+                            });
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              width: 1,
                             ),
-                          ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isConnected ? Icons.cloud_done : Icons.cloud_off,
+                                color: _isConnected ? Colors.greenAccent : Colors.white70,
+                                size: 24,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            
-            // Main content
-            SafeArea(
-              child: Center(
-                child: BlocBuilder<LanguageCubit, LanguageState>(
-                  builder: (context, languageState) {
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Logo at center above welcome text
-                        SizedBox(
-                          width: size.width * 0.15,
-                          child: _logoPath != null && _logoPath!.isNotEmpty
-                              ? Image.file(
-                                  File(_logoPath!),
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Image.asset(
-                                      'assets/images/logo.png',
-                                      fit: BoxFit.contain,
-                                    );
-                                  },
-                                )
-                              : Image.asset(
-                                  'assets/images/logo.png',
-                                  fit: BoxFit.contain,
-                                ),
-                        ),
-                        SizedBox(height: size.height * 0.04),
-
-                        // WELCOME TEXT (without "TO")
-                        Text(
-                          'WELCOME',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: size.width * 0.05,
-                            fontStyle: FontStyle.italic,
-                            fontFamily: 'Lato',
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
+              
+              // Main content
+              SafeArea(
+                child: Center(
+                  child: BlocBuilder<LanguageCubit, LanguageState>(
+                    builder: (context, languageState) {
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Logo at center above welcome text
+                          SizedBox(
+                            width: logoWidth,
+                            child: _logoPath != null && _logoPath!.isNotEmpty
+                                ? Image.file(
+                                    File(_logoPath!),
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Image.asset(
+                                        'assets/images/logo.png',
+                                        fit: BoxFit.contain,
+                                      );
+                                    },
+                                  )
+                                : Image.asset(
+                                    'assets/images/logo.png',
+                                    fit: BoxFit.contain,
+                                  ),
                           ),
-                        ),
-                        SizedBox(height: size.height * 0.05),
-
-                        // START ORDER BUTTON (Now always visible)
-                        GestureDetector(
-                          onTap: () {
-                            // Refresh products before entering catalogue
-                            context.read<ProductBloc>().add(const LoadProducts());
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CatalogScreenTablet(
-                                  language: languageState.languageCode,
-                                ),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: size.width * 0.08,
-                              vertical: size.height * 0.025,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8562A),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              languageState.translate('start_order'),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: size.width * 0.03,
-                                fontStyle: FontStyle.italic,
-                                fontFamily: 'Lato',
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
-                              ),
+                          SizedBox(height: isLandscape ? size.height * 0.02 : size.height * 0.04),
+  
+                          // WELCOME TEXT (without "TO")
+                          Text(
+                            'WELCOME',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: welcomeSize,
+                              fontStyle: FontStyle.italic,
+                              fontFamily: 'Lato',
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2,
                             ),
                           ),
-                        ),
-                        SizedBox(height: size.height * 0.03),
-
-                        // LANGUAGE BUTTONS (Custom implementation to match design)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildLanguageButton(
-                              context,
-                              'English',
-                              languageState.languageCode == 'en',
-                              () {
-                                context.read<LanguageCubit>().changeLanguage('en');
-                              },
+                          SizedBox(height: isLandscape ? size.height * 0.03 : size.height * 0.05),
+  
+                          // START ORDER BUTTON (Now always visible)
+                          GestureDetector(
+                            onTap: () {
+                              // Refresh products before entering catalogue
+                              context.read<ProductBloc>().add(const LoadProducts());
+  
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CatalogScreenTablet(
+                                    language: languageState.languageCode,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: buttonPaddingH,
+                                vertical: buttonPaddingV,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8562A),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                languageState.translate('start_order'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: buttonTextSize,
+                                  fontStyle: FontStyle.italic,
+                                  fontFamily: 'Lato',
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1,
+                                ),
+                              ),
                             ),
-                            const SizedBox(width: 16),
-                            _buildLanguageButton(
-                              context,
-                              'Swahili',
-                              languageState.languageCode == 'sw',
-                              () {
-                                context.read<LanguageCubit>().changeLanguage('sw');
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
+                          ),
+                          SizedBox(height: isLandscape ? size.height * 0.02 : size.height * 0.03),
+  
+                          // LANGUAGE BUTTONS (Custom implementation to match design)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildLanguageButton(
+                                context,
+                                'English',
+                                languageState.languageCode == 'en',
+                                () {
+                                  context.read<LanguageCubit>().changeLanguage('en');
+                                },
+                                langPaddingH,
+                                langPaddingV,
+                                langTextSize,
+                              ),
+                              const SizedBox(width: 16),
+                              _buildLanguageButton(
+                                context,
+                                'Swahili',
+                                languageState.languageCode == 'sw',
+                                () {
+                                  context.read<LanguageCubit>().changeLanguage('sw');
+                                },
+                                langPaddingH,
+                                langPaddingV,
+                                langTextSize,
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       ),
@@ -486,15 +508,16 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
     String label,
     bool isSelected,
     VoidCallback onTap,
+    double padH,
+    double padV,
+    double textSize,
   ) {
-    final size = MediaQuery.sizeOf(context);
-    
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: size.width * 0.045,
-          vertical: size.height * 0.018,
+          horizontal: padH,
+          vertical: padV,
         ),
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.9),
@@ -508,7 +531,7 @@ class _HomeScreenTabletState extends State<HomeScreenTablet> {
           label,
           style: TextStyle(
             color: Colors.black87,
-            fontSize: size.width * 0.018,
+            fontSize: textSize,
             fontWeight: FontWeight.w600,
             fontFamily: 'Lato',
           ),

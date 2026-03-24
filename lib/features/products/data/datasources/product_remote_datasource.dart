@@ -9,6 +9,7 @@ abstract class ProductDataSource {
   Future<void> addProduct(ProductModel product);
   Future<void> updateProduct(ProductModel product);
   Future<void> deleteProduct(String id);
+  void clearCache();
 }
 
 class ProductRemoteDataSource implements ProductDataSource {
@@ -78,5 +79,10 @@ class ProductRemoteDataSource implements ProductDataSource {
     if (response.statusCode != 200) {
       throw Exception('Failed to delete product');
     }
+  }
+
+  @override
+  void clearCache() {
+    // No-op for remote data source
   }
 }

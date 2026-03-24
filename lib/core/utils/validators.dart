@@ -57,7 +57,7 @@ class Validators {
 
   // Validate amount for payment
   static bool isValidPaymentAmount(double amount) {
-    return amount >= 1 && amount <= 1000000; // Min 1 KSh, Max 1M KSh
+    return amount >= 0 && amount <= 1000000; // Allow 0 for testing purposes
   }
 
   // Sanitize string input

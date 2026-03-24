@@ -53,6 +53,7 @@ import 'package:sss/features/auth/domain/services/tenant_service.dart';
 import 'package:sss/core/repositories/image_repository.dart';
 
 import '../core/config/app_role.dart';
+import '../core/services/sap_auth_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -83,7 +84,7 @@ Future<void> setupDependencies() async {
   getIt.registerLazySingleton<LocalConfigurationDataSource>(() => LocalConfigurationDataSource(getIt<AppDatabase>())); // Fix: Pass AppDatabase
   getIt.registerLazySingleton<LocalServerService>(() => LocalServerService( // NEW
         getIt<TenantConfigDao>(), // NEW
-        getIt<ProductsDao>(), // NEW
+        getIt<ProductRepository>(), // NEW
         getIt<OrdersDao>(), // NEW
         getIt<AppConfigDao>(), // NEW
       )); // NEW
@@ -131,7 +132,8 @@ Future<void> setupDependencies() async {
   getIt.registerLazySingleton<AuthMockDataSource>(() => AuthMockDataSource());
   getIt.registerLazySingleton<AuthRemoteDataSource>(() => AuthRemoteDataSource(client: getIt()));
 
-  getIt.registerLazySingleton<SapProductDataSource>(() => SapProductDataSource());
+  getIt.registerLazySingleton<SapAuthService>(() => SapAuthService());
+  getIt.registerLazySingleton<SapProductDataSource>(() => SapProductDataSource(getIt<SapAuthService>()));
 
   // Repositories
   getIt.registerLazySingleton<ProductRepository>(() => ProductRepositoryImpl(

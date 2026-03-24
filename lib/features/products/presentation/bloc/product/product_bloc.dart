@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sss/features/products/domain/usecases/product_usecases.dart';
 import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
+import 'package:sss/di/injection.dart';
+import 'package:sss/features/products/domain/repositories/product_repository.dart';
 import 'product_event.dart';
 import 'product_state.dart';
 
@@ -29,6 +31,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<AddProductEvent>(_onAddProduct);
     on<UpdateProductEvent>(_onUpdateProduct);
     on<DeleteProductEvent>(_onDeleteProduct);
+    on<UpdateProductImageLocalEvent>(_onUpdateProductImageLocal);
   }
 
   Future<void> _onLoadProducts(
@@ -111,14 +114,13 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
   ) async {
     try {
       final config = await configurationRepository.getConfiguration();
-      // Ensure the product gets the correct enterprise scoping
       final productWithScope = event.product.copyWith(
         tenantId: config.tenantId,
         branchId: config.tierId == 'enterprise' ? config.branchId : null,
       );
-      
+
       await addProduct(productWithScope);
-      add(const LoadProducts()); // Reload products after adding
+      add(const LoadProducts());
     } catch (e) {
       emit(ProductError(e.toString()));
     }
@@ -130,7 +132,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
   ) async {
     try {
       await updateProduct(event.product);
-      add(const LoadProducts()); // Reload products after updating
+      add(const LoadProducts());
     } catch (e) {
       emit(ProductError(e.toString()));
     }
@@ -142,9 +144,41 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
   ) async {
     try {
       await deleteProduct(event.productId);
-      add(const LoadProducts()); // Reload products after deleting
+      add(const LoadProducts());
     } catch (e) {
       emit(ProductError(e.toString()));
+    }
+  }
+
+  // ✅ Local-only image update — never touches SAP, never triggers a fetch.
+  // Updates the in-memory product list directly so the UI reflects the new
+  // image instantly without killing the SAP session.
+  Future<void> _onUpdateProductImageLocal(
+    UpdateProductImageLocalEvent event,
+    Emitter<ProductState> emit,
+  ) async {
+    // ✅ Make SAP Data Source aware of the uploaded image
+    getIt<ProductRepository>().cacheLocalImage(event.productId, event.imageUrl);
+
+    if (state is ProductLoaded) {
+      final currentState = state as ProductLoaded;
+
+      final updatedProducts = currentState.products.map((p) {
+        return p.id == event.productId
+            ? p.copyWith(imageUrl: event.imageUrl)
+            : p;
+      }).toList();
+
+      final updatedFiltered = currentState.filteredProducts.map((p) {
+        return p.id == event.productId
+            ? p.copyWith(imageUrl: event.imageUrl)
+            : p;
+      }).toList();
+
+      emit(currentState.copyWith(
+        products: updatedProducts,
+        filteredProducts: updatedFiltered,
+      ));
     }
   }
 }

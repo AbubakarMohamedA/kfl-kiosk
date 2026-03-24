@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,6 +34,7 @@ import 'dart:math' as math;
 import '../../../../core/config/app_role.dart';
 import '../../../../core/services/local_server_service.dart';
 import '../../../../di/injection.dart';
+import '../../../../core/platform/platform_info.dart';
 
 class StaffPanelMobile extends StatefulWidget {
   const StaffPanelMobile({super.key});
@@ -90,11 +92,25 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
 
-    // Lock to portrait orientation
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    // Lock to portrait orientation for mobile phones only
+    final view = PlatformDispatcher.instance.views.first;
+    final width = view.physicalSize.width / view.devicePixelRatio;
+    final deviceType = PlatformInfo.getDeviceType(width);
+    
+    if (deviceType == DeviceType.mobile) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    } else {
+      // Allow all orientations for tablets
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
 
     // ✅ NEW: Load configuration on startup
     _loadConfiguration();

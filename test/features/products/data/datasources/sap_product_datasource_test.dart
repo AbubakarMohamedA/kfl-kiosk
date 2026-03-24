@@ -5,18 +5,21 @@ import 'package:http/http.dart' as http;
 import 'package:sss/core/config/api_config.dart';
 import 'package:sss/features/products/data/datasources/sap_product_datasource.dart';
 import 'package:sss/features/products/data/models/product_model.dart';
+import 'package:sss/core/services/sap_auth_service.dart';
 import 'dart:convert';
 
 import 'sap_product_datasource_test.mocks.dart';
 
-@GenerateMocks([http.Client])
+@GenerateMocks([http.Client, SapAuthService])
 void main() {
   late SapProductDataSource dataSource;
   late MockClient mockClient;
+  late MockSapAuthService mockSapAuth;
 
   setUp(() {
     mockClient = MockClient();
-    dataSource = SapProductDataSource(client: mockClient);
+    mockSapAuth = MockSapAuthService();
+    dataSource = SapProductDataSource(mockSapAuth, client: mockClient);
     ApiConfig.setFlavor(AppFlavor.prod); // Force prod to test network calls
   });
 

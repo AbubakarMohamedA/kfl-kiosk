@@ -6,7 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:sss/core/database/daos/orders_dao.dart';
-import 'package:sss/core/database/daos/products_dao.dart';
+import 'package:sss/features/products/domain/repositories/product_repository.dart';
 import 'package:sss/core/database/daos/tenant_config_dao.dart';
 import 'package:sss/features/orders/data/models/order_model.dart';
 import 'package:sss/core/database/daos/app_config_dao.dart';
@@ -43,7 +43,7 @@ class TerminalInfo {
 
 class LocalServerService {
   final TenantConfigDao _tenantConfigDao;
-  final ProductsDao _productsDao;
+  final ProductRepository _productRepository;
   final OrdersDao _ordersDao;
   final AppConfigDao _appConfigDao;
   HttpServer? _server;
@@ -59,7 +59,7 @@ class LocalServerService {
 
   LocalServerService(
     this._tenantConfigDao,
-    this._productsDao,
+    this._productRepository,
     this._ordersDao,
     this._appConfigDao,
   );
@@ -241,20 +241,15 @@ class LocalServerService {
         final requestedBranchId = request.url.queryParameters['branchId'];
         final actualBranchId = requestedBranchId == 'active' ? _activeBranchId : requestedBranchId;
 
-        final products = await _productsDao.getAllProducts(tenantId: actualTenantId, branchId: actualBranchId);
-        final productModels = products.map((driftProduct) {
-             return ProductModel(
-               id: driftProduct.id,
-               name: driftProduct.name,
-               brand: driftProduct.brand,
-               price: driftProduct.price,
-               size: driftProduct.size,
-               category: driftProduct.category,
-               description: driftProduct.description,
-               imageUrl: driftProduct.imageUrl ?? '',
-               tenantId: driftProduct.tenantId,
-               branchId: driftProduct.branchId,
-             );
+        final products = await _productRepository.getAllProducts();
+        var filteredProducts = products.toList();
+
+        if (actualBranchId != null && actualBranchId.isNotEmpty) {
+           filteredProducts = products.where((p) => p.branchId == actualBranchId || p.branchId == null || p.branchId!.isEmpty).toList();
+        }
+
+        final productModels = filteredProducts.map((product) {
+             return ProductModel.fromEntity(product);
         }).toList();
         
         return Response.ok(

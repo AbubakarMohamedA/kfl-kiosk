@@ -249,4 +249,9 @@ class LocalProductDataSource implements ProductDataSource {
   Future<void> deleteProduct(String id) async {
     await _productsDao.deleteProduct(id);
   }
+
+  @override
+  void clearCache() {
+    // No-op for local data source
+  }
 }

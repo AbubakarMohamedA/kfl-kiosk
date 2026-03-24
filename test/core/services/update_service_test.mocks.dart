@@ -10,10 +10,11 @@ import 'package:sss/core/config/app_role.dart' as _i13;
 import 'package:sss/core/configuration/domain/entities/app_configuration.dart'
     as _i2;
 import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart'
-    as _i14;
+    as _i15;
 import 'package:sss/core/database/daos/branches_dao.dart' as _i6;
 import 'package:sss/core/database/daos/tenants_dao.dart' as _i4;
 import 'package:sss/core/database/daos/tiers_dao.dart' as _i5;
+import 'package:sss/core/models/terminal_info.dart' as _i14;
 import 'package:sss/core/models/update_info.dart' as _i10;
 import 'package:sss/features/auth/domain/entities/branch.dart' as _i11;
 import 'package:sss/features/auth/domain/entities/tenant.dart' as _i8;
@@ -443,13 +444,32 @@ class MockTenantService extends _i1.Mock implements _i3.TenantService {
             returnValueForMissingStub: _i7.Future<void>.value(),
           )
           as _i7.Future<void>);
+
+  @override
+  _i7.Future<void> reportTerminalStatus(_i14.TerminalInfo? terminalInfo) =>
+      (super.noSuchMethod(
+            Invocation.method(#reportTerminalStatus, [terminalInfo]),
+            returnValue: _i7.Future<void>.value(),
+            returnValueForMissingStub: _i7.Future<void>.value(),
+          )
+          as _i7.Future<void>);
+
+  @override
+  _i7.Future<List<_i14.TerminalInfo>> getAllTerminals() =>
+      (super.noSuchMethod(
+            Invocation.method(#getAllTerminals, []),
+            returnValue: _i7.Future<List<_i14.TerminalInfo>>.value(
+              <_i14.TerminalInfo>[],
+            ),
+          )
+          as _i7.Future<List<_i14.TerminalInfo>>);
 }
 
 /// A class which mocks [ConfigurationRepository].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockConfigurationRepository extends _i1.Mock
-    implements _i14.ConfigurationRepository {
+    implements _i15.ConfigurationRepository {
   MockConfigurationRepository() {
     _i1.throwOnMissingStub(this);
   }

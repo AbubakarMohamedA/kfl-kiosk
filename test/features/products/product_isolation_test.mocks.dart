@@ -72,8 +72,6 @@ class _FakeQueryExecutor_5 extends _i1.SmartFake implements _i5.QueryExecutor {
 }
 
 class _FakeStreamQueryStore_6 extends _i1.SmartFake
-    // ignore: duplicate_ignore
-    // ignore: invalid_use_of_internal_member
     implements _i6.StreamQueryStore {
   _FakeStreamQueryStore_6(Object parent, Invocation parentInvocation)
     : super(parent, parentInvocation);
@@ -260,6 +258,12 @@ class MockProductRemoteDataSource extends _i1.Mock
             returnValueForMissingStub: _i7.Future<void>.value(),
           )
           as _i7.Future<void>);
+
+  @override
+  void clearCache() => super.noSuchMethod(
+    Invocation.method(#clearCache, []),
+    returnValueForMissingStub: null,
+  );
 }
 
 /// A class which mocks [SapProductDataSource].
@@ -278,6 +282,13 @@ class MockSapProductDataSource extends _i1.Mock
             returnValue: _FakeClient_1(this, Invocation.getter(#client)),
           )
           as _i3.Client);
+
+  @override
+  void updateLocalImage(String? productId, String? imageUrl) =>
+      super.noSuchMethod(
+        Invocation.method(#updateLocalImage, [productId, imageUrl]),
+        returnValueForMissingStub: null,
+      );
 
   @override
   _i7.Future<List<_i11.ProductModel>> fetchProducts({String? tenantId}) =>
@@ -323,6 +334,12 @@ class MockSapProductDataSource extends _i1.Mock
             returnValueForMissingStub: _i7.Future<void>.value(),
           )
           as _i7.Future<void>);
+
+  @override
+  void clearCache() => super.noSuchMethod(
+    Invocation.method(#clearCache, []),
+    returnValueForMissingStub: null,
+  );
 }
 
 /// A class which mocks [ProductsDao].

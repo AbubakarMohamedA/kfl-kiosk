@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:sss/firebase_options.dart';
 import 'package:sss/core/services/cloud_heartbeat_service.dart';
@@ -25,6 +28,7 @@ import 'package:sss/features/home/presentation/screens/home_screen.dart';
 import 'package:sss/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:sss/core/configuration/data/datasources/local_configuration_datasource.dart';
 import 'package:sss/features/auth/presentation/screens/login_screen.dart';
+import 'package:sss/core/platform/platform_info.dart';
 
 import 'package:sss/core/config/app_role.dart';
 
@@ -37,12 +41,30 @@ void main() async {
 Future<void> mainWithRole(AppRole role) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock orientation to portrait for mobile platforms
+  // Setup local image directory for direct access on host machines
+  final docDir = await getApplicationDocumentsDirectory();
+  ApiConfig.setLocalImagesDir(p.join(docDir.path, 'product_images'));
+
+  // Lock orientation to portrait for mobile phones only
   if (Platform.isAndroid || Platform.isIOS) {
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    final view = PlatformDispatcher.instance.views.first;
+    final width = view.physicalSize.width / view.devicePixelRatio;
+    final deviceType = PlatformInfo.getDeviceType(width);
+    
+    if (deviceType == DeviceType.mobile) {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    } else {
+      // Allow all orientations for tablets
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
   }
 
   // Window size constraints for Desktop platforms

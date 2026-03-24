@@ -484,6 +484,10 @@ class _CatalogScreenDesktopState extends State<CatalogScreenDesktop> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
+    
+    // Dynamic widths for Tablet/Desktop scaling (Cart and Grid)
+    final cartWidth = width < 1200 ? width * 0.35 : 400.0;
+    final productsGridWidth = width < 1200 ? width * 0.65 : width - 400.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -554,7 +558,7 @@ class _CatalogScreenDesktopState extends State<CatalogScreenDesktop> {
                               SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount:
                                     ResponsiveUtils.getGridCrossAxisCount(
-                                      width - 400,
+                                      productsGridWidth,
                                     ),
                                 childAspectRatio: 0.72,
                                 crossAxisSpacing: 16,
@@ -580,7 +584,7 @@ class _CatalogScreenDesktopState extends State<CatalogScreenDesktop> {
 
           // Cart Section (Right Sidebar)
           Container(
-            width: 400,
+            width: cartWidth,
             decoration: BoxDecoration(
               color: Colors.grey[100],
               boxShadow: [

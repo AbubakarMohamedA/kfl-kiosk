@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:sss/core/config/api_config.dart';
 
 class AppImage extends StatelessWidget {
@@ -22,9 +24,27 @@ class AppImage extends StatelessWidget {
   Widget build(BuildContext context) {
     String finalUrl = imageUrl;
     
-    // Resolve local paths from ImageRepository to use the server URL
+    // Resolve local paths from ImageRepository
     if (finalUrl.startsWith('local:')) {
       final filename = finalUrl.substring(6);
+      
+      // 1. Try direct file access if we are on the host machine
+      if (ApiConfig.localImagesDir != null) {
+        final localPath = p.join(ApiConfig.localImagesDir!, filename);
+        final file = File(localPath);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            width: width,
+            height: height,
+            fit: fit,
+            color: color,
+            errorBuilder: (context, error, stackTrace) => _buildFallback(),
+          );
+        }
+      }
+
+      // 2. Fallback to network URL (for kiosk terminals)
       finalUrl = '${ApiConfig.baseUrl}/api/v1/products/images/$filename';
     }
 

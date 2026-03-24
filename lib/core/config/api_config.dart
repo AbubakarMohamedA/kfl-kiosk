@@ -6,6 +6,13 @@ enum AppFlavor {
 class ApiConfig {
   static AppFlavor _flavor = AppFlavor.mock;
   static String _baseUrl = 'http://localhost:8080';
+  static String? _localImagesDir;
+
+  static void setLocalImagesDir(String path) {
+    _localImagesDir = path;
+  }
+
+  static String? get localImagesDir => _localImagesDir;
 
   static void setFlavor(AppFlavor flavor) {
     _flavor = flavor;
