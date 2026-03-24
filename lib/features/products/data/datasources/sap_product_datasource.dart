@@ -214,135 +214,140 @@ class SapProductDataSource implements ProductDataSource {
   // ─── Fetch All Products with Auto Pagination ──────────────────────────────
 
   @override
-  Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
-    // Ensuring persistence is initialized
-    if (!_isInitialized) await _initPersistence();
+Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
+  // Ensuring persistence is initialized
+  if (!_isInitialized) await _initPersistence();
 
-    // ✅ If valid cache exists (same day), return it immediately
-    if (_cachedProducts != null && _lastFetchTime != null) {
-      final now = DateTime.now();
-      if (now.year == _lastFetchTime!.year &&
-          now.month == _lastFetchTime!.month &&
-          now.day == _lastFetchTime!.day) {
-        debugPrint('SapProductDataSource → Returning cached products (${_cachedProducts!.length}), avoiding double-fetch.');
-        return [..._cachedProducts!];
-      }
-    }
-
-    // ✅ If a fetch is already in progress, wait for its result
-    if (_isFetching && _fetchCompleter != null) {
-      debugPrint('SapProductDataSource → Fetch in progress, waiting for result...');
-      return _fetchCompleter!.future;
-    }
-
-    _isFetching = true;
-    _fetchCompleter = Completer<List<ProductModel>>();
-
-    try {
-      debugPrint('═══════════════════════════════════════');
-      debugPrint('SapProductDataSource.fetchProducts START');
-      debugPrint('═══════════════════════════════════════');
-
-      await _ensureSession();
-
-      final baseUrl = await _getBaseUrl();
-      debugPrint('SapProductDataSource → baseUrl: $baseUrl');
-
-      // ✅ Clear group cache so it reloads under current session
-      _groupCache = {};
-      await _loadItemGroups();
-
-      // ✅ SAP B1 returns empty on the very first Items query of a new session.
-      // A lightweight $top=0 ping warms up the session context before the
-      // real paginated fetch — deterministic, costs no data transfer.
-      final warmupUri = Uri.parse('$baseUrl/Items?\$top=0');
-      final warmupHeaders = await _getHeaders();
-      final warmupResponse = await client.get(warmupUri, headers: warmupHeaders);
-      debugPrint('SapProductDataSource → Warmup status: ${warmupResponse.statusCode}');
-
-      final List<ProductModel> allProducts = [];
-      int skip = 0;
-      const int top = 20;
-      bool hasMore = true;
-
-      while (hasMore) {
-        var headers = await _getHeaders();
-
-        // ✅ Raw string — $ stays unencoded, SAP parses correctly
-        final queryString =
-            '\$select=ItemCode,ItemName,ItemsGroupCode,'
-            'AvgStdPrice,Mainsupplier,InventoryUOM'
-            '&\$skip=$skip'
-            '&\$top=$top';
-
-        final uri = Uri.parse('$baseUrl/Items?$queryString');
-
-        debugPrint('SapProductDataSource → Fetching page skip=$skip: $uri');
-
-        var response = await client.get(uri, headers: headers);
-
-        debugPrint('SapProductDataSource → Status: ${response.statusCode}');
-        debugPrint(
-          'SapProductDataSource → Body preview: '
-          '${response.body.substring(0, response.body.length.clamp(0, 500))}',
-        );
-
-        // ── Handle 401 ───────────────────────────────────────────────────
-        if (response.statusCode == 401) {
-          debugPrint('SapProductDataSource → 401, re-logging in...');
-          headers = await _reloginAndGetHeaders();
-          response = await client.get(uri, headers: headers);
-          debugPrint('SapProductDataSource → Retry status: ${response.statusCode}');
-        }
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final List items = data['value'] ?? [];
-
-          debugPrint('SapProductDataSource → Items in page: ${items.length}');
-
-          for (final item in items) {
-            allProducts.add(_mapToProductModel(item));
-          }
-
-          hasMore = data.containsKey('odata.nextLink') && items.isNotEmpty;
-          skip += top;
-
-          debugPrint(
-            'SapProductDataSource → hasMore: $hasMore, '
-            'total so far: ${allProducts.length}',
-          );
-        } else {
-          final error = _parseError(response.body);
-          debugPrint('SapProductDataSource → FETCH ERROR: $error');
-          throw Exception(
-            'Failed to fetch products (${response.statusCode}): $error',
-          );
-        }
-      }
-
-      debugPrint(
-        'SapProductDataSource → DONE. Total products: ${allProducts.length}',
-      );
-      debugPrint('═══════════════════════════════════════');
-
-      _cachedProducts = allProducts;
-      _lastFetchTime = DateTime.now();
-
-      _savePersistence(); // Save to disk
-
-      _fetchCompleter!.complete(allProducts);
-      return allProducts;
-
-    } catch (e) {
-      _fetchCompleter!.completeError(e);
-      rethrow;
-    } finally {
-      _isFetching = false;
-      _fetchCompleter = null;
+  // ✅ If valid cache exists (same day), return it immediately
+  if (_cachedProducts != null && _lastFetchTime != null) {
+    final now = DateTime.now();
+    if (now.year == _lastFetchTime!.year &&
+        now.month == _lastFetchTime!.month &&
+        now.day == _lastFetchTime!.day) {
+      debugPrint('SapProductDataSource → Returning cached products (${_cachedProducts!.length}), avoiding double-fetch.');
+      return [..._cachedProducts!];
     }
   }
 
+  // ✅ If a fetch is already in progress, wait for its result
+  if (_isFetching && _fetchCompleter != null) {
+    debugPrint('SapProductDataSource → Fetch in progress, waiting for result...');
+    return _fetchCompleter!.future;
+  }
+
+  _isFetching = true;
+  _fetchCompleter = Completer<List<ProductModel>>();
+
+  try {
+    debugPrint('═══════════════════════════════════════');
+    debugPrint('SapProductDataSource.fetchProducts START');
+    debugPrint('═══════════════════════════════════════');
+
+    await _ensureSession();
+
+    final baseUrl = await _getBaseUrl();
+    debugPrint('SapProductDataSource → baseUrl: $baseUrl');
+
+    // ✅ Clear group cache so it reloads under current session
+    _groupCache = {};
+    await _loadItemGroups();
+
+    // ✅ SAP B1 returns empty on the very first Items query of a new session.
+    // A lightweight $top=0 ping warms up the session context before the
+    // real paginated fetch — deterministic, costs no data transfer.
+    final warmupUri = Uri.parse('$baseUrl/Items?\$top=0');
+    final warmupHeaders = await _getHeaders();
+    final warmupResponse = await client.get(warmupUri, headers: warmupHeaders);
+    debugPrint('SapProductDataSource → Warmup status: ${warmupResponse.statusCode}');
+
+    final List<ProductModel> allProducts = [];
+    int skip = 0;
+    const int top = 20;
+    bool hasMore = true;
+
+    while (hasMore) {
+      var headers = await _getHeaders();
+
+      // ✅ Raw string — $ stays unencoded, SAP parses correctly
+      final queryString =
+          '\$select=ItemCode,ItemName,ItemsGroupCode,'
+          'AvgStdPrice,Mainsupplier,InventoryUOM'
+          '&\$skip=$skip'
+          '&\$top=$top';
+
+      final uri = Uri.parse('$baseUrl/Items?$queryString');
+
+      debugPrint('SapProductDataSource → Fetching page skip=$skip: $uri');
+
+      var response = await client.get(uri, headers: headers);
+
+      debugPrint('SapProductDataSource → Status: ${response.statusCode}');
+      debugPrint(
+        'SapProductDataSource → Body preview: '
+        '${response.body.substring(0, response.body.length.clamp(0, 500))}',
+      );
+
+      // ── Handle 401 ───────────────────────────────────────────────────
+      if (response.statusCode == 401) {
+        debugPrint('SapProductDataSource → 401, re-logging in...');
+        headers = await _reloginAndGetHeaders();
+        response = await client.get(uri, headers: headers);
+        debugPrint('SapProductDataSource → Retry status: ${response.statusCode}');
+      }
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List items = data['value'] ?? [];
+
+        debugPrint('SapProductDataSource → Items in page: ${items.length}');
+
+        for (final item in items) {
+          allProducts.add(_mapToProductModel(item));
+        }
+
+        // ✅ CORRECT: SAP B1 has more pages if it returned a full page
+if (items.length == top) {
+  hasMore = true;
+  skip += top;
+} else {
+  hasMore = false;
+}
+
+        debugPrint(
+          'SapProductDataSource → hasMore: $hasMore, '
+          'total so far: ${allProducts.length}',
+        );
+      } else {
+        final error = _parseError(response.body);
+        debugPrint('SapProductDataSource → FETCH ERROR: $error');
+        throw Exception(
+          'Failed to fetch products (${response.statusCode}): $error',
+        );
+      }
+    }
+
+    debugPrint(
+      'SapProductDataSource → DONE. Total products: ${allProducts.length}',
+    );
+    debugPrint('═══════════════════════════════════════');
+
+    _cachedProducts = allProducts;
+    _lastFetchTime = DateTime.now();
+
+    await _savePersistence(); // ✅ FIX: awaited so errors surface properly
+
+    _fetchCompleter!.complete(allProducts);
+    return allProducts;
+
+  } catch (e) {
+    debugPrint('SapProductDataSource → EXCEPTION: $e');
+    _fetchCompleter!.completeError(e);
+    rethrow;
+  } finally {
+    _isFetching = false;
+    _fetchCompleter = null;
+  }
+}
   // ─── Get Single Product ───────────────────────────────────────────────────
 
   @override
