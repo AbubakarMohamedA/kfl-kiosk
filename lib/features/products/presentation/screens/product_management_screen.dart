@@ -30,6 +30,9 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   bool _isEnterprise = false;
   bool _isLoadingConfig = true;
 
+  int _currentPage = 0;
+  static const int _itemsPerPage = 20;
+
   @override
   void initState() {
     super.initState();
@@ -558,6 +561,24 @@ if (context.mounted) {
     final passwordController = TextEditingController(
       text: creds['password'] ?? '',
     );
+    final walkInCardCodeController = TextEditingController( // NEW
+      text: creds['walkInCardCode'] ?? 'LC00017',
+    );
+    final currencyCodeController = TextEditingController( // NEW
+      text: creds['currencyCode'] ?? 'KSh',
+    );
+    final warehouseController = TextEditingController( // NEW
+      text: creds['warehouseCode'] ?? '',
+    );
+    final bplIdController = TextEditingController( // NEW
+      text: creds['bplId'] ?? '',
+    );
+    final taxCodeController = TextEditingController( // NEW
+      text: creds['taxCode'] ?? 'O1',
+    );
+    final paymentGlAccountController = TextEditingController( // NEW
+      text: creds['paymentGlAccount'] ?? '',
+    );
 
     bool isLoggingIn = false;
     bool obscurePassword = true;
@@ -614,6 +635,78 @@ if (context.mounted) {
                         labelText: 'CompanyDB',
                         hintText: 'e.g. SBODemoKE',
                         prefixIcon: const Icon(Icons.business),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: paymentGlAccountController,
+                      decoration: InputDecoration(
+                        labelText: 'Payment GL Account (M-Pesa)',
+                        hintText: 'e.g. 160000, Cash Account',
+                        prefixIcon: const Icon(Icons.account_balance_wallet),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: taxCodeController,
+                      decoration: InputDecoration(
+                        labelText: 'Default Tax Code (VatGroup)',
+                        hintText: 'e.g. O1, VT01',
+                        prefixIcon: const Icon(Icons.receipt_long),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: warehouseController,
+                      decoration: InputDecoration(
+                        labelText: 'Warehouse Code',
+                        hintText: 'e.g. 01, WH01',
+                        prefixIcon: const Icon(Icons.warehouse),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: bplIdController,
+                      decoration: InputDecoration(
+                        labelText: 'Business Place ID (BPLId)',
+                        hintText: 'e.g. 1, 2 (Required if Multi-Branch enabled)',
+                        prefixIcon: const Icon(Icons.location_on),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: currencyCodeController,
+                      decoration: InputDecoration(
+                        labelText: 'Document Currency',
+                        hintText: 'e.g. KSH, USD, EUR',
+                        prefixIcon: const Icon(Icons.money),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: walkInCardCodeController,
+                      decoration: InputDecoration(
+                        labelText: 'Default Walk-In BP Code',
+                        hintText: 'e.g. C99999 or WalkIn',
+                        prefixIcon: const Icon(Icons.person_pin_rounded),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -727,6 +820,12 @@ if (context.mounted) {
                               companyDbController.text.trim();
                           final username = usernameController.text.trim();
                           final password = passwordController.text.trim();
+                          final walkInCardCode = walkInCardCodeController.text.trim();
+                          final currencyCode = currencyCodeController.text.trim();
+                          final warehouseCode = warehouseController.text.trim();
+                          final bplId = bplIdController.text.trim();
+                          final taxCode = taxCodeController.text.trim(); // NEW
+                          final paymentGlAccount = paymentGlAccountController.text.trim(); // NEW
 
                           if (serverIp.isEmpty ||
                               companyDb.isEmpty ||
@@ -748,6 +847,12 @@ if (context.mounted) {
                             companyDb: companyDb,
                             username: username,
                             password: password,
+                            walkInCardCode: walkInCardCode,
+                            currencyCode: currencyCode,
+                            warehouseCode: warehouseCode,
+                            bplId: bplId,
+                            taxCode: taxCode, // NEW
+                            paymentGlAccount: paymentGlAccount, // NEW
                           );
 
                           final result = await sapAuth.login();
@@ -884,6 +989,17 @@ if (context.mounted) {
             );
           } else if (state is ProductLoaded) {
             final products = state.filteredProducts;
+            final totalPages = (products.length / _itemsPerPage).ceil();
+
+            int activePage = _currentPage;
+            if (activePage >= totalPages && totalPages > 0) {
+              activePage = totalPages - 1;
+            }
+
+            final paginatedProducts = products
+                .skip(activePage * _itemsPerPage)
+                .take(_itemsPerPage)
+                .toList();
 
             if (products.isEmpty) {
               return Center(
@@ -920,82 +1036,192 @@ if (context.mounted) {
               );
             }
 
-            return ListView.builder(
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.transparent,
-                    child: ClipOval(
-                      child: AppImage(
-                        imageUrl: product.imageUrl,
-                        fit: BoxFit.cover,
-                      ),
+            return Column(
+              children: [
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isLandscape = constraints.maxWidth > constraints.maxHeight;
+                      final int columns = isLandscape ? 5 : 4;
+                      final int rows = (_itemsPerPage / columns).ceil();
+                      
+                      const double spacing = 8.0;
+                      // Calculate available space minus paddings and spacings
+                      final availableWidth = constraints.maxWidth - 16.0 - (spacing * (columns - 1));
+                      final availableHeight = constraints.maxHeight - 16.0 - (spacing * (rows - 1));
+                      
+                      final cellWidth = availableWidth / columns;
+                      final cellHeight = availableHeight / rows;
+                      
+                      double aspectRatio = cellHeight > 0 ? (cellWidth / cellHeight) : 1.0;
+                      if (aspectRatio <= 0.1) aspectRatio = 1.0; // fallback if constraint logic breaks
+                      
+                      return GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(), // Disables scrolling perfectly
+                        padding: const EdgeInsets.all(8.0),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          childAspectRatio: aspectRatio,
+                          crossAxisSpacing: spacing,
+                          mainAxisSpacing: spacing,
+                        ),
+                        itemCount: paginatedProducts.length,
+                        itemBuilder: (context, index) {
+                          final product = paginatedProducts[index];
+                          return Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(8),
+                                ),
+                                child: AppImage(
+                                  imageUrl: product.imageUrl,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          product.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                      if (_isEnterprise)
+                                        Container(
+                                          margin: const EdgeInsets.only(left: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 4, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue[50],
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                            border: Border.all(
+                                                color: Colors.blue[200]!),
+                                          ),
+                                          child: Text(
+                                            'SAP',
+                                            style: TextStyle(
+                                              fontSize: 8,
+                                              color: Colors.blue[700],
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${product.category} • KSh ${product.price.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                        fontSize: 11, color: Colors.grey[700]),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(
+                                          _isEnterprise
+                                              ? Icons.camera_alt
+                                              : Icons.edit,
+                                          color: Colors.blue,
+                                          size: 20,
+                                        ),
+                                        tooltip: _isEnterprise
+                                            ? 'Update Image'
+                                            : 'Edit Product',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () => _showProductDialog(
+                                            context,
+                                            product: product),
+                                      ),
+                                      if (!_isEnterprise) ...[
+                                        const SizedBox(width: 12),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete,
+                                              color: Colors.red, size: 20),
+                                          tooltip: 'Delete',
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _confirmDelete(
+                                              context, product.id),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              if (totalPages > 1)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha:0.05),
+                          offset: const Offset(0, -2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: activePage > 0
+                              ? () => setState(
+                                  () => _currentPage = activePage - 1)
+                              : null,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'Page ${activePage + 1} of ${totalPages > 0 ? totalPages : 1}',
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: activePage < totalPages - 1
+                              ? () => setState(
+                                  () => _currentPage = activePage + 1)
+                              : null,
+                        ),
+                      ],
                     ),
                   ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (_isEnterprise)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(4),
-                            border:
-                                Border.all(color: Colors.blue[200]!),
-                          ),
-                          child: Text(
-                            'SAP',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.blue[700],
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  subtitle: Text(
-                    '${product.category} • KSh ${product.price.toStringAsFixed(2)}',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          _isEnterprise
-                              ? Icons.camera_alt
-                              : Icons.edit,
-                          color: Colors.blue,
-                        ),
-                        tooltip: _isEnterprise
-                            ? 'Update Image'
-                            : 'Edit Product',
-                        onPressed: () =>
-                            _showProductDialog(context, product: product),
-                      ),
-                      IconButton(
-                        icon:
-                            const Icon(Icons.delete, color: Colors.red),
-                        tooltip: _isEnterprise
-                            ? 'Delete from SAP'
-                            : 'Delete',
-                        onPressed: () =>
-                            _confirmDelete(context, product.id),
-                      ),
-                    ],
-                  ),
-                );
-              },
+              ],
             );
           }
 

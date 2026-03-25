@@ -292,6 +292,14 @@ class MockSapAuthService extends _i1.Mock implements _i3.SapAuthService {
           as _i4.Future<String?>);
 
   @override
+  _i4.Future<String?> getRouteId() =>
+      (super.noSuchMethod(
+            Invocation.method(#getRouteId, []),
+            returnValue: _i4.Future<String?>.value(),
+          )
+          as _i4.Future<String?>);
+
+  @override
   _i4.Future<String> getBaseUrl() =>
       (super.noSuchMethod(
             Invocation.method(#getBaseUrl, []),

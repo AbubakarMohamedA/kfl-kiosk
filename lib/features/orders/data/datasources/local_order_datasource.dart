@@ -110,6 +110,12 @@ class LocalOrderDataSource implements OrderDataSource {
     await _syncWithServer();
   }
 
+  /// Triggers a re-fetch from the database, manually updating the stream
+  Future<void> notifyOrdersChanged() async {
+    await _ensureInitialized();
+    await _loadFromDb();
+  }
+
   Future<void> _loadFromDb() async {
     final dbOrders = await _ordersDao.getAllOrders();
     final List<OrderModel> models = [];

@@ -6,10 +6,17 @@ import 'package:sss/core/utils/http_client_factory.dart';
 
 class SapAuthService {
   static const _sessionKey = 'b1_session_id';
+  static const _routeIdKey = 'sap_route_id';
   static const _serverIpKey = 'server_ip';
   static const _companyDbKey = 'sap_company_db';
   static const _usernameKey = 'sap_username';
   static const _passwordKey = 'sap_password';
+  static const _walkInCardCodeKey = 'sap_walkin_card_code';
+  static const _currencyCodeKey = 'sap_currency_code';
+  static const _warehouseCodeKey = 'sap_warehouse_code';
+  static const _bplIdKey = 'sap_bpl_id';
+  static const _taxCodeKey = 'sap_tax_code'; // NEW
+  static const _paymentGlAccountKey = 'sap_payment_gl_account'; // NEW
 
   final http.Client client;
 
@@ -23,6 +30,12 @@ class SapAuthService {
     required String companyDb,
     required String username,
     required String password,
+    String? walkInCardCode,
+    String? currencyCode,
+    String? warehouseCode,
+    String? bplId,
+    String? taxCode, // NEW
+    String? paymentGlAccount, // NEW
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -38,6 +51,24 @@ class SapAuthService {
     await prefs.setString(_companyDbKey, companyDb.trim());
     await prefs.setString(_usernameKey, username.trim());
     await prefs.setString(_passwordKey, password.trim());
+    if (walkInCardCode != null) {
+      await prefs.setString(_walkInCardCodeKey, walkInCardCode.trim());
+    }
+    if (currencyCode != null) {
+      await prefs.setString(_currencyCodeKey, currencyCode.trim());
+    }
+    if (warehouseCode != null) {
+      await prefs.setString(_warehouseCodeKey, warehouseCode.trim());
+    }
+    if (bplId != null) {
+      await prefs.setString(_bplIdKey, bplId.trim());
+    }
+    if (taxCode != null) {
+      await prefs.setString(_taxCodeKey, taxCode.trim());
+    }
+    if (paymentGlAccount != null) {
+      await prefs.setString(_paymentGlAccountKey, paymentGlAccount.trim());
+    }
 
     debugPrint('SAP Credentials saved:');
     debugPrint('  server_ip → $cleanIp');
@@ -55,6 +86,12 @@ class SapAuthService {
       'companyDb': prefs.getString(_companyDbKey),
       'username': prefs.getString(_usernameKey),
       'password': prefs.getString(_passwordKey),
+      'walkInCardCode': prefs.getString(_walkInCardCodeKey),
+      'currencyCode': prefs.getString(_currencyCodeKey),
+      'warehouseCode': prefs.getString(_warehouseCodeKey), // NEW
+      'bplId': prefs.getString(_bplIdKey),
+      'taxCode': prefs.getString(_taxCodeKey), // NEW
+      'paymentGlAccount': prefs.getString(_paymentGlAccountKey), // NEW
     };
   }
 
@@ -95,6 +132,13 @@ class SapAuthService {
   Future<String?> getSessionId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_sessionKey);
+  }
+
+  // ─── Get Route ID (Load Balancer Cookie) ──────────────────────────────────
+
+  Future<String?> getRouteId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_routeIdKey);
   }
 
   // ─── Get Base URL ─────────────────────────────────────────────────────────
@@ -170,9 +214,25 @@ class SapAuthService {
         final data = jsonDecode(response.body);
         final sessionId = data['SessionId'];
 
+        // Extract ROUTEID from Set-Cookie for load-balanced SAP environments
+        String? routeId;
+        final rawCookie = response.headers['set-cookie'];
+        if (rawCookie != null) {
+          final match = RegExp(r'ROUTEID=([^;]+)').firstMatch(rawCookie);
+          if (match != null) {
+            routeId = match.group(1);
+            debugPrint('SAP LOGIN → Found ROUTEID: $routeId');
+          }
+        }
+
         if (sessionId != null && sessionId.isNotEmpty) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_sessionKey, sessionId);
+          if (routeId != null) {
+            await prefs.setString(_routeIdKey, routeId);
+          } else {
+            await prefs.remove(_routeIdKey);
+          }
 
           debugPrint('SAP LOGIN SUCCESS → SessionId: $sessionId');
 
@@ -210,6 +270,7 @@ class SapAuthService {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     final sessionId = prefs.getString(_sessionKey);
+    final routeId = prefs.getString(_routeIdKey);
     final serverIp = prefs.getString(_serverIpKey);
 
     debugPrint('SAP LOGOUT → sessionId: $sessionId, serverIp: $serverIp');
@@ -219,10 +280,13 @@ class SapAuthService {
         serverIp != null &&
         serverIp.isNotEmpty) {
       try {
+        String cookie = 'B1SESSION=$sessionId';
+        if (routeId != null) cookie += '; ROUTEID=$routeId';
+
         final response = await client.post(
           Uri.parse('https://$serverIp:50000/b1s/v1/Logout'),
           headers: {
-            'Cookie': 'B1SESSION=$sessionId',
+            'Cookie': cookie,
             'Content-Type': 'application/json',
           },
         );
@@ -233,6 +297,7 @@ class SapAuthService {
     }
 
     await prefs.remove(_sessionKey);
+    await prefs.remove(_routeIdKey);
     debugPrint('SAP LOGOUT → session cleared');
   }
 
@@ -241,10 +306,16 @@ class SapAuthService {
   Future<void> clearConfig() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
+    await prefs.remove(_routeIdKey);
     await prefs.remove(_serverIpKey);
     await prefs.remove(_companyDbKey);
     await prefs.remove(_usernameKey);
     await prefs.remove(_passwordKey);
+    await prefs.remove(_walkInCardCodeKey);
+    await prefs.remove(_currencyCodeKey);
+    await prefs.remove(_warehouseCodeKey);
+    await prefs.remove(_bplIdKey);
+    await prefs.remove(_taxCodeKey); // NEW
     debugPrint('SAP CONFIG → all credentials and session cleared');
   }
 

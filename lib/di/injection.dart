@@ -15,6 +15,7 @@ import 'package:sss/features/products/data/datasources/sap_product_datasource.da
 import 'package:sss/features/cart/data/datasources/local_cart_datasource.dart';
 import 'package:sss/features/orders/data/datasources/local_order_datasource.dart';
 import 'package:sss/features/orders/data/datasources/order_remote_datasource.dart';
+import 'package:sss/features/orders/data/datasources/sap_invoice_datasource.dart';
 import 'package:sss/features/payment/data/datasources/mock_payment_datasource.dart';
 import 'package:sss/features/auth/data/datasources/auth_mock_datasource.dart';
 import 'package:sss/features/auth/data/datasources/auth_remote_datasource.dart';
@@ -87,6 +88,7 @@ Future<void> setupDependencies() async {
         getIt<ProductRepository>(), // NEW
         getIt<OrdersDao>(), // NEW
         getIt<AppConfigDao>(), // NEW
+        getIt<SapInvoiceDataSource>(), // NEW
       )); // NEW
   
   getIt.registerLazySingleton<SyncService>(() => SyncService(getIt<ConfigurationRepository>())); // NEW
@@ -134,6 +136,7 @@ Future<void> setupDependencies() async {
 
   getIt.registerLazySingleton<SapAuthService>(() => SapAuthService());
   getIt.registerLazySingleton<SapProductDataSource>(() => SapProductDataSource(getIt<SapAuthService>()));
+  getIt.registerLazySingleton<SapInvoiceDataSource>(() => SapInvoiceDataSource(getIt<SapAuthService>()));
 
   // Repositories
   getIt.registerLazySingleton<ProductRepository>(() => ProductRepositoryImpl(
@@ -151,6 +154,7 @@ Future<void> setupDependencies() async {
   getIt.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(
     localDataSource: getIt<LocalOrderDataSource>(),
     remoteDataSource: getIt<OrderRemoteDataSource>(),
+    sapInvoiceDataSource: getIt<SapInvoiceDataSource>(),
     authRepository: getIt<AuthRepository>(),
   ));
   getIt.registerLazySingleton<PaymentRepository>(() => PaymentRepositoryImpl(getIt<MockPaymentDataSource>()));

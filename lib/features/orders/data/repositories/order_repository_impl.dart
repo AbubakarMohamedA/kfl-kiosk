@@ -1,5 +1,6 @@
 import 'package:sss/features/orders/data/datasources/local_order_datasource.dart';
 import 'package:sss/features/orders/data/datasources/order_remote_datasource.dart';
+import 'package:sss/features/orders/data/datasources/sap_invoice_datasource.dart';
 import 'package:sss/features/orders/data/models/order_model.dart';
 import 'package:sss/features/orders/domain/entities/order.dart';
 import 'package:sss/features/orders/domain/repositories/order_repository.dart';
@@ -9,11 +10,13 @@ import 'package:sss/features/auth/domain/repositories/auth_repository.dart';
 class OrderRepositoryImpl implements OrderRepository {
   final LocalOrderDataSource localDataSource;
   final OrderRemoteDataSource remoteDataSource;
+  final SapInvoiceDataSource sapInvoiceDataSource;
   final AuthRepository authRepository;
 
   OrderRepositoryImpl({
     required this.localDataSource,
     required this.remoteDataSource,
+    required this.sapInvoiceDataSource,
     required this.authRepository,
   });
 
@@ -23,7 +26,12 @@ class OrderRepositoryImpl implements OrderRepository {
   @override
   Future<String> createOrder(Order order) async {
     final orderModel = OrderModel.fromEntity(order);
-    return await _dataSource.saveOrder(orderModel);
+    final id = await _dataSource.saveOrder(orderModel);
+    
+    // Asynchronously push to SAP as Invoice without blocking UI
+    sapInvoiceDataSource.syncOrderAsInvoice(orderModel);
+    
+    return id;
   }
 
   @override
@@ -49,6 +57,9 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<void> saveFullOrder(Order order) async {
     final orderModel = OrderModel.fromEntity(order);
     await _dataSource.saveFullOrder(orderModel);
+    
+    // Asynchronously push to SAP as Invoice
+    sapInvoiceDataSource.syncOrderAsInvoice(orderModel);
   }
 
   @override

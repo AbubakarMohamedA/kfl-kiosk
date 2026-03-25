@@ -19,6 +19,10 @@ import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:sss/core/database/app_database.dart' as drift_db;
 
+import '../../features/orders/data/datasources/sap_invoice_datasource.dart';
+import '../../features/orders/data/datasources/local_order_datasource.dart'; // NEW
+import '../../di/injection.dart'; // NEW
+
 // NEW: Terminal Info Class
 class TerminalInfo {
   final String ip;
@@ -46,6 +50,7 @@ class LocalServerService {
   final ProductRepository _productRepository;
   final OrdersDao _ordersDao;
   final AppConfigDao _appConfigDao;
+  final SapInvoiceDataSource _sapInvoiceDataSource; // NEW
   HttpServer? _server;
   final _networkInfo = NetworkInfo();
   
@@ -62,6 +67,7 @@ class LocalServerService {
     this._productRepository,
     this._ordersDao,
     this._appConfigDao,
+    this._sapInvoiceDataSource, // NEW
   );
 
   void setActiveTenantId(String tenantId, {String? branchId, String? warehouseId, String? tierId}) {
@@ -371,8 +377,20 @@ class LocalServerService {
              productCategory: drift.Value(i.productModel.category), // FIX: Prevents Master Server data-wipe
            )).toList(),
          );
+
+         // ✅ NEW: Synchronize with SAP Business One from the Server Side
+         // This ensures orders from Kiosks (which don't have SAP credentials) 
+         // are synced by the Staff Server which HAS the credentials.
+         _sapInvoiceDataSource.syncOrderAsInvoice(orderModel);
          
-         debugPrint('Server: Order ${orderModel.id} created successfully');
+         // ✅ NEW: Tell the LocalOrderDataSource to refresh its cache and emit to the UI stream
+         try {
+           getIt<LocalOrderDataSource>().notifyOrdersChanged();
+         } catch (e) {
+           debugPrint('Server: Error notifying UI stream: $e');
+         }
+
+         debugPrint('Server: Order ${orderModel.id} created successfully and triggered SAP sync');
          return Response.ok(
            jsonEncode({'status': 'success', 'orderId': orderModel.id}), 
            headers: {'Content-Type': 'application/json'},

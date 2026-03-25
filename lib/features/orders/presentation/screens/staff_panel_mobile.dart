@@ -26,6 +26,7 @@ import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 import 'package:sss/features/warehouse/presentation/screens/warehouse_management_screen.dart'; // ✅ NEW
 import 'package:sss/features/products/presentation/screens/product_management_screen.dart';
 import 'package:sss/features/settings/presentation/screens/mobile_config_screen.dart'; // ✅ NEW
+import 'package:sss/features/orders/presentation/screens/sap_invoices_screen.dart';
 import 'package:sss/core/widgets/desktop/staff_order_card.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
@@ -57,6 +58,7 @@ enum ScreenType {
   superAdmin,
   productManagement, // ✅ NEW
   mobileConfig, // ✅ NEW
+  sapInvoices,
 }
 
 class _StaffPanelMobileState extends State<StaffPanelMobile>
@@ -619,6 +621,8 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
                       ScreenType
                           .mobileConfig // ✅ NEW
                 ? const MobileConfigScreen()
+                : _currentScreen == ScreenType.sapInvoices
+                ? const SapInvoicesScreen()
                 : const SettingsScreen();
           },
         ),
@@ -2359,6 +2363,17 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
   }
 
   Widget _buildBottomNavigationBar() {
+    final items = <BottomNavigationBarItem>[
+      const BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Active"),
+      const BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
+      const BottomNavigationBarItem(icon: Icon(Icons.inventory_2_rounded), label: "Products"),
+      const BottomNavigationBarItem(icon: Icon(Icons.phonelink_setup), label: "Terminal"),
+    ];
+
+    if (isEnterprise) {
+      items.add(const BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: "Invoices"));
+    }
+
     return BottomNavigationBar(
       currentIndex: _getBottomNavIndex(),
       onTap: _onBottomNavTapped,
@@ -2366,12 +2381,7 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
       backgroundColor: _isDarkMode ? const Color(0xFF1a1f2e) : Colors.white,
       selectedItemColor: const Color(AppColors.primaryBlue),
       unselectedItemColor: _isDarkMode ? Colors.white60 : Colors.grey,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Active"),
-        BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-        BottomNavigationBarItem(icon: Icon(Icons.inventory_2_rounded), label: "Products"),
-        BottomNavigationBarItem(icon: Icon(Icons.phonelink_setup), label: "Terminal"),
-      ],
+      items: items,
     );
   }
 
@@ -2380,6 +2390,7 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
     if (_currentScreen == ScreenType.dashboard && _showHistory) return 1;
     if (_currentScreen == ScreenType.productManagement) return 2;
     if (_currentScreen == ScreenType.mobileConfig) return 3;
+    if (isEnterprise && _currentScreen == ScreenType.sapInvoices) return 4;
     return 0;
   }
 
@@ -2399,6 +2410,9 @@ class _StaffPanelMobileState extends State<StaffPanelMobile>
           break;
         case 3:
           _currentScreen = ScreenType.mobileConfig;
+          break;
+        case 4:
+          if (isEnterprise) _currentScreen = ScreenType.sapInvoices;
           break;
       }
     });

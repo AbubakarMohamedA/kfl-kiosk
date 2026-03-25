@@ -204,7 +204,9 @@ class KFMKioskApp extends StatelessWidget {
           create: (context) => getIt<CartBloc>()..add(const LoadCart()),
         ),
         BlocProvider(
-          create: (context) => getIt<OrderBloc>()..add(const LoadOrders()),
+          create: (context) => getIt<OrderBloc>()
+            ..add(const LoadOrders())
+            ..add(const WatchOrdersStarted()),
         ),
         BlocProvider(
           create: (context) => getIt<PaymentBloc>(),

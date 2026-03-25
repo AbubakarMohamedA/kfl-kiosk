@@ -25,6 +25,7 @@ import 'package:sss/features/auth/presentation/screens/login_screen.dart';
 import 'package:sss/features/warehouse/presentation/screens/warehouse_management_screen.dart'; // ✅ NEW
 import 'package:sss/features/products/presentation/screens/product_management_screen.dart';
 import 'package:sss/features/settings/presentation/screens/mobile_config_screen.dart'; // ✅ NEW
+import 'package:sss/features/orders/presentation/screens/sap_invoices_screen.dart';
 import 'package:sss/core/widgets/desktop/staff_order_card.dart';
 import 'package:sss/features/auth/domain/entities/branch.dart'; // Added import
 import 'package:intl/intl.dart';
@@ -56,6 +57,7 @@ enum ScreenType {
   superAdmin,
   productManagement, // ✅ NEW
   mobileConfig, // ✅ NEW
+  sapInvoices,
 }
 
 class _StaffPanelDesktopState extends State<StaffPanelDesktop>
@@ -608,6 +610,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                                   ScreenType
                                       .mobileConfig // ✅ NEW
                             ? const MobileConfigScreen()
+                            : _currentScreen == ScreenType.sapInvoices
+                            ? const SapInvoicesScreen()
                             : const SettingsScreen();
                       },
                     ),
@@ -958,6 +962,19 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               setState(() => _currentScreen = ScreenType.mobileConfig);
             },
           ),
+
+          if (isEnterprise)
+            _buildSidebarItem(
+              icon: Icons.receipt_long_rounded,
+              label: 'Invoices',
+              isSelected: _currentScreen == ScreenType.sapInvoices,
+              onTap: () {
+                setState(() {
+                  _currentScreen = ScreenType.sapInvoices;
+                  _showHistory = false;
+                });
+              },
+            ),
 
           // Always show Business Insights (Gated by Paywall) - BUT hide if disabled in features
           if (canViewInsights)

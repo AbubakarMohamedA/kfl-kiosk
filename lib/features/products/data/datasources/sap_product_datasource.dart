@@ -119,9 +119,16 @@ class SapProductDataSource implements ProductDataSource {
 
   Future<Map<String, String>> _getHeaders() async {
     final sessionId = await _sapAuthService.getSessionId() ?? '';
-    debugPrint('SapProductDataSource → B1SESSION: $sessionId');
+    final routeId = await _sapAuthService.getRouteId();
+
+    String cookie = 'B1SESSION=$sessionId';
+    if (routeId != null && routeId.isNotEmpty) {
+      cookie += '; ROUTEID=$routeId';
+    }
+
+    debugPrint('SapProductDataSource → Cookie: $cookie');
     return {
-      'Cookie': 'B1SESSION=$sessionId',
+      'Cookie': cookie,
       'Content-Type': 'application/json',
     };
   }
@@ -261,23 +268,17 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
     debugPrint('SapProductDataSource → Warmup status: ${warmupResponse.statusCode}');
 
     final List<ProductModel> allProducts = [];
-    int skip = 0;
-    const int top = 20;
-    bool hasMore = true;
+    
+    // Start with the initial query (SAP defaults to 20 items per page)
+    // Adding $orderby is REQUIRED for $skip to work correctly in SAP HANA/SQL Server.
+    String nextUrl = '$baseUrl/Items?\$select=ItemCode,ItemName,ItemsGroupCode,QuantityOnStock,MinInventory,MaxInventory,AvgStdPrice,Mainsupplier,InventoryUOM&\$orderby=ItemCode';
 
-    while (hasMore) {
+    while (nextUrl.isNotEmpty) {
       var headers = await _getHeaders();
 
-      // ✅ Raw string — $ stays unencoded, SAP parses correctly
-      final queryString =
-          '\$select=ItemCode,ItemName,ItemsGroupCode,'
-          'AvgStdPrice,Mainsupplier,InventoryUOM'
-          '&\$skip=$skip'
-          '&\$top=$top';
+      final uri = Uri.parse(nextUrl);
 
-      final uri = Uri.parse('$baseUrl/Items?$queryString');
-
-      debugPrint('SapProductDataSource → Fetching page skip=$skip: $uri');
+      debugPrint('SapProductDataSource → Fetching page: $uri');
 
       var response = await client.get(uri, headers: headers);
 
@@ -305,16 +306,29 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
           allProducts.add(_mapToProductModel(item));
         }
 
-        // ✅ CORRECT: SAP B1 has more pages if it returned a full page
-if (items.length == top) {
-  hasMore = true;
-  skip += top;
-} else {
-  hasMore = false;
-}
+        // ✅ CORRECT: Rely on SAP's odata.nextLink for pagination which preserves order and token
+        final String? odataNextLink = data['odata.nextLink'] ?? data['@odata.nextLink'];
+
+        if (odataNextLink != null && odataNextLink.isNotEmpty) {
+          if (odataNextLink.startsWith('http')) {
+            nextUrl = odataNextLink;
+          } else {
+            String pathStr = odataNextLink;
+            if (pathStr.startsWith('/b1s/v1/')) {
+              pathStr = pathStr.substring(8);
+            } else if (pathStr.startsWith('b1s/v1/')) {
+              pathStr = pathStr.substring(7);
+            } else if (pathStr.startsWith('/')) {
+              pathStr = pathStr.substring(1);
+            }
+            nextUrl = '$baseUrl/$pathStr';
+          }
+        } else {
+          nextUrl = '';
+        }
 
         debugPrint(
-          'SapProductDataSource → hasMore: $hasMore, '
+          'SapProductDataSource → hasMore: ${nextUrl.isNotEmpty}, '
           'total so far: ${allProducts.length}',
         );
       } else {

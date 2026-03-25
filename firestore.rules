@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Tenants: Read and Write for registration and sync (Public for now as Auth is not implemented)
+    match /tenants/{tenantId} {
+      allow read, write: if true;
+      
+      // Sub-collections: Branches and Warehouses
+      match /branches/{branchId} {
+        allow read, write: if true;
+        match /warehouses/{warehouseId} {
+          allow read, write: if true;
+        }
+      }
+    }
+
+    // Tiers: Definitions of platform features
+    match /tiers/{tierId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Licenses: Verification and Activation
+    match /licenses/{licenseId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if false; // Prevention of accidental key deletion
+    }
+
+    // System Configuration: Maintenance mode and global settings
+    match /system_config/{configId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Update Manifests: App versioning and release notes
+    match /update_manifests/{manifestId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Terminals: Periodic heartbeat reporting
+    match /terminals/{terminalId} {
+      allow read, write: if true;
+    }
+
+    // Default deny: Block access to any other potential collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,1 +1,5 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"kflkiosk-dc264","appId":"1:876840743697:android:94548e4ddd5e83e6e612b0","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"kflkiosk-dc264","configurations":{"android":"1:876840743697:android:94548e4ddd5e83e6e612b0","ios":"1:876840743697:ios:4bd8d0a897bee9bee612b0","macos":"1:876840743697:ios:4bd8d0a897bee9bee612b0","web":"1:876840743697:web:5c99c112e1f102f5e612b0","windows":"1:876840743697:web:69961f89e119de5ce612b0"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
