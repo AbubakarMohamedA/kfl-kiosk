@@ -1840,7 +1840,6 @@ jobs:
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
-          discussion_category_name: Announcements
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -1855,7 +1854,6 @@ jobs:
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
-          discussion_category_name: Announcements
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
