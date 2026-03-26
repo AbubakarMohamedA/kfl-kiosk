@@ -152,16 +152,7 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
 
       final Directory? directory;
       if (Platform.isAndroid) {
-        // Use the public Downloads directory to prevent the APK from being in 
-        // scoped storage. If the APK is in scoped storage, the OS Package 
-        // Installer will lose access to it the moment the app is killed 
-        // during the update replacement process, causing 'App not installed'.
-        final publicDownloads = Directory('/storage/emulated/0/Download');
-        if (publicDownloads.existsSync()) {
-          directory = publicDownloads;
-        } else {
-          directory = await getExternalStorageDirectory();
-        }
+        directory = await getExternalStorageDirectory();
       } else {
         directory = await getTemporaryDirectory();
       }
@@ -171,17 +162,11 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
       }
 
       final fileName = _getFileName();
-      final String downloadsPath;
-
-      if (Platform.isAndroid && directory.path == '/storage/emulated/0/Download') {
-        // Do not create subdirectories in public folders on Android 11+ without explicit permissions
-        downloadsPath = directory.path;
-      } else {
-        downloadsPath = '${directory.path}/updates';
-        final downloadsDir = Directory(downloadsPath);
-        if (!await downloadsDir.exists()) {
-          await downloadsDir.create(recursive: true);
-        }
+      final downloadsPath = '${directory.path}/updates';
+      final downloadsDir = Directory(downloadsPath);
+      
+      if (!await downloadsDir.exists()) {
+        await downloadsDir.create(recursive: true);
       }
 
       final filePath = '$downloadsPath/$fileName';
