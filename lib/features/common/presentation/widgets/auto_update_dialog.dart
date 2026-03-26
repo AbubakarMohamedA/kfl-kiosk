@@ -192,7 +192,7 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
     if (PlatformService.isLinux) return 'update_$version.AppImage';
     if (PlatformService.isMacOS) return 'update_$version.dmg';
     if (PlatformService.isIOS) return 'update_$version.ipa';
-    if (PlatformService.isAndroid) return 'update_$version.apk';
+    if (PlatformService.isAndroid) return 'update.apk';
     return 'update_$version.zip';
   }
 

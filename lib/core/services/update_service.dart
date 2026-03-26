@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
+import 'package:app_installer/app_installer.dart';
 
 import '../../features/auth/domain/services/tenant_service.dart';
 import '../models/update_info.dart';
@@ -304,8 +305,7 @@ class UpdateService {
     } else if (PlatformService.isMacOS) {
       await Process.run('open', [path]);
     } else if (PlatformService.isAndroid) {
-      // Requires additional permissions and package like 'open_file'
-      debugPrint('Android install triggered for $path');
+      await AppInstaller.installApk(path);
     }
   }
 }
