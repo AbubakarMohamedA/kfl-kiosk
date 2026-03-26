@@ -152,7 +152,16 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
 
       final Directory? directory;
       if (Platform.isAndroid) {
-        directory = await getExternalStorageDirectory();
+        // Use the public Downloads directory to prevent the APK from being in 
+        // scoped storage. If the APK is in scoped storage, the OS Package 
+        // Installer will lose access to it the moment the app is killed 
+        // during the update replacement process, causing 'App not installed'.
+        final publicDownloads = Directory('/storage/emulated/0/Download');
+        if (publicDownloads.existsSync()) {
+          directory = publicDownloads;
+        } else {
+          directory = await getExternalStorageDirectory();
+        }
       } else {
         directory = await getTemporaryDirectory();
       }
@@ -189,6 +198,10 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
           }
         },
       );
+
+      // Small delay to ensure the OS flushes the file descriptor completely 
+      // to disk before we pass it off to the external PackageInstaller.
+      await Future.delayed(const Duration(seconds: 1));
 
       return filePath;
     } catch (e) {
