@@ -7,6 +7,7 @@ import 'package:app_installer/app_installer.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:sss/core/models/update_info.dart';
 import 'package:sss/core/services/platform_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Update Status Enum
 enum UpdateStatus {
@@ -52,6 +53,18 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
 
   Future<void> _startUpdate() async {
     try {
+      if (PlatformService.isIOS) {
+        final url = Uri.parse(widget.updateInfo.updateUrl ?? '');
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        }
+        setState(() {
+          _status = UpdateStatus.completed;
+        });
+        widget.onUpdateComplete?.call();
+        return;
+      }
+
       if (PlatformService.isAndroid) {
         setState(() {
           _status = UpdateStatus.requestingPermission;
@@ -187,13 +200,12 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
   }
 
   String _getFileName() {
-    final version = widget.updateInfo.latestVersion;
-    if (PlatformService.isWindows) return 'update_$version.exe';
-    if (PlatformService.isLinux) return 'update_$version.AppImage';
-    if (PlatformService.isMacOS) return 'update_$version.dmg';
-    if (PlatformService.isIOS) return 'update_$version.ipa';
+    if (PlatformService.isWindows) return 'update.exe';
+    if (PlatformService.isLinux) return 'update.AppImage';
+    if (PlatformService.isMacOS) return 'update.dmg';
+    if (PlatformService.isIOS) return 'update.ipa';
     if (PlatformService.isAndroid) return 'update.apk';
-    return 'update_$version.zip';
+    return 'update.zip';
   }
 
   Future<void> _installUpdate(String filePath) async {

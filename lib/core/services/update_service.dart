@@ -11,6 +11,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 import 'package:app_installer/app_installer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/auth/domain/services/tenant_service.dart';
 import '../models/update_info.dart';
@@ -243,7 +244,10 @@ class UpdateService {
   /// Download and install update
   Future<void> performUpdate(UpdateInfo updateInfo, {Function(double)? onProgress}) async {
     if (PlatformService.isIOS) {
-      // iOS doesn't support programmatic install, just open store
+      final url = Uri.parse(updateInfo.updateUrl ?? '');
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      }
       return;
     }
 
