@@ -171,11 +171,17 @@ class _AutoUpdateDialogState extends State<AutoUpdateDialog> {
       }
 
       final fileName = _getFileName();
-      final downloadsPath = '${directory.path}/updates';
-      final downloadsDir = Directory(downloadsPath);
-      
-      if (!await downloadsDir.exists()) {
-        await downloadsDir.create(recursive: true);
+      final String downloadsPath;
+
+      if (Platform.isAndroid && directory.path == '/storage/emulated/0/Download') {
+        // Do not create subdirectories in public folders on Android 11+ without explicit permissions
+        downloadsPath = directory.path;
+      } else {
+        downloadsPath = '${directory.path}/updates';
+        final downloadsDir = Directory(downloadsPath);
+        if (!await downloadsDir.exists()) {
+          await downloadsDir.create(recursive: true);
+        }
       }
 
       final filePath = '$downloadsPath/$fileName';
