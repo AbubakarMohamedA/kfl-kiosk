@@ -22,6 +22,15 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "upload-keystore.jks")
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: ""
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
+        }
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.techbizafrica.kflkiosk"
@@ -70,9 +79,13 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            if (keystorePassword != null && keystorePassword.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                println("No ANDROID_KEYSTORE_PASSWORD provided, falling back to debug keystore for local build.")
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }
