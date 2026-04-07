@@ -141,6 +141,7 @@ class LocalOrderDataSource implements OrderDataSource {
             size: i.productVariant ?? '',
             description: '',
             imageUrl: '',
+            salesVatGroup: i.salesVatGroup,
           ),
           quantity: i.quantity,
           status: i.status, // Reconstruct from V13 snapshot
@@ -193,6 +194,7 @@ class LocalOrderDataSource implements OrderDataSource {
         productVariant: Value(i.productModel.size),
         status: Value(i.status),              // Persist status (V13)
         productCategory: Value(i.productModel.category), // Persist category (V13)
+        salesVatGroup: Value(i.productModel.salesVatGroup), // Persist VAT Group (V16)
       )).toList(),
     );
   }

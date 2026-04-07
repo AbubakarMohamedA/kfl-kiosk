@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sss/features/products/data/models/price_model.dart';
 import 'package:sss/features/products/domain/usecases/product_usecases.dart';
 import 'package:sss/core/configuration/domain/repositories/configuration_repository.dart';
 import 'package:sss/di/injection.dart';
@@ -32,6 +34,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<UpdateProductEvent>(_onUpdateProduct);
     on<DeleteProductEvent>(_onDeleteProduct);
     on<UpdateProductImageLocalEvent>(_onUpdateProductImageLocal);
+    on<ApplyCustomerPricing>(_onApplyCustomerPricing);
   }
 
   Future<void> _onLoadProducts(
@@ -179,6 +182,54 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         products: updatedProducts,
         filteredProducts: updatedFiltered,
       ));
+    }
+  }
+
+  Future<void> _onApplyCustomerPricing(
+    ApplyCustomerPricing event,
+    Emitter<ProductState> emit,
+  ) async {
+    if (state is ProductLoaded) {
+      final currentState = state as ProductLoaded;
+      
+      try {
+        final repository = getIt<ProductRepository>();
+        final priceListNum = await repository.getCustomerPriceListNum();
+        final specialPrices = await repository.getCustomerSpecialPrices();
+
+        final updatedProducts = currentState.products.map((product) {
+          double newPrice = product.price;
+
+          if (specialPrices.containsKey(product.id) && specialPrices[product.id]! > 0) {
+            newPrice = specialPrices[product.id]!;
+          } else if (priceListNum != null && product.itemPrices.isNotEmpty) {
+            final targetPrice = product.itemPrices.firstWhere(
+              (p) => p.priceList == priceListNum,
+              orElse: () => const PriceModel(priceList: -1, price: 0.0),
+            );
+            if (targetPrice.priceList != -1 && targetPrice.price > 0) {
+              newPrice = targetPrice.price;
+            }
+          }
+          
+          return product.copyWith(price: newPrice);
+        }).toList();
+
+        final updatedFiltered = currentState.filteredProducts.map((product) {
+           final baseProduct = updatedProducts.firstWhere(
+             (p) => p.id == product.id, 
+             orElse: () => product,
+           );
+           return baseProduct;
+        }).toList();
+
+        emit(currentState.copyWith(
+          products: updatedProducts,
+          filteredProducts: updatedFiltered,
+        ));
+      } catch (e) {
+        debugPrint('ProductBloc.ApplyCustomerPricing ERROR: ');
+      }
     }
   }
 }

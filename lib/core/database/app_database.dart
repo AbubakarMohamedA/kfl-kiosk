@@ -37,6 +37,7 @@ class Products extends Table {
   TextColumn get branchId => text().nullable()(); // Added in V14 for Branch-Level isolation
   TextColumn get size => text().withDefault(const Constant(''))();
   TextColumn get description => text().withDefault(const Constant(''))();
+  TextColumn get salesVatGroup => text().nullable()(); // Added in V16
 
   @override
   Set<Column> get primaryKey => {id};
@@ -52,6 +53,9 @@ class Orders extends Table {
   TextColumn get tenantId => text().nullable()();
   TextColumn get branchId => text().nullable()();
   TextColumn get terminalId => text().nullable()();
+  TextColumn get sapSyncStatus => text().withDefault(const Constant('pending'))(); // pending, synced, failed
+  IntColumn get sapDocEntry => integer().nullable()();
+  TextColumn get sapCardCode => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -68,6 +72,7 @@ class OrderItems extends Table {
   TextColumn get productVariant => text().nullable()(); // Size/Variant snapshot
   TextColumn get status => text().withDefault(const Constant('PAID'))(); // Added in V13
   TextColumn get productCategory => text().withDefault(const Constant(''))(); // Added in V13
+  TextColumn get salesVatGroup => text().nullable()(); // Added in V16
 }
 
 /// Cart Items Table
@@ -117,6 +122,12 @@ class Branches extends Table {
   TextColumn get loginPassword => text()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   
+  // SAP Credentials Overrides
+  TextColumn get sapServerIp => text().nullable()();
+  TextColumn get sapCompanyDb => text().nullable()();
+  TextColumn get sapUsername => text().nullable()();
+  TextColumn get sapPassword => text().nullable()();
+  
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -138,6 +149,12 @@ class Tenants extends Table {
   TextColumn get enabledFeatures => text()(); // JSON List<String>
   BoolColumn get allowUpdate => boolean().nullable()();
   BoolColumn get immuneToBlocking => boolean().nullable()();
+
+  // SAP Credentials
+  TextColumn get sapServerIp => text().nullable()();
+  TextColumn get sapCompanyDb => text().nullable()();
+  TextColumn get sapUsername => text().nullable()();
+  TextColumn get sapPassword => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -181,7 +198,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.connect(super.connection);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration {
@@ -242,6 +259,28 @@ class AppDatabase extends _$AppDatabase {
         if (from < 14) {
           // v14: Add branch-level isolation for products
           await _addColumnIfNotExists(m, 'products', products.branchId as GeneratedColumn<Object>);
+        }
+        if (from < 15) {
+          // v15: Add SAP sync tracking to orders
+          await _addColumnIfNotExists(m, 'orders', orders.sapSyncStatus as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'orders', orders.sapDocEntry as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'orders', orders.sapCardCode as GeneratedColumn<Object>);
+        }
+        if (from < 16) {
+          // v16: Add item level dynamic vat groups
+          await _addColumnIfNotExists(m, 'products', products.salesVatGroup as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'order_items', orderItems.salesVatGroup as GeneratedColumn<Object>);
+        }
+        if (from < 17) {
+          // v17: Add SAP configuration fields to Tenants and Branches
+          await _addColumnIfNotExists(m, 'tenants', tenants.sapServerIp as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'tenants', tenants.sapCompanyDb as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'tenants', tenants.sapUsername as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'tenants', tenants.sapPassword as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'branches', branches.sapServerIp as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'branches', branches.sapCompanyDb as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'branches', branches.sapUsername as GeneratedColumn<Object>);
+          await _addColumnIfNotExists(m, 'branches', branches.sapPassword as GeneratedColumn<Object>);
         }
       },
       beforeOpen: (details) async {

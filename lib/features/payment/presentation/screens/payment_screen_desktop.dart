@@ -597,7 +597,7 @@ class _PaymentScreenDesktopState extends State<PaymentScreenDesktop> {
           ),
           const SizedBox(width: 8),
           Text(
-            'KSH. ${widget.total.toStringAsFixed(0)}',
+            'KES. ${widget.total.toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: screenHeight * 0.026,
               fontWeight: FontWeight.bold,

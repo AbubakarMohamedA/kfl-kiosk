@@ -18,6 +18,9 @@ OrderModel _$OrderModelFromJson(Map<String, dynamic> json) => OrderModel(
   tenantId: _nullableIdToString(json['tenantId']),
   branchId: json['branchId'] as String?,
   terminalId: json['terminalId'] as String?,
+  sapSyncStatus: json['sapSyncStatus'] as String? ?? 'pending',
+  sapDocEntry: (json['sapDocEntry'] as num?)?.toInt(),
+  sapCardCode: json['sapCardCode'] as String?,
 );
 
 Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
@@ -31,4 +34,7 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
       'tenantId': instance.tenantId,
       'branchId': instance.branchId,
       'terminalId': instance.terminalId,
+      'sapSyncStatus': instance.sapSyncStatus,
+      'sapDocEntry': instance.sapDocEntry,
+      'sapCardCode': instance.sapCardCode,
     };

@@ -89,6 +89,7 @@ Future<void> setupDependencies() async {
         getIt<OrdersDao>(), // NEW
         getIt<AppConfigDao>(), // NEW
         getIt<SapInvoiceDataSource>(), // NEW
+        getIt<SapAuthService>(), // NEW
       )); // NEW
   
   getIt.registerLazySingleton<SyncService>(() => SyncService(getIt<ConfigurationRepository>())); // NEW
@@ -136,7 +137,7 @@ Future<void> setupDependencies() async {
 
   getIt.registerLazySingleton<SapAuthService>(() => SapAuthService());
   getIt.registerLazySingleton<SapProductDataSource>(() => SapProductDataSource(getIt<SapAuthService>()));
-  getIt.registerLazySingleton<SapInvoiceDataSource>(() => SapInvoiceDataSource(getIt<SapAuthService>()));
+  getIt.registerLazySingleton<SapInvoiceDataSource>(() => SapInvoiceDataSource(getIt<SapAuthService>(), getIt<OrdersDao>()));
 
   // Repositories
   getIt.registerLazySingleton<ProductRepository>(() => ProductRepositoryImpl(

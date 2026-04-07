@@ -39,6 +39,10 @@ class TenantsDao extends DatabaseAccessor<AppDatabase> with _$TenantsDaoMixin {
       enabledFeatures: jsonEncode(tenant.enabledFeatures),
       allowUpdate: Value(tenant.allowUpdate),
       immuneToBlocking: Value(tenant.immuneToBlocking),
+      sapServerIp: Value(tenant.sapServerIp),
+      sapCompanyDb: Value(tenant.sapCompanyDb),
+      sapUsername: Value(tenant.sapUsername),
+      sapPassword: Value(tenant.sapPassword),
     ));
   }
 
@@ -67,6 +71,10 @@ class TenantsDao extends DatabaseAccessor<AppDatabase> with _$TenantsDaoMixin {
       enabledFeatures: List<String>.from(jsonDecode(row.enabledFeatures)),
       allowUpdate: row.allowUpdate,
       immuneToBlocking: row.immuneToBlocking,
+      sapServerIp: row.sapServerIp,
+      sapCompanyDb: row.sapCompanyDb,
+      sapUsername: row.sapUsername,
+      sapPassword: row.sapPassword,
     );
   }
 }

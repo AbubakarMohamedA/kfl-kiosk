@@ -13,6 +13,9 @@ class Order extends Equatable {
   final String? tenantId; // Nullable for legacy orders
   final String? branchId; // Nullable for non-enterprise or legacy
   final String? terminalId;
+  final String sapSyncStatus;
+  final int? sapDocEntry;
+  final String? sapCardCode;
 
 
   const Order({
@@ -25,10 +28,13 @@ class Order extends Equatable {
     this.tenantId,
     this.branchId,
     this.terminalId,
+    this.sapSyncStatus = 'pending',
+    this.sapDocEntry,
+    this.sapCardCode,
   });
 
   @override
-  List<Object?> get props => [id, items, total, phone, timestamp, status, tenantId, branchId, terminalId];
+  List<Object?> get props => [id, items, total, phone, timestamp, status, tenantId, branchId, terminalId, sapSyncStatus, sapDocEntry, sapCardCode];
 
   Order copyWith({
     String? id,
@@ -40,6 +46,9 @@ class Order extends Equatable {
     String? tenantId,
     String? branchId,
     String? terminalId,
+    String? sapSyncStatus,
+    int? sapDocEntry,
+    String? sapCardCode,
   }) {
     return Order(
       id: id ?? this.id,
@@ -51,6 +60,9 @@ class Order extends Equatable {
       tenantId: tenantId ?? this.tenantId,
       branchId: branchId ?? this.branchId,
       terminalId: terminalId ?? this.terminalId,
+      sapSyncStatus: sapSyncStatus ?? this.sapSyncStatus,
+      sapDocEntry: sapDocEntry ?? this.sapDocEntry,
+      sapCardCode: sapCardCode ?? this.sapCardCode,
     );
   }
 
@@ -167,6 +179,9 @@ class Order extends Equatable {
       'tenantId': tenantId,
       'branchId': branchId,
       'terminalId': terminalId,
+      'sapSyncStatus': sapSyncStatus,
+      'sapDocEntry': sapDocEntry,
+      'sapCardCode': sapCardCode,
     };
   }
 
@@ -185,6 +200,9 @@ class Order extends Equatable {
       tenantId: map['tenantId'],
       branchId: map['branchId'],
       terminalId: map['terminalId'],
+      sapSyncStatus: map['sapSyncStatus'] ?? 'pending',
+      sapDocEntry: map['sapDocEntry'],
+      sapCardCode: map['sapCardCode'],
     );
   }
 }

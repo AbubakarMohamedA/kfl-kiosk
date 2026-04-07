@@ -48,6 +48,12 @@ class _FakeSapLoginResult_3 extends _i1.SmartFake
     : super(parent, parentInvocation);
 }
 
+class _FakeSapBpQueryResult_4 extends _i1.SmartFake
+    implements _i3.SapBpQueryResult {
+  _FakeSapBpQueryResult_4(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
 /// A class which mocks [Client].
 ///
 /// See the documentation for Mockito's code generation for more information.
@@ -252,6 +258,15 @@ class MockSapAuthService extends _i1.Mock implements _i3.SapAuthService {
     required String? companyDb,
     required String? username,
     required String? password,
+    String? walkInCardCode,
+    String? currencyCode,
+    String? warehouseCode,
+    String? bplId,
+    String? paymentGlAccount,
+    String? overrideCardCode,
+    String? overrideStartDate,
+    String? overrideEndDate,
+    String? scheduledSyncTime,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#saveCredentials, [], {
@@ -259,6 +274,15 @@ class MockSapAuthService extends _i1.Mock implements _i3.SapAuthService {
               #companyDb: companyDb,
               #username: username,
               #password: password,
+              #walkInCardCode: walkInCardCode,
+              #currencyCode: currencyCode,
+              #warehouseCode: warehouseCode,
+              #bplId: bplId,
+              #paymentGlAccount: paymentGlAccount,
+              #overrideCardCode: overrideCardCode,
+              #overrideStartDate: overrideStartDate,
+              #overrideEndDate: overrideEndDate,
+              #scheduledSyncTime: scheduledSyncTime,
             }),
             returnValue: _i4.Future<void>.value(),
             returnValueForMissingStub: _i4.Future<void>.value(),
@@ -292,12 +316,66 @@ class MockSapAuthService extends _i1.Mock implements _i3.SapAuthService {
           as _i4.Future<String?>);
 
   @override
+  _i4.Future<String?> getActiveCardCode() =>
+      (super.noSuchMethod(
+            Invocation.method(#getActiveCardCode, []),
+            returnValue: _i4.Future<String?>.value(),
+          )
+          as _i4.Future<String?>);
+
+  @override
+  _i4.Future<void> saveActiveCustomer(String? cardCode, String? cardName) =>
+      (super.noSuchMethod(
+            Invocation.method(#saveActiveCustomer, [cardCode, cardName]),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
+
+  @override
+  _i4.Future<void> clearActiveCustomer() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearActiveCustomer, []),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
+
+  @override
+  _i4.Future<Map<String, String?>> getActiveCustomer() =>
+      (super.noSuchMethod(
+            Invocation.method(#getActiveCustomer, []),
+            returnValue: _i4.Future<Map<String, String?>>.value(
+              <String, String?>{},
+            ),
+          )
+          as _i4.Future<Map<String, String?>>);
+
+  @override
   _i4.Future<String?> getRouteId() =>
       (super.noSuchMethod(
             Invocation.method(#getRouteId, []),
             returnValue: _i4.Future<String?>.value(),
           )
           as _i4.Future<String?>);
+
+  @override
+  _i4.Future<Map<String, String>> getHeaders() =>
+      (super.noSuchMethod(
+            Invocation.method(#getHeaders, []),
+            returnValue: _i4.Future<Map<String, String>>.value(
+              <String, String>{},
+            ),
+          )
+          as _i4.Future<Map<String, String>>);
+
+  @override
+  _i4.Future<bool> ensureSession({bool? force = false}) =>
+      (super.noSuchMethod(
+            Invocation.method(#ensureSession, [], {#force: force}),
+            returnValue: _i4.Future<bool>.value(false),
+          )
+          as _i4.Future<bool>);
 
   @override
   _i4.Future<String> getBaseUrl() =>
@@ -336,4 +414,28 @@ class MockSapAuthService extends _i1.Mock implements _i3.SapAuthService {
             returnValueForMissingStub: _i4.Future<void>.value(),
           )
           as _i4.Future<void>);
+
+  @override
+  _i4.Future<_i3.SapBpQueryResult> searchBusinessPartners(
+    String? query, {
+    String? nextLink,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #searchBusinessPartners,
+              [query],
+              {#nextLink: nextLink},
+            ),
+            returnValue: _i4.Future<_i3.SapBpQueryResult>.value(
+              _FakeSapBpQueryResult_4(
+                this,
+                Invocation.method(
+                  #searchBusinessPartners,
+                  [query],
+                  {#nextLink: nextLink},
+                ),
+              ),
+            ),
+          )
+          as _i4.Future<_i3.SapBpQueryResult>);
 }

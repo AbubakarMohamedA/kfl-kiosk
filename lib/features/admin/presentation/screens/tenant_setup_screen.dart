@@ -77,7 +77,7 @@ class _TenantSetupScreenState extends State<TenantSetupScreen>
         contactEmail: widget.tenant.email,
         contactPhone: widget.tenant.phone,
         businessAddress: '', // Default empty if not provided
-        currency: 'KSH', // Default
+        currency: 'KES', // Default
         statusTrackingMode: widget.tenant.tierId == 'enterprise' 
             ? StatusTrackingMode.itemLevel 
             : StatusTrackingMode.orderLevel,

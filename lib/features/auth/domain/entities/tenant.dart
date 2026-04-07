@@ -17,6 +17,12 @@ class Tenant extends Equatable {
   final bool? allowUpdate; // Null = inherit from Tier
   final bool? immuneToBlocking; // Null = inherit from Tier
 
+  // SAP Credentials
+  final String? sapServerIp;
+  final String? sapCompanyDb;
+  final String? sapUsername;
+  final String? sapPassword;
+
   const Tenant({
     required this.id,
     required this.name,
@@ -33,6 +39,10 @@ class Tenant extends Equatable {
     this.enabledFeatures = const [],
     this.allowUpdate,
     this.immuneToBlocking,
+    this.sapServerIp,
+    this.sapCompanyDb,
+    this.sapUsername,
+    this.sapPassword,
   });
 
   Tenant copyWith({
@@ -51,6 +61,10 @@ class Tenant extends Equatable {
     List<String>? enabledFeatures,
     bool? allowUpdate, // Nullable to unset
     bool? immuneToBlocking, // Nullable to unset
+    String? sapServerIp,
+    String? sapCompanyDb,
+    String? sapUsername,
+    String? sapPassword,
   }) {
     return Tenant(
       id: id ?? this.id,
@@ -68,6 +82,10 @@ class Tenant extends Equatable {
       enabledFeatures: enabledFeatures ?? this.enabledFeatures,
       allowUpdate: allowUpdate ?? this.allowUpdate,
       immuneToBlocking: immuneToBlocking ?? this.immuneToBlocking,
+      sapServerIp: sapServerIp ?? this.sapServerIp,
+      sapCompanyDb: sapCompanyDb ?? this.sapCompanyDb,
+      sapUsername: sapUsername ?? this.sapUsername,
+      sapPassword: sapPassword ?? this.sapPassword,
     );
   }
 
@@ -88,5 +106,9 @@ class Tenant extends Equatable {
         enabledFeatures,
         allowUpdate,
         immuneToBlocking,
+        sapServerIp,
+        sapCompanyDb,
+        sapUsername,
+        sapPassword,
       ];
 }

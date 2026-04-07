@@ -251,6 +251,12 @@ class LocalProductDataSource implements ProductDataSource {
   }
 
   @override
+  Future<int?> getCustomerPriceListNum() async => null;
+
+  @override
+  Future<Map<String, double>> getCustomerSpecialPrices() async => {};
+
+  @override
   void clearCache() {
     // No-op for local data source
   }

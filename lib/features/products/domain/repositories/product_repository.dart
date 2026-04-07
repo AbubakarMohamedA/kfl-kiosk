@@ -34,6 +34,10 @@ abstract class ProductRepository {
   /// Delete a product by ID
   Future<void> deleteProduct(String id);
 
+  Future<int?> getCustomerPriceListNum();
+
+  Future<Map<String, double>> getCustomerSpecialPrices();
+
   /// Cache a local image exclusively for SAP or remote sources
   void cacheLocalImage(String productId, String imageUrl);
 

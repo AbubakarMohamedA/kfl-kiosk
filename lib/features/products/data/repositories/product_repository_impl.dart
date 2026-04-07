@@ -241,6 +241,18 @@ class ProductRepositoryImpl implements ProductRepository {
     }
   }
 
+  @override
+  Future<int?> getCustomerPriceListNum() async {
+    final dataSource = await _dataSource;
+    return dataSource.getCustomerPriceListNum();
+  }
+
+  @override
+  Future<Map<String, double>> getCustomerSpecialPrices() async {
+    final dataSource = await _dataSource;
+    return dataSource.getCustomerSpecialPrices();
+  }
+
   // ─── Update Product ───────────────────────────────────────────────────────
 
   @override
@@ -286,9 +298,11 @@ class ProductRepositoryImpl implements ProductRepository {
 
   @override
   void cacheLocalImage(String productId, String imageUrl) {
-    if (_resolvedDataSource == sapDataSource) {
-      sapDataSource.updateLocalImage(productId, imageUrl);
-      debugPrint('ProductRepository.cacheLocalImage → SAP Cache Updated: $productId');
-    }
+    _dataSource.then((ds) {
+      if (ds == sapDataSource) {
+        sapDataSource.updateLocalImage(productId, imageUrl);
+        debugPrint('ProductRepository.cacheLocalImage → SAP Cache Updated: $productId');
+      }
+    });
   }
 }

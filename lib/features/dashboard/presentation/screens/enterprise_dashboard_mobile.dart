@@ -429,7 +429,7 @@ class _EnterpriseDashboardMobileState extends State<EnterpriseDashboardMobile> w
                  )
               ]
             ),
-            child: EnterpriseFeed(isDarkMode: isDarkMode, selectedDate: _selectedDate),
+            child: EnterpriseFeed(isDarkMode: isDarkMode, selectedDate: _selectedDate, branches: _branches),
           ),
           const SizedBox(height: 24),
           

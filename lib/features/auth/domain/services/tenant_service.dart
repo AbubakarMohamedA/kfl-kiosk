@@ -15,6 +15,7 @@ import 'package:sss/core/models/update_info.dart';
 import 'package:sss/core/models/terminal_info.dart';
 
 import '../../../../core/services/firebase_rest_service.dart';
+import '../../../../core/utils/encryption_util.dart';
 import '../../../../di/injection.dart';
 
 class TenantService {
@@ -175,6 +176,10 @@ class TenantService {
           'enabledFeatures': tenant.enabledFeatures,
           'allowUpdate': tenant.allowUpdate,
           'immuneToBlocking': tenant.immuneToBlocking,
+          'sapServerIp': tenant.sapServerIp,
+          'sapCompanyDb': tenant.sapCompanyDb,
+          'sapUsername': tenant.sapUsername,
+          'sapPassword': tenant.sapPassword != null ? EncryptionUtil.encryptString(tenant.sapPassword!) : null,
           'updatedAt': DateTime.now(),
         });
         debugPrint('TenantService (REST): Synced tenant ${tenant.id} to cloud');
@@ -195,6 +200,10 @@ class TenantService {
         'enabledFeatures': tenant.enabledFeatures,
         'allowUpdate': tenant.allowUpdate,
         'immuneToBlocking': tenant.immuneToBlocking,
+        'sapServerIp': tenant.sapServerIp,
+        'sapCompanyDb': tenant.sapCompanyDb,
+        'sapUsername': tenant.sapUsername,
+        'sapPassword': tenant.sapPassword != null ? EncryptionUtil.encryptString(tenant.sapPassword!) : null,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       debugPrint('TenantService: Synced tenant ${tenant.id} to cloud');
@@ -398,6 +407,10 @@ class TenantService {
           enabledFeatures: List<String>.from(data['enabledFeatures'] ?? []),
           allowUpdate: data['allowUpdate'],
           immuneToBlocking: data['immuneToBlocking'],
+          sapServerIp: data['sapServerIp'],
+          sapCompanyDb: data['sapCompanyDb'],
+          sapUsername: data['sapUsername'],
+          sapPassword: data['sapPassword'] != null ? EncryptionUtil.decryptString(data['sapPassword']) : null,
         );
         if (_tenantsDao != null) {
           await _tenantsDao!.saveTenant(tenant);
@@ -860,8 +873,12 @@ class TenantService {
           'contactPhone': branch.contactPhone,
           'managerName': branch.managerName,
           'loginUsername': branch.loginUsername,
-          'loginPassword': branch.loginPassword,
+          'loginPassword': EncryptionUtil.encryptString(branch.loginPassword),
           'isActive': branch.isActive,
+          'sapServerIp': branch.sapServerIp,
+          'sapCompanyDb': branch.sapCompanyDb,
+          'sapUsername': branch.sapUsername,
+          'sapPassword': branch.sapPassword != null ? EncryptionUtil.encryptString(branch.sapPassword!) : null,
           'updatedAt': DateTime.now(),
         });
         debugPrint('TenantService (REST): Synced branch ${branch.id} to cloud');
@@ -882,8 +899,12 @@ class TenantService {
         'contactPhone': branch.contactPhone,
         'managerName': branch.managerName,
         'loginUsername': branch.loginUsername,
-        'loginPassword': branch.loginPassword,
+        'loginPassword': EncryptionUtil.encryptString(branch.loginPassword),
         'isActive': branch.isActive,
+        'sapServerIp': branch.sapServerIp,
+        'sapCompanyDb': branch.sapCompanyDb,
+        'sapUsername': branch.sapUsername,
+        'sapPassword': branch.sapPassword != null ? EncryptionUtil.encryptString(branch.sapPassword!) : null,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       debugPrint('TenantService: Synced branch ${branch.id} to cloud');
@@ -956,7 +977,7 @@ class TenantService {
 
         // 2. Branch Manager / Staff Login Check
         if (role == AppRole.staff || role == AppRole.manager) {
-           final branchResults = await _restService.runQuery('branches', [
+           var branchResults = await _restService.runQuery('branches', [
              {
                'fieldFilter': {
                  'field': {'fieldPath': 'loginUsername'},
@@ -973,8 +994,30 @@ class TenantService {
              }
            ], allDescendants: true);
 
+           // Fallback to searching encrypted password
+           if (branchResults.isEmpty) {
+             final encryptedPass = EncryptionUtil.encryptString(password);
+             branchResults = await _restService.runQuery('branches', [
+               {
+                 'fieldFilter': {
+                   'field': {'fieldPath': 'loginUsername'},
+                   'op': 'EQUAL', 
+                   'value': {'stringValue': identifier}
+                 }
+               },
+               {
+                 'fieldFilter': {
+                   'field': {'fieldPath': 'loginPassword'},
+                   'op': 'EQUAL', 
+                   'value': {'stringValue': encryptedPass}
+                 }
+               }
+             ], allDescendants: true);
+           }
+
            if (branchResults.isNotEmpty) {
-             final bData = branchResults.first;
+             final bData = Map<String, dynamic>.from(branchResults.first);
+             bData['loginPassword'] = password; // Return raw password to frontend
              final path = bData['__path'] as String? ?? '';
              final tenantId = _getParentId(path, 'tenants');
              
@@ -1059,19 +1102,29 @@ class TenantService {
 
       // 2. Branch Manager / Staff Login (Role Restricted)
       if (role == AppRole.staff || role == AppRole.manager) {
-        final branchesSnapshot = await _firestore.collectionGroup('branches')
+        var branchesSnapshot = await _firestore.collectionGroup('branches')
             .where('loginUsername', isEqualTo: identifier)
             .where('loginPassword', isEqualTo: password)
             .get();
+
+        if (branchesSnapshot.docs.isEmpty) {
+           final encryptedPass = EncryptionUtil.encryptString(password);
+           branchesSnapshot = await _firestore.collectionGroup('branches')
+            .where('loginUsername', isEqualTo: identifier)
+            .where('loginPassword', isEqualTo: encryptedPass)
+            .get();
+        }
 
         if (branchesSnapshot.docs.isNotEmpty) {
           final bDoc = branchesSnapshot.docs.first;
           final tDocRef = bDoc.reference.parent.parent;
           if (tDocRef != null) {
             final tDoc = await tDocRef.get();
+            final mappedData = Map<String, dynamic>.from(bDoc.data());
+            mappedData['loginPassword'] = password; // Return raw so client saves locally decoded
             return {
               'type': 'branch',
-              'data': bDoc.data(),
+              'data': mappedData,
               'id': bDoc.id,
               'tenantId': tDoc.id,
               'tenantData': tDoc.data()
@@ -1244,6 +1297,10 @@ class TenantService {
       enabledFeatures: List<String>.from(data['enabledFeatures'] ?? []),
       allowUpdate: data['allowUpdate'],
       immuneToBlocking: data['immuneToBlocking'],
+      sapServerIp: data['sapServerIp'],
+      sapCompanyDb: data['sapCompanyDb'],
+      sapUsername: data['sapUsername'],
+      sapPassword: data['sapPassword'] != null ? EncryptionUtil.decryptString(data['sapPassword']) : null,
     );
   }
 

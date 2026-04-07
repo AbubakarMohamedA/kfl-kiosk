@@ -50,9 +50,9 @@ enum ScreenType {
   // inventory,
   // staffManagement,
   settings,
-  warehouseSelector,
-  warehouseView,
-  warehouseManagement, // ✅ NEW
+  // warehouseSelector,
+  // warehouseView,
+  // warehouseManagement, // ✅ NEW
   businessInsights,
   superAdmin,
   productManagement, // ✅ NEW
@@ -545,12 +545,14 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
                             maintenanceKey = 'orders';
                             moduleName = 'Orders Module';
                           }
-                        } else if (_currentScreen ==
-                                ScreenType.warehouseSelector ||
-                            _currentScreen == ScreenType.warehouseView) {
-                          maintenanceKey = 'warehouse';
-                          moduleName = 'Warehouse Stations';
-                        } else if (_currentScreen ==
+                        } 
+                        // else if (_currentScreen ==
+                        //         ScreenType.warehouseSelector ||
+                        //     _currentScreen == ScreenType.warehouseView) {
+                        //   maintenanceKey = 'warehouse';
+                        //   moduleName = 'Warehouse Stations';
+                        // } 
+                        else if (_currentScreen ==
                             ScreenType.businessInsights) {
                           maintenanceKey = 'insights';
                           moduleName = 'Business Insights';
@@ -572,25 +574,25 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
 
                         return _currentScreen == ScreenType.dashboard
                             ? _buildDashboardContent()
-                            : _currentScreen == ScreenType.warehouseSelector
-                            ? WarehouseSelectorScreen(
-                                branchId: _currentConfig.branchId,
-                                onWarehouseSelected: (warehouse) {
-                                  setState(() {
-                                    _selectedWarehouse = warehouse;
-                                    _currentScreen = ScreenType.warehouseView;
-                                  });
-                                },
-                              )
-                            : _currentScreen == ScreenType.warehouseView &&
-                                  _selectedWarehouse != null
-                            ? StaffPanelWarehouse(
-                                warehouse: _selectedWarehouse!,
-                              )
-                            : _currentScreen ==
-                                  ScreenType
-                                      .warehouseManagement // ✅ NEW
-                            ? const WarehouseManagementScreen()
+                            // : _currentScreen == ScreenType.warehouseSelector
+                            // ? WarehouseSelectorScreen(
+                            //     branchId: _currentConfig.branchId,
+                            //     onWarehouseSelected: (warehouse) {
+                            //       setState(() {
+                            //         _selectedWarehouse = warehouse;
+                            //         _currentScreen = ScreenType.warehouseView;
+                            //       });
+                            //     },
+                            //   )
+                            // : _currentScreen == ScreenType.warehouseView &&
+                            //       _selectedWarehouse != null
+                            // ? StaffPanelWarehouse(
+                            //     warehouse: _selectedWarehouse!,
+                            //   )
+                            // : _currentScreen ==
+                            //       ScreenType
+                            //           .warehouseManagement // ✅ NEW
+                            // ? const WarehouseManagementScreen()
                             : _currentScreen ==
                                   ScreenType
                                       .productManagement // ✅ NEW
@@ -906,32 +908,32 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
               },
             ),
           // ✅ FIXED: Only show warehouse stations in item-level mode
-          if (_currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
-            _buildSidebarItem(
-              icon: Icons.warehouse,
-              label: 'Warehouse Stations',
-              maintenanceKey: 'warehouse',
-              isSelected: _currentScreen == ScreenType.warehouseSelector,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.warehouseSelector;
-                  _showHistory = false;
-                });
-              },
-            ),
-          // ✅ NEW: Warehouse Management for Branch Managers
-          if (_currentConfig.branchId != null && isEnterprise && isManager)
-            _buildSidebarItem(
-              icon: Icons.warehouse_rounded,
-              label: 'Manage Warehouses',
-              isSelected: _currentScreen == ScreenType.warehouseManagement,
-              onTap: () {
-                setState(() {
-                  _currentScreen = ScreenType.warehouseManagement;
-                  _showHistory = false;
-                });
-              },
-            ),
+          // if (_currentConfig.statusTrackingMode == StatusTrackingMode.itemLevel)
+          //   _buildSidebarItem(
+          //     icon: Icons.warehouse,
+          //     label: 'Warehouse Stations',
+          //     maintenanceKey: 'warehouse',
+          //     isSelected: _currentScreen == ScreenType.warehouseSelector,
+          //     onTap: () {
+          //       setState(() {
+          //         _currentScreen = ScreenType.warehouseSelector;
+          //         _showHistory = false;
+          //       });
+          //     },
+          //   ),
+          // // ✅ NEW: Warehouse Management for Branch Managers
+          // if (_currentConfig.branchId != null && isEnterprise && isManager)
+          //   _buildSidebarItem(
+          //     icon: Icons.warehouse_rounded,
+          //     label: 'Manage Warehouses',
+          //     isSelected: _currentScreen == ScreenType.warehouseManagement,
+          //     onTap: () {
+          //       setState(() {
+          //         _currentScreen = ScreenType.warehouseManagement;
+          //         _showHistory = false;
+          //       });
+          //     },
+          //   ),
 
           // ✅ NEW: Product Management
           // Visible to all tenants as per requirement (if feature enabled)
@@ -1885,7 +1887,8 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
     return BlocBuilder<OrderBloc, OrderState>(
       builder: (context, state) {
         if (state is OrdersLoaded) {
-          var activeOrders = state.orders
+          var activeOrders = state.filteredOrders
+              .map((o) => o as Order)
               .where((o) => _isOrderActive(o))
               .toList();
 

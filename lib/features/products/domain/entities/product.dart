@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:sss/features/products/data/models/price_model.dart';
 
 class Product extends Equatable {
   final String id;
@@ -9,6 +10,8 @@ class Product extends Equatable {
   final String category;
   final String description;
   final String imageUrl;
+  final String? salesVatGroup;
+  final List<PriceModel> itemPrices;
   final String? tenantId;
   final String? branchId;
 
@@ -21,6 +24,8 @@ class Product extends Equatable {
     required this.category,
     required this.description,
     required this.imageUrl,
+    this.salesVatGroup,
+    this.itemPrices = const [],
     this.tenantId,
     this.branchId,
   });
@@ -34,6 +39,8 @@ class Product extends Equatable {
     String? category,
     String? description,
     String? imageUrl,
+    String? salesVatGroup,
+    List<PriceModel>? itemPrices,
     String? tenantId,
     String? branchId,
   }) {
@@ -46,6 +53,8 @@ class Product extends Equatable {
       category: category ?? this.category,
       description: description ?? this.description,
       imageUrl: imageUrl ?? this.imageUrl,
+      salesVatGroup: salesVatGroup ?? this.salesVatGroup,
+      itemPrices: itemPrices ?? this.itemPrices,
       tenantId: tenantId ?? this.tenantId,
       branchId: branchId ?? this.branchId,
     );
@@ -62,6 +71,7 @@ class Product extends Equatable {
       'category': category,
       'description': description,
       'imageUrl': imageUrl,
+      'salesVatGroup': salesVatGroup,
       'tenantId': tenantId,
       'branchId': branchId,
     };
@@ -78,6 +88,11 @@ class Product extends Equatable {
       category: map['category'] as String,
       description: map['description'] as String,
       imageUrl: map['imageUrl'] as String,
+      salesVatGroup: map['salesVatGroup'] as String?,
+      itemPrices: (map['itemPrices'] as List<dynamic>?)
+              ?.map((p) => PriceModel.fromJson(p as Map<String, dynamic>))
+              .toList() ??
+          [],
       tenantId: map['tenantId'] as String?,
       branchId: map['branchId'] as String?,
     );
@@ -93,12 +108,14 @@ class Product extends Equatable {
     category,
     description,
     imageUrl,
+    salesVatGroup,
+    itemPrices,
     tenantId,
     branchId,
   ];
 
   @override
   String toString() {
-    return 'Product(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl, tenantId: $tenantId, branchId: $branchId)';
+    return 'Product(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl, salesVatGroup: $salesVatGroup, tenantId: $tenantId, branchId: $branchId)';
   }
 }

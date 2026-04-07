@@ -122,6 +122,17 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _salesVatGroupMeta = const VerificationMeta(
+    'salesVatGroup',
+  );
+  @override
+  late final GeneratedColumn<String> salesVatGroup = GeneratedColumn<String>(
+    'sales_vat_group',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -135,6 +146,7 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     branchId,
     size,
     description,
+    salesVatGroup,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -227,6 +239,15 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         ),
       );
     }
+    if (data.containsKey('sales_vat_group')) {
+      context.handle(
+        _salesVatGroupMeta,
+        salesVatGroup.isAcceptableOrUnknown(
+          data['sales_vat_group']!,
+          _salesVatGroupMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -280,6 +301,10 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.string,
         data['${effectivePrefix}description'],
       )!,
+      salesVatGroup: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sales_vat_group'],
+      ),
     );
   }
 
@@ -301,6 +326,7 @@ class Product extends DataClass implements Insertable<Product> {
   final String? branchId;
   final String size;
   final String description;
+  final String? salesVatGroup;
   const Product({
     required this.id,
     required this.name,
@@ -313,6 +339,7 @@ class Product extends DataClass implements Insertable<Product> {
     this.branchId,
     required this.size,
     required this.description,
+    this.salesVatGroup,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -334,6 +361,9 @@ class Product extends DataClass implements Insertable<Product> {
     }
     map['size'] = Variable<String>(size);
     map['description'] = Variable<String>(description);
+    if (!nullToAbsent || salesVatGroup != null) {
+      map['sales_vat_group'] = Variable<String>(salesVatGroup);
+    }
     return map;
   }
 
@@ -356,6 +386,9 @@ class Product extends DataClass implements Insertable<Product> {
           : Value(branchId),
       size: Value(size),
       description: Value(description),
+      salesVatGroup: salesVatGroup == null && nullToAbsent
+          ? const Value.absent()
+          : Value(salesVatGroup),
     );
   }
 
@@ -376,6 +409,7 @@ class Product extends DataClass implements Insertable<Product> {
       branchId: serializer.fromJson<String?>(json['branchId']),
       size: serializer.fromJson<String>(json['size']),
       description: serializer.fromJson<String>(json['description']),
+      salesVatGroup: serializer.fromJson<String?>(json['salesVatGroup']),
     );
   }
   @override
@@ -393,6 +427,7 @@ class Product extends DataClass implements Insertable<Product> {
       'branchId': serializer.toJson<String?>(branchId),
       'size': serializer.toJson<String>(size),
       'description': serializer.toJson<String>(description),
+      'salesVatGroup': serializer.toJson<String?>(salesVatGroup),
     };
   }
 
@@ -408,6 +443,7 @@ class Product extends DataClass implements Insertable<Product> {
     Value<String?> branchId = const Value.absent(),
     String? size,
     String? description,
+    Value<String?> salesVatGroup = const Value.absent(),
   }) => Product(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -420,6 +456,9 @@ class Product extends DataClass implements Insertable<Product> {
     branchId: branchId.present ? branchId.value : this.branchId,
     size: size ?? this.size,
     description: description ?? this.description,
+    salesVatGroup: salesVatGroup.present
+        ? salesVatGroup.value
+        : this.salesVatGroup,
   );
   Product copyWithCompanion(ProductsCompanion data) {
     return Product(
@@ -438,6 +477,9 @@ class Product extends DataClass implements Insertable<Product> {
       description: data.description.present
           ? data.description.value
           : this.description,
+      salesVatGroup: data.salesVatGroup.present
+          ? data.salesVatGroup.value
+          : this.salesVatGroup,
     );
   }
 
@@ -454,7 +496,8 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('tenantId: $tenantId, ')
           ..write('branchId: $branchId, ')
           ..write('size: $size, ')
-          ..write('description: $description')
+          ..write('description: $description, ')
+          ..write('salesVatGroup: $salesVatGroup')
           ..write(')'))
         .toString();
   }
@@ -472,6 +515,7 @@ class Product extends DataClass implements Insertable<Product> {
     branchId,
     size,
     description,
+    salesVatGroup,
   );
   @override
   bool operator ==(Object other) =>
@@ -487,7 +531,8 @@ class Product extends DataClass implements Insertable<Product> {
           other.tenantId == this.tenantId &&
           other.branchId == this.branchId &&
           other.size == this.size &&
-          other.description == this.description);
+          other.description == this.description &&
+          other.salesVatGroup == this.salesVatGroup);
 }
 
 class ProductsCompanion extends UpdateCompanion<Product> {
@@ -502,6 +547,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<String?> branchId;
   final Value<String> size;
   final Value<String> description;
+  final Value<String?> salesVatGroup;
   final Value<int> rowid;
   const ProductsCompanion({
     this.id = const Value.absent(),
@@ -515,6 +561,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.branchId = const Value.absent(),
     this.size = const Value.absent(),
     this.description = const Value.absent(),
+    this.salesVatGroup = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProductsCompanion.insert({
@@ -529,6 +576,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.branchId = const Value.absent(),
     this.size = const Value.absent(),
     this.description = const Value.absent(),
+    this.salesVatGroup = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -547,6 +595,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<String>? branchId,
     Expression<String>? size,
     Expression<String>? description,
+    Expression<String>? salesVatGroup,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -561,6 +610,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (branchId != null) 'branch_id': branchId,
       if (size != null) 'size': size,
       if (description != null) 'description': description,
+      if (salesVatGroup != null) 'sales_vat_group': salesVatGroup,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -577,6 +627,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<String?>? branchId,
     Value<String>? size,
     Value<String>? description,
+    Value<String?>? salesVatGroup,
     Value<int>? rowid,
   }) {
     return ProductsCompanion(
@@ -591,6 +642,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       branchId: branchId ?? this.branchId,
       size: size ?? this.size,
       description: description ?? this.description,
+      salesVatGroup: salesVatGroup ?? this.salesVatGroup,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -631,6 +683,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
+    if (salesVatGroup.present) {
+      map['sales_vat_group'] = Variable<String>(salesVatGroup.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -651,6 +706,7 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('branchId: $branchId, ')
           ..write('size: $size, ')
           ..write('description: $description, ')
+          ..write('salesVatGroup: $salesVatGroup, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -746,6 +802,40 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sapSyncStatusMeta = const VerificationMeta(
+    'sapSyncStatus',
+  );
+  @override
+  late final GeneratedColumn<String> sapSyncStatus = GeneratedColumn<String>(
+    'sap_sync_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _sapDocEntryMeta = const VerificationMeta(
+    'sapDocEntry',
+  );
+  @override
+  late final GeneratedColumn<int> sapDocEntry = GeneratedColumn<int>(
+    'sap_doc_entry',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sapCardCodeMeta = const VerificationMeta(
+    'sapCardCode',
+  );
+  @override
+  late final GeneratedColumn<String> sapCardCode = GeneratedColumn<String>(
+    'sap_card_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -756,6 +846,9 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
     tenantId,
     branchId,
     terminalId,
+    sapSyncStatus,
+    sapDocEntry,
+    sapCardCode,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -828,6 +921,33 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
         terminalId.isAcceptableOrUnknown(data['terminal_id']!, _terminalIdMeta),
       );
     }
+    if (data.containsKey('sap_sync_status')) {
+      context.handle(
+        _sapSyncStatusMeta,
+        sapSyncStatus.isAcceptableOrUnknown(
+          data['sap_sync_status']!,
+          _sapSyncStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_doc_entry')) {
+      context.handle(
+        _sapDocEntryMeta,
+        sapDocEntry.isAcceptableOrUnknown(
+          data['sap_doc_entry']!,
+          _sapDocEntryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_card_code')) {
+      context.handle(
+        _sapCardCodeMeta,
+        sapCardCode.isAcceptableOrUnknown(
+          data['sap_card_code']!,
+          _sapCardCodeMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -869,6 +989,18 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Order> {
         DriftSqlType.string,
         data['${effectivePrefix}terminal_id'],
       ),
+      sapSyncStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_sync_status'],
+      )!,
+      sapDocEntry: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sap_doc_entry'],
+      ),
+      sapCardCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_card_code'],
+      ),
     );
   }
 
@@ -887,6 +1019,9 @@ class Order extends DataClass implements Insertable<Order> {
   final String? tenantId;
   final String? branchId;
   final String? terminalId;
+  final String sapSyncStatus;
+  final int? sapDocEntry;
+  final String? sapCardCode;
   const Order({
     required this.id,
     required this.totalAmount,
@@ -896,6 +1031,9 @@ class Order extends DataClass implements Insertable<Order> {
     this.tenantId,
     this.branchId,
     this.terminalId,
+    required this.sapSyncStatus,
+    this.sapDocEntry,
+    this.sapCardCode,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -915,6 +1053,13 @@ class Order extends DataClass implements Insertable<Order> {
     }
     if (!nullToAbsent || terminalId != null) {
       map['terminal_id'] = Variable<String>(terminalId);
+    }
+    map['sap_sync_status'] = Variable<String>(sapSyncStatus);
+    if (!nullToAbsent || sapDocEntry != null) {
+      map['sap_doc_entry'] = Variable<int>(sapDocEntry);
+    }
+    if (!nullToAbsent || sapCardCode != null) {
+      map['sap_card_code'] = Variable<String>(sapCardCode);
     }
     return map;
   }
@@ -937,6 +1082,13 @@ class Order extends DataClass implements Insertable<Order> {
       terminalId: terminalId == null && nullToAbsent
           ? const Value.absent()
           : Value(terminalId),
+      sapSyncStatus: Value(sapSyncStatus),
+      sapDocEntry: sapDocEntry == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapDocEntry),
+      sapCardCode: sapCardCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapCardCode),
     );
   }
 
@@ -954,6 +1106,9 @@ class Order extends DataClass implements Insertable<Order> {
       tenantId: serializer.fromJson<String?>(json['tenantId']),
       branchId: serializer.fromJson<String?>(json['branchId']),
       terminalId: serializer.fromJson<String?>(json['terminalId']),
+      sapSyncStatus: serializer.fromJson<String>(json['sapSyncStatus']),
+      sapDocEntry: serializer.fromJson<int?>(json['sapDocEntry']),
+      sapCardCode: serializer.fromJson<String?>(json['sapCardCode']),
     );
   }
   @override
@@ -968,6 +1123,9 @@ class Order extends DataClass implements Insertable<Order> {
       'tenantId': serializer.toJson<String?>(tenantId),
       'branchId': serializer.toJson<String?>(branchId),
       'terminalId': serializer.toJson<String?>(terminalId),
+      'sapSyncStatus': serializer.toJson<String>(sapSyncStatus),
+      'sapDocEntry': serializer.toJson<int?>(sapDocEntry),
+      'sapCardCode': serializer.toJson<String?>(sapCardCode),
     };
   }
 
@@ -980,6 +1138,9 @@ class Order extends DataClass implements Insertable<Order> {
     Value<String?> tenantId = const Value.absent(),
     Value<String?> branchId = const Value.absent(),
     Value<String?> terminalId = const Value.absent(),
+    String? sapSyncStatus,
+    Value<int?> sapDocEntry = const Value.absent(),
+    Value<String?> sapCardCode = const Value.absent(),
   }) => Order(
     id: id ?? this.id,
     totalAmount: totalAmount ?? this.totalAmount,
@@ -991,6 +1152,9 @@ class Order extends DataClass implements Insertable<Order> {
     tenantId: tenantId.present ? tenantId.value : this.tenantId,
     branchId: branchId.present ? branchId.value : this.branchId,
     terminalId: terminalId.present ? terminalId.value : this.terminalId,
+    sapSyncStatus: sapSyncStatus ?? this.sapSyncStatus,
+    sapDocEntry: sapDocEntry.present ? sapDocEntry.value : this.sapDocEntry,
+    sapCardCode: sapCardCode.present ? sapCardCode.value : this.sapCardCode,
   );
   Order copyWithCompanion(OrdersCompanion data) {
     return Order(
@@ -1008,6 +1172,15 @@ class Order extends DataClass implements Insertable<Order> {
       terminalId: data.terminalId.present
           ? data.terminalId.value
           : this.terminalId,
+      sapSyncStatus: data.sapSyncStatus.present
+          ? data.sapSyncStatus.value
+          : this.sapSyncStatus,
+      sapDocEntry: data.sapDocEntry.present
+          ? data.sapDocEntry.value
+          : this.sapDocEntry,
+      sapCardCode: data.sapCardCode.present
+          ? data.sapCardCode.value
+          : this.sapCardCode,
     );
   }
 
@@ -1021,7 +1194,10 @@ class Order extends DataClass implements Insertable<Order> {
           ..write('customerPhone: $customerPhone, ')
           ..write('tenantId: $tenantId, ')
           ..write('branchId: $branchId, ')
-          ..write('terminalId: $terminalId')
+          ..write('terminalId: $terminalId, ')
+          ..write('sapSyncStatus: $sapSyncStatus, ')
+          ..write('sapDocEntry: $sapDocEntry, ')
+          ..write('sapCardCode: $sapCardCode')
           ..write(')'))
         .toString();
   }
@@ -1036,6 +1212,9 @@ class Order extends DataClass implements Insertable<Order> {
     tenantId,
     branchId,
     terminalId,
+    sapSyncStatus,
+    sapDocEntry,
+    sapCardCode,
   );
   @override
   bool operator ==(Object other) =>
@@ -1048,7 +1227,10 @@ class Order extends DataClass implements Insertable<Order> {
           other.customerPhone == this.customerPhone &&
           other.tenantId == this.tenantId &&
           other.branchId == this.branchId &&
-          other.terminalId == this.terminalId);
+          other.terminalId == this.terminalId &&
+          other.sapSyncStatus == this.sapSyncStatus &&
+          other.sapDocEntry == this.sapDocEntry &&
+          other.sapCardCode == this.sapCardCode);
 }
 
 class OrdersCompanion extends UpdateCompanion<Order> {
@@ -1060,6 +1242,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
   final Value<String?> tenantId;
   final Value<String?> branchId;
   final Value<String?> terminalId;
+  final Value<String> sapSyncStatus;
+  final Value<int?> sapDocEntry;
+  final Value<String?> sapCardCode;
   final Value<int> rowid;
   const OrdersCompanion({
     this.id = const Value.absent(),
@@ -1070,6 +1255,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     this.tenantId = const Value.absent(),
     this.branchId = const Value.absent(),
     this.terminalId = const Value.absent(),
+    this.sapSyncStatus = const Value.absent(),
+    this.sapDocEntry = const Value.absent(),
+    this.sapCardCode = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   OrdersCompanion.insert({
@@ -1081,6 +1269,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     this.tenantId = const Value.absent(),
     this.branchId = const Value.absent(),
     this.terminalId = const Value.absent(),
+    this.sapSyncStatus = const Value.absent(),
+    this.sapDocEntry = const Value.absent(),
+    this.sapCardCode = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        totalAmount = Value(totalAmount),
@@ -1095,6 +1286,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     Expression<String>? tenantId,
     Expression<String>? branchId,
     Expression<String>? terminalId,
+    Expression<String>? sapSyncStatus,
+    Expression<int>? sapDocEntry,
+    Expression<String>? sapCardCode,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1106,6 +1300,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
       if (tenantId != null) 'tenant_id': tenantId,
       if (branchId != null) 'branch_id': branchId,
       if (terminalId != null) 'terminal_id': terminalId,
+      if (sapSyncStatus != null) 'sap_sync_status': sapSyncStatus,
+      if (sapDocEntry != null) 'sap_doc_entry': sapDocEntry,
+      if (sapCardCode != null) 'sap_card_code': sapCardCode,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1119,6 +1316,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     Value<String?>? tenantId,
     Value<String?>? branchId,
     Value<String?>? terminalId,
+    Value<String>? sapSyncStatus,
+    Value<int?>? sapDocEntry,
+    Value<String?>? sapCardCode,
     Value<int>? rowid,
   }) {
     return OrdersCompanion(
@@ -1130,6 +1330,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
       tenantId: tenantId ?? this.tenantId,
       branchId: branchId ?? this.branchId,
       terminalId: terminalId ?? this.terminalId,
+      sapSyncStatus: sapSyncStatus ?? this.sapSyncStatus,
+      sapDocEntry: sapDocEntry ?? this.sapDocEntry,
+      sapCardCode: sapCardCode ?? this.sapCardCode,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1161,6 +1364,15 @@ class OrdersCompanion extends UpdateCompanion<Order> {
     if (terminalId.present) {
       map['terminal_id'] = Variable<String>(terminalId.value);
     }
+    if (sapSyncStatus.present) {
+      map['sap_sync_status'] = Variable<String>(sapSyncStatus.value);
+    }
+    if (sapDocEntry.present) {
+      map['sap_doc_entry'] = Variable<int>(sapDocEntry.value);
+    }
+    if (sapCardCode.present) {
+      map['sap_card_code'] = Variable<String>(sapCardCode.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1178,6 +1390,9 @@ class OrdersCompanion extends UpdateCompanion<Order> {
           ..write('tenantId: $tenantId, ')
           ..write('branchId: $branchId, ')
           ..write('terminalId: $terminalId, ')
+          ..write('sapSyncStatus: $sapSyncStatus, ')
+          ..write('sapDocEntry: $sapDocEntry, ')
+          ..write('sapCardCode: $sapCardCode, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1297,6 +1512,17 @@ class $OrderItemsTable extends OrderItems
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _salesVatGroupMeta = const VerificationMeta(
+    'salesVatGroup',
+  );
+  @override
+  late final GeneratedColumn<String> salesVatGroup = GeneratedColumn<String>(
+    'sales_vat_group',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1308,6 +1534,7 @@ class $OrderItemsTable extends OrderItems
     productVariant,
     status,
     productCategory,
+    salesVatGroup,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1391,6 +1618,15 @@ class $OrderItemsTable extends OrderItems
         ),
       );
     }
+    if (data.containsKey('sales_vat_group')) {
+      context.handle(
+        _salesVatGroupMeta,
+        salesVatGroup.isAcceptableOrUnknown(
+          data['sales_vat_group']!,
+          _salesVatGroupMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1436,6 +1672,10 @@ class $OrderItemsTable extends OrderItems
         DriftSqlType.string,
         data['${effectivePrefix}product_category'],
       )!,
+      salesVatGroup: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sales_vat_group'],
+      ),
     );
   }
 
@@ -1455,6 +1695,7 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
   final String? productVariant;
   final String status;
   final String productCategory;
+  final String? salesVatGroup;
   const OrderItem({
     required this.id,
     required this.orderId,
@@ -1465,6 +1706,7 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
     this.productVariant,
     required this.status,
     required this.productCategory,
+    this.salesVatGroup,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1480,6 +1722,9 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
     }
     map['status'] = Variable<String>(status);
     map['product_category'] = Variable<String>(productCategory);
+    if (!nullToAbsent || salesVatGroup != null) {
+      map['sales_vat_group'] = Variable<String>(salesVatGroup);
+    }
     return map;
   }
 
@@ -1496,6 +1741,9 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
           : Value(productVariant),
       status: Value(status),
       productCategory: Value(productCategory),
+      salesVatGroup: salesVatGroup == null && nullToAbsent
+          ? const Value.absent()
+          : Value(salesVatGroup),
     );
   }
 
@@ -1514,6 +1762,7 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
       productVariant: serializer.fromJson<String?>(json['productVariant']),
       status: serializer.fromJson<String>(json['status']),
       productCategory: serializer.fromJson<String>(json['productCategory']),
+      salesVatGroup: serializer.fromJson<String?>(json['salesVatGroup']),
     );
   }
   @override
@@ -1529,6 +1778,7 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
       'productVariant': serializer.toJson<String?>(productVariant),
       'status': serializer.toJson<String>(status),
       'productCategory': serializer.toJson<String>(productCategory),
+      'salesVatGroup': serializer.toJson<String?>(salesVatGroup),
     };
   }
 
@@ -1542,6 +1792,7 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
     Value<String?> productVariant = const Value.absent(),
     String? status,
     String? productCategory,
+    Value<String?> salesVatGroup = const Value.absent(),
   }) => OrderItem(
     id: id ?? this.id,
     orderId: orderId ?? this.orderId,
@@ -1554,6 +1805,9 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
         : this.productVariant,
     status: status ?? this.status,
     productCategory: productCategory ?? this.productCategory,
+    salesVatGroup: salesVatGroup.present
+        ? salesVatGroup.value
+        : this.salesVatGroup,
   );
   OrderItem copyWithCompanion(OrderItemsCompanion data) {
     return OrderItem(
@@ -1572,6 +1826,9 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
       productCategory: data.productCategory.present
           ? data.productCategory.value
           : this.productCategory,
+      salesVatGroup: data.salesVatGroup.present
+          ? data.salesVatGroup.value
+          : this.salesVatGroup,
     );
   }
 
@@ -1586,7 +1843,8 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
           ..write('productName: $productName, ')
           ..write('productVariant: $productVariant, ')
           ..write('status: $status, ')
-          ..write('productCategory: $productCategory')
+          ..write('productCategory: $productCategory, ')
+          ..write('salesVatGroup: $salesVatGroup')
           ..write(')'))
         .toString();
   }
@@ -1602,6 +1860,7 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
     productVariant,
     status,
     productCategory,
+    salesVatGroup,
   );
   @override
   bool operator ==(Object other) =>
@@ -1615,7 +1874,8 @@ class OrderItem extends DataClass implements Insertable<OrderItem> {
           other.productName == this.productName &&
           other.productVariant == this.productVariant &&
           other.status == this.status &&
-          other.productCategory == this.productCategory);
+          other.productCategory == this.productCategory &&
+          other.salesVatGroup == this.salesVatGroup);
 }
 
 class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
@@ -1628,6 +1888,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
   final Value<String?> productVariant;
   final Value<String> status;
   final Value<String> productCategory;
+  final Value<String?> salesVatGroup;
   const OrderItemsCompanion({
     this.id = const Value.absent(),
     this.orderId = const Value.absent(),
@@ -1638,6 +1899,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
     this.productVariant = const Value.absent(),
     this.status = const Value.absent(),
     this.productCategory = const Value.absent(),
+    this.salesVatGroup = const Value.absent(),
   });
   OrderItemsCompanion.insert({
     this.id = const Value.absent(),
@@ -1649,6 +1911,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
     this.productVariant = const Value.absent(),
     this.status = const Value.absent(),
     this.productCategory = const Value.absent(),
+    this.salesVatGroup = const Value.absent(),
   }) : orderId = Value(orderId),
        productId = Value(productId),
        quantity = Value(quantity),
@@ -1664,6 +1927,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
     Expression<String>? productVariant,
     Expression<String>? status,
     Expression<String>? productCategory,
+    Expression<String>? salesVatGroup,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1675,6 +1939,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
       if (productVariant != null) 'product_variant': productVariant,
       if (status != null) 'status': status,
       if (productCategory != null) 'product_category': productCategory,
+      if (salesVatGroup != null) 'sales_vat_group': salesVatGroup,
     });
   }
 
@@ -1688,6 +1953,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
     Value<String?>? productVariant,
     Value<String>? status,
     Value<String>? productCategory,
+    Value<String?>? salesVatGroup,
   }) {
     return OrderItemsCompanion(
       id: id ?? this.id,
@@ -1699,6 +1965,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
       productVariant: productVariant ?? this.productVariant,
       status: status ?? this.status,
       productCategory: productCategory ?? this.productCategory,
+      salesVatGroup: salesVatGroup ?? this.salesVatGroup,
     );
   }
 
@@ -1732,6 +1999,9 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
     if (productCategory.present) {
       map['product_category'] = Variable<String>(productCategory.value);
     }
+    if (salesVatGroup.present) {
+      map['sales_vat_group'] = Variable<String>(salesVatGroup.value);
+    }
     return map;
   }
 
@@ -1746,7 +2016,8 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
           ..write('productName: $productName, ')
           ..write('productVariant: $productVariant, ')
           ..write('status: $status, ')
-          ..write('productCategory: $productCategory')
+          ..write('productCategory: $productCategory, ')
+          ..write('salesVatGroup: $salesVatGroup')
           ..write(')'))
         .toString();
   }
@@ -2588,6 +2859,50 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _sapServerIpMeta = const VerificationMeta(
+    'sapServerIp',
+  );
+  @override
+  late final GeneratedColumn<String> sapServerIp = GeneratedColumn<String>(
+    'sap_server_ip',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sapCompanyDbMeta = const VerificationMeta(
+    'sapCompanyDb',
+  );
+  @override
+  late final GeneratedColumn<String> sapCompanyDb = GeneratedColumn<String>(
+    'sap_company_db',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sapUsernameMeta = const VerificationMeta(
+    'sapUsername',
+  );
+  @override
+  late final GeneratedColumn<String> sapUsername = GeneratedColumn<String>(
+    'sap_username',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sapPasswordMeta = const VerificationMeta(
+    'sapPassword',
+  );
+  @override
+  late final GeneratedColumn<String> sapPassword = GeneratedColumn<String>(
+    'sap_password',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2599,6 +2914,10 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
     loginUsername,
     loginPassword,
     isActive,
+    sapServerIp,
+    sapCompanyDb,
+    sapUsername,
+    sapPassword,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2691,6 +3010,42 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('sap_server_ip')) {
+      context.handle(
+        _sapServerIpMeta,
+        sapServerIp.isAcceptableOrUnknown(
+          data['sap_server_ip']!,
+          _sapServerIpMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_company_db')) {
+      context.handle(
+        _sapCompanyDbMeta,
+        sapCompanyDb.isAcceptableOrUnknown(
+          data['sap_company_db']!,
+          _sapCompanyDbMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_username')) {
+      context.handle(
+        _sapUsernameMeta,
+        sapUsername.isAcceptableOrUnknown(
+          data['sap_username']!,
+          _sapUsernameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_password')) {
+      context.handle(
+        _sapPasswordMeta,
+        sapPassword.isAcceptableOrUnknown(
+          data['sap_password']!,
+          _sapPasswordMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2736,6 +3091,22 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
       )!,
+      sapServerIp: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_server_ip'],
+      ),
+      sapCompanyDb: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_company_db'],
+      ),
+      sapUsername: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_username'],
+      ),
+      sapPassword: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_password'],
+      ),
     );
   }
 
@@ -2755,6 +3126,10 @@ class Branche extends DataClass implements Insertable<Branche> {
   final String loginUsername;
   final String loginPassword;
   final bool isActive;
+  final String? sapServerIp;
+  final String? sapCompanyDb;
+  final String? sapUsername;
+  final String? sapPassword;
   const Branche({
     required this.id,
     required this.tenantId,
@@ -2765,6 +3140,10 @@ class Branche extends DataClass implements Insertable<Branche> {
     required this.loginUsername,
     required this.loginPassword,
     required this.isActive,
+    this.sapServerIp,
+    this.sapCompanyDb,
+    this.sapUsername,
+    this.sapPassword,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2778,6 +3157,18 @@ class Branche extends DataClass implements Insertable<Branche> {
     map['login_username'] = Variable<String>(loginUsername);
     map['login_password'] = Variable<String>(loginPassword);
     map['is_active'] = Variable<bool>(isActive);
+    if (!nullToAbsent || sapServerIp != null) {
+      map['sap_server_ip'] = Variable<String>(sapServerIp);
+    }
+    if (!nullToAbsent || sapCompanyDb != null) {
+      map['sap_company_db'] = Variable<String>(sapCompanyDb);
+    }
+    if (!nullToAbsent || sapUsername != null) {
+      map['sap_username'] = Variable<String>(sapUsername);
+    }
+    if (!nullToAbsent || sapPassword != null) {
+      map['sap_password'] = Variable<String>(sapPassword);
+    }
     return map;
   }
 
@@ -2792,6 +3183,18 @@ class Branche extends DataClass implements Insertable<Branche> {
       loginUsername: Value(loginUsername),
       loginPassword: Value(loginPassword),
       isActive: Value(isActive),
+      sapServerIp: sapServerIp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapServerIp),
+      sapCompanyDb: sapCompanyDb == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapCompanyDb),
+      sapUsername: sapUsername == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapUsername),
+      sapPassword: sapPassword == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapPassword),
     );
   }
 
@@ -2810,6 +3213,10 @@ class Branche extends DataClass implements Insertable<Branche> {
       loginUsername: serializer.fromJson<String>(json['loginUsername']),
       loginPassword: serializer.fromJson<String>(json['loginPassword']),
       isActive: serializer.fromJson<bool>(json['isActive']),
+      sapServerIp: serializer.fromJson<String?>(json['sapServerIp']),
+      sapCompanyDb: serializer.fromJson<String?>(json['sapCompanyDb']),
+      sapUsername: serializer.fromJson<String?>(json['sapUsername']),
+      sapPassword: serializer.fromJson<String?>(json['sapPassword']),
     );
   }
   @override
@@ -2825,6 +3232,10 @@ class Branche extends DataClass implements Insertable<Branche> {
       'loginUsername': serializer.toJson<String>(loginUsername),
       'loginPassword': serializer.toJson<String>(loginPassword),
       'isActive': serializer.toJson<bool>(isActive),
+      'sapServerIp': serializer.toJson<String?>(sapServerIp),
+      'sapCompanyDb': serializer.toJson<String?>(sapCompanyDb),
+      'sapUsername': serializer.toJson<String?>(sapUsername),
+      'sapPassword': serializer.toJson<String?>(sapPassword),
     };
   }
 
@@ -2838,6 +3249,10 @@ class Branche extends DataClass implements Insertable<Branche> {
     String? loginUsername,
     String? loginPassword,
     bool? isActive,
+    Value<String?> sapServerIp = const Value.absent(),
+    Value<String?> sapCompanyDb = const Value.absent(),
+    Value<String?> sapUsername = const Value.absent(),
+    Value<String?> sapPassword = const Value.absent(),
   }) => Branche(
     id: id ?? this.id,
     tenantId: tenantId ?? this.tenantId,
@@ -2848,6 +3263,10 @@ class Branche extends DataClass implements Insertable<Branche> {
     loginUsername: loginUsername ?? this.loginUsername,
     loginPassword: loginPassword ?? this.loginPassword,
     isActive: isActive ?? this.isActive,
+    sapServerIp: sapServerIp.present ? sapServerIp.value : this.sapServerIp,
+    sapCompanyDb: sapCompanyDb.present ? sapCompanyDb.value : this.sapCompanyDb,
+    sapUsername: sapUsername.present ? sapUsername.value : this.sapUsername,
+    sapPassword: sapPassword.present ? sapPassword.value : this.sapPassword,
   );
   Branche copyWithCompanion(BranchesCompanion data) {
     return Branche(
@@ -2868,6 +3287,18 @@ class Branche extends DataClass implements Insertable<Branche> {
           ? data.loginPassword.value
           : this.loginPassword,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      sapServerIp: data.sapServerIp.present
+          ? data.sapServerIp.value
+          : this.sapServerIp,
+      sapCompanyDb: data.sapCompanyDb.present
+          ? data.sapCompanyDb.value
+          : this.sapCompanyDb,
+      sapUsername: data.sapUsername.present
+          ? data.sapUsername.value
+          : this.sapUsername,
+      sapPassword: data.sapPassword.present
+          ? data.sapPassword.value
+          : this.sapPassword,
     );
   }
 
@@ -2882,7 +3313,11 @@ class Branche extends DataClass implements Insertable<Branche> {
           ..write('managerName: $managerName, ')
           ..write('loginUsername: $loginUsername, ')
           ..write('loginPassword: $loginPassword, ')
-          ..write('isActive: $isActive')
+          ..write('isActive: $isActive, ')
+          ..write('sapServerIp: $sapServerIp, ')
+          ..write('sapCompanyDb: $sapCompanyDb, ')
+          ..write('sapUsername: $sapUsername, ')
+          ..write('sapPassword: $sapPassword')
           ..write(')'))
         .toString();
   }
@@ -2898,6 +3333,10 @@ class Branche extends DataClass implements Insertable<Branche> {
     loginUsername,
     loginPassword,
     isActive,
+    sapServerIp,
+    sapCompanyDb,
+    sapUsername,
+    sapPassword,
   );
   @override
   bool operator ==(Object other) =>
@@ -2911,7 +3350,11 @@ class Branche extends DataClass implements Insertable<Branche> {
           other.managerName == this.managerName &&
           other.loginUsername == this.loginUsername &&
           other.loginPassword == this.loginPassword &&
-          other.isActive == this.isActive);
+          other.isActive == this.isActive &&
+          other.sapServerIp == this.sapServerIp &&
+          other.sapCompanyDb == this.sapCompanyDb &&
+          other.sapUsername == this.sapUsername &&
+          other.sapPassword == this.sapPassword);
 }
 
 class BranchesCompanion extends UpdateCompanion<Branche> {
@@ -2924,6 +3367,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
   final Value<String> loginUsername;
   final Value<String> loginPassword;
   final Value<bool> isActive;
+  final Value<String?> sapServerIp;
+  final Value<String?> sapCompanyDb;
+  final Value<String?> sapUsername;
+  final Value<String?> sapPassword;
   final Value<int> rowid;
   const BranchesCompanion({
     this.id = const Value.absent(),
@@ -2935,6 +3382,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
     this.loginUsername = const Value.absent(),
     this.loginPassword = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.sapServerIp = const Value.absent(),
+    this.sapCompanyDb = const Value.absent(),
+    this.sapUsername = const Value.absent(),
+    this.sapPassword = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BranchesCompanion.insert({
@@ -2947,6 +3398,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
     required String loginUsername,
     required String loginPassword,
     this.isActive = const Value.absent(),
+    this.sapServerIp = const Value.absent(),
+    this.sapCompanyDb = const Value.absent(),
+    this.sapUsername = const Value.absent(),
+    this.sapPassword = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        tenantId = Value(tenantId),
@@ -2966,6 +3421,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
     Expression<String>? loginUsername,
     Expression<String>? loginPassword,
     Expression<bool>? isActive,
+    Expression<String>? sapServerIp,
+    Expression<String>? sapCompanyDb,
+    Expression<String>? sapUsername,
+    Expression<String>? sapPassword,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2978,6 +3437,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
       if (loginUsername != null) 'login_username': loginUsername,
       if (loginPassword != null) 'login_password': loginPassword,
       if (isActive != null) 'is_active': isActive,
+      if (sapServerIp != null) 'sap_server_ip': sapServerIp,
+      if (sapCompanyDb != null) 'sap_company_db': sapCompanyDb,
+      if (sapUsername != null) 'sap_username': sapUsername,
+      if (sapPassword != null) 'sap_password': sapPassword,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2992,6 +3455,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
     Value<String>? loginUsername,
     Value<String>? loginPassword,
     Value<bool>? isActive,
+    Value<String?>? sapServerIp,
+    Value<String?>? sapCompanyDb,
+    Value<String?>? sapUsername,
+    Value<String?>? sapPassword,
     Value<int>? rowid,
   }) {
     return BranchesCompanion(
@@ -3004,6 +3471,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
       loginUsername: loginUsername ?? this.loginUsername,
       loginPassword: loginPassword ?? this.loginPassword,
       isActive: isActive ?? this.isActive,
+      sapServerIp: sapServerIp ?? this.sapServerIp,
+      sapCompanyDb: sapCompanyDb ?? this.sapCompanyDb,
+      sapUsername: sapUsername ?? this.sapUsername,
+      sapPassword: sapPassword ?? this.sapPassword,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3038,6 +3509,18 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (sapServerIp.present) {
+      map['sap_server_ip'] = Variable<String>(sapServerIp.value);
+    }
+    if (sapCompanyDb.present) {
+      map['sap_company_db'] = Variable<String>(sapCompanyDb.value);
+    }
+    if (sapUsername.present) {
+      map['sap_username'] = Variable<String>(sapUsername.value);
+    }
+    if (sapPassword.present) {
+      map['sap_password'] = Variable<String>(sapPassword.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3056,6 +3539,10 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
           ..write('loginUsername: $loginUsername, ')
           ..write('loginPassword: $loginPassword, ')
           ..write('isActive: $isActive, ')
+          ..write('sapServerIp: $sapServerIp, ')
+          ..write('sapCompanyDb: $sapCompanyDb, ')
+          ..write('sapUsername: $sapUsername, ')
+          ..write('sapPassword: $sapPassword, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3233,6 +3720,50 @@ class $TenantsTable extends Tenants with TableInfo<$TenantsTable, Tenant> {
       'CHECK ("immune_to_blocking" IN (0, 1))',
     ),
   );
+  static const VerificationMeta _sapServerIpMeta = const VerificationMeta(
+    'sapServerIp',
+  );
+  @override
+  late final GeneratedColumn<String> sapServerIp = GeneratedColumn<String>(
+    'sap_server_ip',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sapCompanyDbMeta = const VerificationMeta(
+    'sapCompanyDb',
+  );
+  @override
+  late final GeneratedColumn<String> sapCompanyDb = GeneratedColumn<String>(
+    'sap_company_db',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sapUsernameMeta = const VerificationMeta(
+    'sapUsername',
+  );
+  @override
+  late final GeneratedColumn<String> sapUsername = GeneratedColumn<String>(
+    'sap_username',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sapPasswordMeta = const VerificationMeta(
+    'sapPassword',
+  );
+  @override
+  late final GeneratedColumn<String> sapPassword = GeneratedColumn<String>(
+    'sap_password',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3250,6 +3781,10 @@ class $TenantsTable extends Tenants with TableInfo<$TenantsTable, Tenant> {
     enabledFeatures,
     allowUpdate,
     immuneToBlocking,
+    sapServerIp,
+    sapCompanyDb,
+    sapUsername,
+    sapPassword,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3387,6 +3922,42 @@ class $TenantsTable extends Tenants with TableInfo<$TenantsTable, Tenant> {
         ),
       );
     }
+    if (data.containsKey('sap_server_ip')) {
+      context.handle(
+        _sapServerIpMeta,
+        sapServerIp.isAcceptableOrUnknown(
+          data['sap_server_ip']!,
+          _sapServerIpMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_company_db')) {
+      context.handle(
+        _sapCompanyDbMeta,
+        sapCompanyDb.isAcceptableOrUnknown(
+          data['sap_company_db']!,
+          _sapCompanyDbMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_username')) {
+      context.handle(
+        _sapUsernameMeta,
+        sapUsername.isAcceptableOrUnknown(
+          data['sap_username']!,
+          _sapUsernameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sap_password')) {
+      context.handle(
+        _sapPasswordMeta,
+        sapPassword.isAcceptableOrUnknown(
+          data['sap_password']!,
+          _sapPasswordMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3456,6 +4027,22 @@ class $TenantsTable extends Tenants with TableInfo<$TenantsTable, Tenant> {
         DriftSqlType.bool,
         data['${effectivePrefix}immune_to_blocking'],
       ),
+      sapServerIp: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_server_ip'],
+      ),
+      sapCompanyDb: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_company_db'],
+      ),
+      sapUsername: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_username'],
+      ),
+      sapPassword: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sap_password'],
+      ),
     );
   }
 
@@ -3481,6 +4068,10 @@ class Tenant extends DataClass implements Insertable<Tenant> {
   final String enabledFeatures;
   final bool? allowUpdate;
   final bool? immuneToBlocking;
+  final String? sapServerIp;
+  final String? sapCompanyDb;
+  final String? sapUsername;
+  final String? sapPassword;
   const Tenant({
     required this.id,
     required this.name,
@@ -3497,6 +4088,10 @@ class Tenant extends DataClass implements Insertable<Tenant> {
     required this.enabledFeatures,
     this.allowUpdate,
     this.immuneToBlocking,
+    this.sapServerIp,
+    this.sapCompanyDb,
+    this.sapUsername,
+    this.sapPassword,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3521,6 +4116,18 @@ class Tenant extends DataClass implements Insertable<Tenant> {
     }
     if (!nullToAbsent || immuneToBlocking != null) {
       map['immune_to_blocking'] = Variable<bool>(immuneToBlocking);
+    }
+    if (!nullToAbsent || sapServerIp != null) {
+      map['sap_server_ip'] = Variable<String>(sapServerIp);
+    }
+    if (!nullToAbsent || sapCompanyDb != null) {
+      map['sap_company_db'] = Variable<String>(sapCompanyDb);
+    }
+    if (!nullToAbsent || sapUsername != null) {
+      map['sap_username'] = Variable<String>(sapUsername);
+    }
+    if (!nullToAbsent || sapPassword != null) {
+      map['sap_password'] = Variable<String>(sapPassword);
     }
     return map;
   }
@@ -3548,6 +4155,18 @@ class Tenant extends DataClass implements Insertable<Tenant> {
       immuneToBlocking: immuneToBlocking == null && nullToAbsent
           ? const Value.absent()
           : Value(immuneToBlocking),
+      sapServerIp: sapServerIp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapServerIp),
+      sapCompanyDb: sapCompanyDb == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapCompanyDb),
+      sapUsername: sapUsername == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapUsername),
+      sapPassword: sapPassword == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sapPassword),
     );
   }
 
@@ -3572,6 +4191,10 @@ class Tenant extends DataClass implements Insertable<Tenant> {
       enabledFeatures: serializer.fromJson<String>(json['enabledFeatures']),
       allowUpdate: serializer.fromJson<bool?>(json['allowUpdate']),
       immuneToBlocking: serializer.fromJson<bool?>(json['immuneToBlocking']),
+      sapServerIp: serializer.fromJson<String?>(json['sapServerIp']),
+      sapCompanyDb: serializer.fromJson<String?>(json['sapCompanyDb']),
+      sapUsername: serializer.fromJson<String?>(json['sapUsername']),
+      sapPassword: serializer.fromJson<String?>(json['sapPassword']),
     );
   }
   @override
@@ -3593,6 +4216,10 @@ class Tenant extends DataClass implements Insertable<Tenant> {
       'enabledFeatures': serializer.toJson<String>(enabledFeatures),
       'allowUpdate': serializer.toJson<bool?>(allowUpdate),
       'immuneToBlocking': serializer.toJson<bool?>(immuneToBlocking),
+      'sapServerIp': serializer.toJson<String?>(sapServerIp),
+      'sapCompanyDb': serializer.toJson<String?>(sapCompanyDb),
+      'sapUsername': serializer.toJson<String?>(sapUsername),
+      'sapPassword': serializer.toJson<String?>(sapPassword),
     };
   }
 
@@ -3612,6 +4239,10 @@ class Tenant extends DataClass implements Insertable<Tenant> {
     String? enabledFeatures,
     Value<bool?> allowUpdate = const Value.absent(),
     Value<bool?> immuneToBlocking = const Value.absent(),
+    Value<String?> sapServerIp = const Value.absent(),
+    Value<String?> sapCompanyDb = const Value.absent(),
+    Value<String?> sapUsername = const Value.absent(),
+    Value<String?> sapPassword = const Value.absent(),
   }) => Tenant(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -3630,6 +4261,10 @@ class Tenant extends DataClass implements Insertable<Tenant> {
     immuneToBlocking: immuneToBlocking.present
         ? immuneToBlocking.value
         : this.immuneToBlocking,
+    sapServerIp: sapServerIp.present ? sapServerIp.value : this.sapServerIp,
+    sapCompanyDb: sapCompanyDb.present ? sapCompanyDb.value : this.sapCompanyDb,
+    sapUsername: sapUsername.present ? sapUsername.value : this.sapUsername,
+    sapPassword: sapPassword.present ? sapPassword.value : this.sapPassword,
   );
   Tenant copyWithCompanion(TenantsCompanion data) {
     return Tenant(
@@ -3662,6 +4297,18 @@ class Tenant extends DataClass implements Insertable<Tenant> {
       immuneToBlocking: data.immuneToBlocking.present
           ? data.immuneToBlocking.value
           : this.immuneToBlocking,
+      sapServerIp: data.sapServerIp.present
+          ? data.sapServerIp.value
+          : this.sapServerIp,
+      sapCompanyDb: data.sapCompanyDb.present
+          ? data.sapCompanyDb.value
+          : this.sapCompanyDb,
+      sapUsername: data.sapUsername.present
+          ? data.sapUsername.value
+          : this.sapUsername,
+      sapPassword: data.sapPassword.present
+          ? data.sapPassword.value
+          : this.sapPassword,
     );
   }
 
@@ -3682,7 +4329,11 @@ class Tenant extends DataClass implements Insertable<Tenant> {
           ..write('isMaintenanceMode: $isMaintenanceMode, ')
           ..write('enabledFeatures: $enabledFeatures, ')
           ..write('allowUpdate: $allowUpdate, ')
-          ..write('immuneToBlocking: $immuneToBlocking')
+          ..write('immuneToBlocking: $immuneToBlocking, ')
+          ..write('sapServerIp: $sapServerIp, ')
+          ..write('sapCompanyDb: $sapCompanyDb, ')
+          ..write('sapUsername: $sapUsername, ')
+          ..write('sapPassword: $sapPassword')
           ..write(')'))
         .toString();
   }
@@ -3704,6 +4355,10 @@ class Tenant extends DataClass implements Insertable<Tenant> {
     enabledFeatures,
     allowUpdate,
     immuneToBlocking,
+    sapServerIp,
+    sapCompanyDb,
+    sapUsername,
+    sapPassword,
   );
   @override
   bool operator ==(Object other) =>
@@ -3723,7 +4378,11 @@ class Tenant extends DataClass implements Insertable<Tenant> {
           other.isMaintenanceMode == this.isMaintenanceMode &&
           other.enabledFeatures == this.enabledFeatures &&
           other.allowUpdate == this.allowUpdate &&
-          other.immuneToBlocking == this.immuneToBlocking);
+          other.immuneToBlocking == this.immuneToBlocking &&
+          other.sapServerIp == this.sapServerIp &&
+          other.sapCompanyDb == this.sapCompanyDb &&
+          other.sapUsername == this.sapUsername &&
+          other.sapPassword == this.sapPassword);
 }
 
 class TenantsCompanion extends UpdateCompanion<Tenant> {
@@ -3742,6 +4401,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
   final Value<String> enabledFeatures;
   final Value<bool?> allowUpdate;
   final Value<bool?> immuneToBlocking;
+  final Value<String?> sapServerIp;
+  final Value<String?> sapCompanyDb;
+  final Value<String?> sapUsername;
+  final Value<String?> sapPassword;
   final Value<int> rowid;
   const TenantsCompanion({
     this.id = const Value.absent(),
@@ -3759,6 +4422,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
     this.enabledFeatures = const Value.absent(),
     this.allowUpdate = const Value.absent(),
     this.immuneToBlocking = const Value.absent(),
+    this.sapServerIp = const Value.absent(),
+    this.sapCompanyDb = const Value.absent(),
+    this.sapUsername = const Value.absent(),
+    this.sapPassword = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TenantsCompanion.insert({
@@ -3777,6 +4444,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
     required String enabledFeatures,
     this.allowUpdate = const Value.absent(),
     this.immuneToBlocking = const Value.absent(),
+    this.sapServerIp = const Value.absent(),
+    this.sapCompanyDb = const Value.absent(),
+    this.sapUsername = const Value.absent(),
+    this.sapPassword = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -3802,6 +4473,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
     Expression<String>? enabledFeatures,
     Expression<bool>? allowUpdate,
     Expression<bool>? immuneToBlocking,
+    Expression<String>? sapServerIp,
+    Expression<String>? sapCompanyDb,
+    Expression<String>? sapUsername,
+    Expression<String>? sapPassword,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3820,6 +4495,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
       if (enabledFeatures != null) 'enabled_features': enabledFeatures,
       if (allowUpdate != null) 'allow_update': allowUpdate,
       if (immuneToBlocking != null) 'immune_to_blocking': immuneToBlocking,
+      if (sapServerIp != null) 'sap_server_ip': sapServerIp,
+      if (sapCompanyDb != null) 'sap_company_db': sapCompanyDb,
+      if (sapUsername != null) 'sap_username': sapUsername,
+      if (sapPassword != null) 'sap_password': sapPassword,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3840,6 +4519,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
     Value<String>? enabledFeatures,
     Value<bool?>? allowUpdate,
     Value<bool?>? immuneToBlocking,
+    Value<String?>? sapServerIp,
+    Value<String?>? sapCompanyDb,
+    Value<String?>? sapUsername,
+    Value<String?>? sapPassword,
     Value<int>? rowid,
   }) {
     return TenantsCompanion(
@@ -3858,6 +4541,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
       enabledFeatures: enabledFeatures ?? this.enabledFeatures,
       allowUpdate: allowUpdate ?? this.allowUpdate,
       immuneToBlocking: immuneToBlocking ?? this.immuneToBlocking,
+      sapServerIp: sapServerIp ?? this.sapServerIp,
+      sapCompanyDb: sapCompanyDb ?? this.sapCompanyDb,
+      sapUsername: sapUsername ?? this.sapUsername,
+      sapPassword: sapPassword ?? this.sapPassword,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3910,6 +4597,18 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
     if (immuneToBlocking.present) {
       map['immune_to_blocking'] = Variable<bool>(immuneToBlocking.value);
     }
+    if (sapServerIp.present) {
+      map['sap_server_ip'] = Variable<String>(sapServerIp.value);
+    }
+    if (sapCompanyDb.present) {
+      map['sap_company_db'] = Variable<String>(sapCompanyDb.value);
+    }
+    if (sapUsername.present) {
+      map['sap_username'] = Variable<String>(sapUsername.value);
+    }
+    if (sapPassword.present) {
+      map['sap_password'] = Variable<String>(sapPassword.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3934,6 +4633,10 @@ class TenantsCompanion extends UpdateCompanion<Tenant> {
           ..write('enabledFeatures: $enabledFeatures, ')
           ..write('allowUpdate: $allowUpdate, ')
           ..write('immuneToBlocking: $immuneToBlocking, ')
+          ..write('sapServerIp: $sapServerIp, ')
+          ..write('sapCompanyDb: $sapCompanyDb, ')
+          ..write('sapUsername: $sapUsername, ')
+          ..write('sapPassword: $sapPassword, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5412,6 +6115,7 @@ typedef $$ProductsTableCreateCompanionBuilder =
       Value<String?> branchId,
       Value<String> size,
       Value<String> description,
+      Value<String?> salesVatGroup,
       Value<int> rowid,
     });
 typedef $$ProductsTableUpdateCompanionBuilder =
@@ -5427,6 +6131,7 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<String?> branchId,
       Value<String> size,
       Value<String> description,
+      Value<String?> salesVatGroup,
       Value<int> rowid,
     });
 
@@ -5514,6 +6219,11 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<String> get description => $composableBuilder(
     column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get salesVatGroup => $composableBuilder(
+    column: $table.salesVatGroup,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5606,6 +6316,11 @@ class $$ProductsTableOrderingComposer
     column: $table.description,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get salesVatGroup => $composableBuilder(
+    column: $table.salesVatGroup,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ProductsTableAnnotationComposer
@@ -5651,6 +6366,11 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<String> get description => $composableBuilder(
     column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get salesVatGroup => $composableBuilder(
+    column: $table.salesVatGroup,
     builder: (column) => column,
   );
 
@@ -5719,6 +6439,7 @@ class $$ProductsTableTableManager
                 Value<String?> branchId = const Value.absent(),
                 Value<String> size = const Value.absent(),
                 Value<String> description = const Value.absent(),
+                Value<String?> salesVatGroup = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCompanion(
                 id: id,
@@ -5732,6 +6453,7 @@ class $$ProductsTableTableManager
                 branchId: branchId,
                 size: size,
                 description: description,
+                salesVatGroup: salesVatGroup,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5747,6 +6469,7 @@ class $$ProductsTableTableManager
                 Value<String?> branchId = const Value.absent(),
                 Value<String> size = const Value.absent(),
                 Value<String> description = const Value.absent(),
+                Value<String?> salesVatGroup = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCompanion.insert(
                 id: id,
@@ -5760,6 +6483,7 @@ class $$ProductsTableTableManager
                 branchId: branchId,
                 size: size,
                 description: description,
+                salesVatGroup: salesVatGroup,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5827,6 +6551,9 @@ typedef $$OrdersTableCreateCompanionBuilder =
       Value<String?> tenantId,
       Value<String?> branchId,
       Value<String?> terminalId,
+      Value<String> sapSyncStatus,
+      Value<int?> sapDocEntry,
+      Value<String?> sapCardCode,
       Value<int> rowid,
     });
 typedef $$OrdersTableUpdateCompanionBuilder =
@@ -5839,6 +6566,9 @@ typedef $$OrdersTableUpdateCompanionBuilder =
       Value<String?> tenantId,
       Value<String?> branchId,
       Value<String?> terminalId,
+      Value<String> sapSyncStatus,
+      Value<int?> sapDocEntry,
+      Value<String?> sapCardCode,
       Value<int> rowid,
     });
 
@@ -5911,6 +6641,21 @@ class $$OrdersTableFilterComposer
 
   ColumnFilters<String> get terminalId => $composableBuilder(
     column: $table.terminalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapSyncStatus => $composableBuilder(
+    column: $table.sapSyncStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sapDocEntry => $composableBuilder(
+    column: $table.sapDocEntry,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapCardCode => $composableBuilder(
+    column: $table.sapCardCode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5988,6 +6733,21 @@ class $$OrdersTableOrderingComposer
     column: $table.terminalId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sapSyncStatus => $composableBuilder(
+    column: $table.sapSyncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sapDocEntry => $composableBuilder(
+    column: $table.sapDocEntry,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sapCardCode => $composableBuilder(
+    column: $table.sapCardCode,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$OrdersTableAnnotationComposer
@@ -6026,6 +6786,21 @@ class $$OrdersTableAnnotationComposer
 
   GeneratedColumn<String> get terminalId => $composableBuilder(
     column: $table.terminalId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapSyncStatus => $composableBuilder(
+    column: $table.sapSyncStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sapDocEntry => $composableBuilder(
+    column: $table.sapDocEntry,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapCardCode => $composableBuilder(
+    column: $table.sapCardCode,
     builder: (column) => column,
   );
 
@@ -6091,6 +6866,9 @@ class $$OrdersTableTableManager
                 Value<String?> tenantId = const Value.absent(),
                 Value<String?> branchId = const Value.absent(),
                 Value<String?> terminalId = const Value.absent(),
+                Value<String> sapSyncStatus = const Value.absent(),
+                Value<int?> sapDocEntry = const Value.absent(),
+                Value<String?> sapCardCode = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => OrdersCompanion(
                 id: id,
@@ -6101,6 +6879,9 @@ class $$OrdersTableTableManager
                 tenantId: tenantId,
                 branchId: branchId,
                 terminalId: terminalId,
+                sapSyncStatus: sapSyncStatus,
+                sapDocEntry: sapDocEntry,
+                sapCardCode: sapCardCode,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6113,6 +6894,9 @@ class $$OrdersTableTableManager
                 Value<String?> tenantId = const Value.absent(),
                 Value<String?> branchId = const Value.absent(),
                 Value<String?> terminalId = const Value.absent(),
+                Value<String> sapSyncStatus = const Value.absent(),
+                Value<int?> sapDocEntry = const Value.absent(),
+                Value<String?> sapCardCode = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => OrdersCompanion.insert(
                 id: id,
@@ -6123,6 +6907,9 @@ class $$OrdersTableTableManager
                 tenantId: tenantId,
                 branchId: branchId,
                 terminalId: terminalId,
+                sapSyncStatus: sapSyncStatus,
+                sapDocEntry: sapDocEntry,
+                sapCardCode: sapCardCode,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -6182,6 +6969,7 @@ typedef $$OrderItemsTableCreateCompanionBuilder =
       Value<String?> productVariant,
       Value<String> status,
       Value<String> productCategory,
+      Value<String?> salesVatGroup,
     });
 typedef $$OrderItemsTableUpdateCompanionBuilder =
     OrderItemsCompanion Function({
@@ -6194,6 +6982,7 @@ typedef $$OrderItemsTableUpdateCompanionBuilder =
       Value<String?> productVariant,
       Value<String> status,
       Value<String> productCategory,
+      Value<String?> salesVatGroup,
     });
 
 final class $$OrderItemsTableReferences
@@ -6279,6 +7068,11 @@ class $$OrderItemsTableFilterComposer
 
   ColumnFilters<String> get productCategory => $composableBuilder(
     column: $table.productCategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get salesVatGroup => $composableBuilder(
+    column: $table.salesVatGroup,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6373,6 +7167,11 @@ class $$OrderItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get salesVatGroup => $composableBuilder(
+    column: $table.salesVatGroup,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$OrdersTableOrderingComposer get orderId {
     final $$OrdersTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -6453,6 +7252,11 @@ class $$OrderItemsTableAnnotationComposer
 
   GeneratedColumn<String> get productCategory => $composableBuilder(
     column: $table.productCategory,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get salesVatGroup => $composableBuilder(
+    column: $table.salesVatGroup,
     builder: (column) => column,
   );
 
@@ -6540,6 +7344,7 @@ class $$OrderItemsTableTableManager
                 Value<String?> productVariant = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> productCategory = const Value.absent(),
+                Value<String?> salesVatGroup = const Value.absent(),
               }) => OrderItemsCompanion(
                 id: id,
                 orderId: orderId,
@@ -6550,6 +7355,7 @@ class $$OrderItemsTableTableManager
                 productVariant: productVariant,
                 status: status,
                 productCategory: productCategory,
+                salesVatGroup: salesVatGroup,
               ),
           createCompanionCallback:
               ({
@@ -6562,6 +7368,7 @@ class $$OrderItemsTableTableManager
                 Value<String?> productVariant = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> productCategory = const Value.absent(),
+                Value<String?> salesVatGroup = const Value.absent(),
               }) => OrderItemsCompanion.insert(
                 id: id,
                 orderId: orderId,
@@ -6572,6 +7379,7 @@ class $$OrderItemsTableTableManager
                 productVariant: productVariant,
                 status: status,
                 productCategory: productCategory,
+                salesVatGroup: salesVatGroup,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -7063,6 +7871,10 @@ typedef $$BranchesTableCreateCompanionBuilder =
       required String loginUsername,
       required String loginPassword,
       Value<bool> isActive,
+      Value<String?> sapServerIp,
+      Value<String?> sapCompanyDb,
+      Value<String?> sapUsername,
+      Value<String?> sapPassword,
       Value<int> rowid,
     });
 typedef $$BranchesTableUpdateCompanionBuilder =
@@ -7076,6 +7888,10 @@ typedef $$BranchesTableUpdateCompanionBuilder =
       Value<String> loginUsername,
       Value<String> loginPassword,
       Value<bool> isActive,
+      Value<String?> sapServerIp,
+      Value<String?> sapCompanyDb,
+      Value<String?> sapUsername,
+      Value<String?> sapPassword,
       Value<int> rowid,
     });
 
@@ -7130,6 +7946,26 @@ class $$BranchesTableFilterComposer
 
   ColumnFilters<bool> get isActive => $composableBuilder(
     column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapServerIp => $composableBuilder(
+    column: $table.sapServerIp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapCompanyDb => $composableBuilder(
+    column: $table.sapCompanyDb,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapUsername => $composableBuilder(
+    column: $table.sapUsername,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapPassword => $composableBuilder(
+    column: $table.sapPassword,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7187,6 +8023,26 @@ class $$BranchesTableOrderingComposer
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sapServerIp => $composableBuilder(
+    column: $table.sapServerIp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sapCompanyDb => $composableBuilder(
+    column: $table.sapCompanyDb,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sapUsername => $composableBuilder(
+    column: $table.sapUsername,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sapPassword => $composableBuilder(
+    column: $table.sapPassword,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BranchesTableAnnotationComposer
@@ -7232,6 +8088,26 @@ class $$BranchesTableAnnotationComposer
 
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<String> get sapServerIp => $composableBuilder(
+    column: $table.sapServerIp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapCompanyDb => $composableBuilder(
+    column: $table.sapCompanyDb,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapUsername => $composableBuilder(
+    column: $table.sapUsername,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapPassword => $composableBuilder(
+    column: $table.sapPassword,
+    builder: (column) => column,
+  );
 }
 
 class $$BranchesTableTableManager
@@ -7271,6 +8147,10 @@ class $$BranchesTableTableManager
                 Value<String> loginUsername = const Value.absent(),
                 Value<String> loginPassword = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<String?> sapServerIp = const Value.absent(),
+                Value<String?> sapCompanyDb = const Value.absent(),
+                Value<String?> sapUsername = const Value.absent(),
+                Value<String?> sapPassword = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BranchesCompanion(
                 id: id,
@@ -7282,6 +8162,10 @@ class $$BranchesTableTableManager
                 loginUsername: loginUsername,
                 loginPassword: loginPassword,
                 isActive: isActive,
+                sapServerIp: sapServerIp,
+                sapCompanyDb: sapCompanyDb,
+                sapUsername: sapUsername,
+                sapPassword: sapPassword,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7295,6 +8179,10 @@ class $$BranchesTableTableManager
                 required String loginUsername,
                 required String loginPassword,
                 Value<bool> isActive = const Value.absent(),
+                Value<String?> sapServerIp = const Value.absent(),
+                Value<String?> sapCompanyDb = const Value.absent(),
+                Value<String?> sapUsername = const Value.absent(),
+                Value<String?> sapPassword = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BranchesCompanion.insert(
                 id: id,
@@ -7306,6 +8194,10 @@ class $$BranchesTableTableManager
                 loginUsername: loginUsername,
                 loginPassword: loginPassword,
                 isActive: isActive,
+                sapServerIp: sapServerIp,
+                sapCompanyDb: sapCompanyDb,
+                sapUsername: sapUsername,
+                sapPassword: sapPassword,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -7347,6 +8239,10 @@ typedef $$TenantsTableCreateCompanionBuilder =
       required String enabledFeatures,
       Value<bool?> allowUpdate,
       Value<bool?> immuneToBlocking,
+      Value<String?> sapServerIp,
+      Value<String?> sapCompanyDb,
+      Value<String?> sapUsername,
+      Value<String?> sapPassword,
       Value<int> rowid,
     });
 typedef $$TenantsTableUpdateCompanionBuilder =
@@ -7366,6 +8262,10 @@ typedef $$TenantsTableUpdateCompanionBuilder =
       Value<String> enabledFeatures,
       Value<bool?> allowUpdate,
       Value<bool?> immuneToBlocking,
+      Value<String?> sapServerIp,
+      Value<String?> sapCompanyDb,
+      Value<String?> sapUsername,
+      Value<String?> sapPassword,
       Value<int> rowid,
     });
 
@@ -7450,6 +8350,26 @@ class $$TenantsTableFilterComposer
 
   ColumnFilters<bool> get immuneToBlocking => $composableBuilder(
     column: $table.immuneToBlocking,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapServerIp => $composableBuilder(
+    column: $table.sapServerIp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapCompanyDb => $composableBuilder(
+    column: $table.sapCompanyDb,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapUsername => $composableBuilder(
+    column: $table.sapUsername,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sapPassword => $composableBuilder(
+    column: $table.sapPassword,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7537,6 +8457,26 @@ class $$TenantsTableOrderingComposer
     column: $table.immuneToBlocking,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sapServerIp => $composableBuilder(
+    column: $table.sapServerIp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sapCompanyDb => $composableBuilder(
+    column: $table.sapCompanyDb,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sapUsername => $composableBuilder(
+    column: $table.sapUsername,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sapPassword => $composableBuilder(
+    column: $table.sapPassword,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TenantsTableAnnotationComposer
@@ -7606,6 +8546,26 @@ class $$TenantsTableAnnotationComposer
     column: $table.immuneToBlocking,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get sapServerIp => $composableBuilder(
+    column: $table.sapServerIp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapCompanyDb => $composableBuilder(
+    column: $table.sapCompanyDb,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapUsername => $composableBuilder(
+    column: $table.sapUsername,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sapPassword => $composableBuilder(
+    column: $table.sapPassword,
+    builder: (column) => column,
+  );
 }
 
 class $$TenantsTableTableManager
@@ -7651,6 +8611,10 @@ class $$TenantsTableTableManager
                 Value<String> enabledFeatures = const Value.absent(),
                 Value<bool?> allowUpdate = const Value.absent(),
                 Value<bool?> immuneToBlocking = const Value.absent(),
+                Value<String?> sapServerIp = const Value.absent(),
+                Value<String?> sapCompanyDb = const Value.absent(),
+                Value<String?> sapUsername = const Value.absent(),
+                Value<String?> sapPassword = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TenantsCompanion(
                 id: id,
@@ -7668,6 +8632,10 @@ class $$TenantsTableTableManager
                 enabledFeatures: enabledFeatures,
                 allowUpdate: allowUpdate,
                 immuneToBlocking: immuneToBlocking,
+                sapServerIp: sapServerIp,
+                sapCompanyDb: sapCompanyDb,
+                sapUsername: sapUsername,
+                sapPassword: sapPassword,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7687,6 +8655,10 @@ class $$TenantsTableTableManager
                 required String enabledFeatures,
                 Value<bool?> allowUpdate = const Value.absent(),
                 Value<bool?> immuneToBlocking = const Value.absent(),
+                Value<String?> sapServerIp = const Value.absent(),
+                Value<String?> sapCompanyDb = const Value.absent(),
+                Value<String?> sapUsername = const Value.absent(),
+                Value<String?> sapPassword = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TenantsCompanion.insert(
                 id: id,
@@ -7704,6 +8676,10 @@ class $$TenantsTableTableManager
                 enabledFeatures: enabledFeatures,
                 allowUpdate: allowUpdate,
                 immuneToBlocking: immuneToBlocking,
+                sapServerIp: sapServerIp,
+                sapCompanyDb: sapCompanyDb,
+                sapUsername: sapUsername,
+                sapPassword: sapPassword,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -22,6 +22,9 @@ class OrderModel {
   
   final String? branchId;
   final String? terminalId;
+  final String sapSyncStatus;
+  final int? sapDocEntry;
+  final String? sapCardCode;
 
   const OrderModel({
     required this.id,
@@ -33,6 +36,9 @@ class OrderModel {
     this.tenantId,
     this.branchId,
     this.terminalId,
+    this.sapSyncStatus = 'pending',
+    this.sapDocEntry,
+    this.sapCardCode,
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) =>
@@ -52,6 +58,9 @@ class OrderModel {
       tenantId: order.tenantId,
       branchId: order.branchId,
       terminalId: order.terminalId,
+      sapSyncStatus: order.sapSyncStatus,
+      sapDocEntry: order.sapDocEntry,
+      sapCardCode: order.sapCardCode,
     );
   }
 
@@ -67,6 +76,9 @@ class OrderModel {
       tenantId: tenantId,
       branchId: branchId,
       terminalId: terminalId,
+      sapSyncStatus: sapSyncStatus,
+      sapDocEntry: sapDocEntry,
+      sapCardCode: sapCardCode,
     );
   }
 
@@ -81,6 +93,9 @@ class OrderModel {
     String? tenantId,
     String? branchId,
     String? terminalId,
+    String? sapSyncStatus,
+    int? sapDocEntry,
+    String? sapCardCode,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -92,12 +107,15 @@ class OrderModel {
       tenantId: tenantId ?? this.tenantId,
       branchId: branchId ?? this.branchId,
       terminalId: terminalId ?? this.terminalId,
+      sapSyncStatus: sapSyncStatus ?? this.sapSyncStatus,
+      sapDocEntry: sapDocEntry ?? this.sapDocEntry,
+      sapCardCode: sapCardCode ?? this.sapCardCode,
     );
   }
 
   @override
   String toString() {
-    return 'OrderModel(id: $id, items: ${cartItems.length}, total: $total, phone: $phone, status: $status, tenantId: $tenantId, branchId: $branchId, terminalId: $terminalId)';
+    return 'OrderModel(id: $id, items: ${cartItems.length}, total: $total, phone: $phone, status: $status, sapSyncStatus: $sapSyncStatus, sapDocEntry: $sapDocEntry)';
   }
 
   @override
@@ -111,7 +129,10 @@ class OrderModel {
         other.status == status &&
         other.tenantId == tenantId &&
         other.branchId == branchId &&
-        other.terminalId == terminalId;
+        other.terminalId == terminalId &&
+        other.sapSyncStatus == sapSyncStatus &&
+        other.sapDocEntry == sapDocEntry &&
+        other.sapCardCode == sapCardCode;
   }
 
   @override
@@ -123,7 +144,10 @@ class OrderModel {
         status.hashCode ^
         tenantId.hashCode ^
         branchId.hashCode ^
-        terminalId.hashCode;
+        terminalId.hashCode ^
+        sapSyncStatus.hashCode ^
+        sapDocEntry.hashCode ^
+        sapCardCode.hashCode;
   }
 }
 

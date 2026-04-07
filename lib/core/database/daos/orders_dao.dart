@@ -15,6 +15,22 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   /// Watch all orders
   Stream<List<Order>> watchAllOrders() => select(orders).watch();
 
+  /// Get orders that failed SAP sync
+  Future<List<Order>> getFailedSapOrders() {
+    return (select(orders)..where((tbl) => tbl.sapSyncStatus.equals('failed'))).get();
+  }
+
+  /// Watch orders that failed SAP sync (live stream for UI)
+  Stream<List<Order>> watchFailedSapOrders() {
+    return (select(orders)..where((tbl) => tbl.sapSyncStatus.equals('failed'))).watch();
+  }
+
+  /// Permanently cancel SAP sync for an order — background retry will no longer pick it up
+  Future<int> cancelSapSync(String id) {
+    return (update(orders)..where((tbl) => tbl.id.equals(id)))
+        .write(const OrdersCompanion(sapSyncStatus: Value('cancelled_sync')));
+  }
+
   /// Fetch order by ID
   Future<Order?> getOrderById(String id) {
     return (select(orders)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
@@ -48,7 +64,19 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   Future<void> upsertOrder(OrdersCompanion order, List<OrderItemsCompanion> items) {
     return transaction(() async {
       // 1. Upsert the order header
-      await into(orders).insertOnConflictUpdate(order);
+      await into(orders).insertOnConflictUpdate(OrdersCompanion(
+        id: order.id,
+        totalAmount: order.totalAmount,
+        status: order.status,
+        createdAt: order.createdAt,
+        customerPhone: order.customerPhone,
+        tenantId: order.tenantId,
+        branchId: order.branchId,
+        terminalId: order.terminalId,
+        sapSyncStatus: order.sapSyncStatus,
+        sapDocEntry: order.sapDocEntry,
+        sapCardCode: order.sapCardCode,
+      ));
       
       // 2. Refresh items (Delete old and re-insert new to be safe)
       await (delete(orderItems)..where((tbl) => tbl.orderId.equals(order.id.value))).go();
@@ -57,6 +85,15 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
         await into(orderItems).insert(item);
       }
     });
+  }
+  
+  /// Update SAP sync status
+  Future<int> updateSapSyncStatus(String id, String status, {int? docEntry}) {
+    return (update(orders)..where((tbl) => tbl.id.equals(id)))
+      .write(OrdersCompanion(
+        sapSyncStatus: Value(status),
+        sapDocEntry: docEntry != null ? Value(docEntry) : const Value.absent(),
+      ));
   }
   
   /// Update order status

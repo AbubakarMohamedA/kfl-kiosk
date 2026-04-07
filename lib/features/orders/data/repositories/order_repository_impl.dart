@@ -26,10 +26,23 @@ class OrderRepositoryImpl implements OrderRepository {
   @override
   Future<String> createOrder(Order order) async {
     final orderModel = OrderModel.fromEntity(order);
-    final id = await _dataSource.saveOrder(orderModel);
     
-    // Asynchronously push to SAP as Invoice without blocking UI
-    sapInvoiceDataSource.syncOrderAsInvoice(orderModel);
+    // Capture CardCode at order time if not present
+    final finalOrder = orderModel.sapCardCode == null || orderModel.sapCardCode!.isEmpty
+        ? orderModel.copyWith(sapCardCode: await sapInvoiceDataSource.getSapAuthService().getActiveCardCode())
+        : orderModel;
+
+    final id = await _dataSource.saveOrder(finalOrder);
+    
+    final creds = await sapInvoiceDataSource.getSapAuthService().loadCredentials();
+    final scheduledSyncTime = creds['scheduledSyncTime'];
+    
+    if (scheduledSyncTime != null && scheduledSyncTime.trim().isNotEmpty) {
+      // Skip immediate sync, let the background scheduled sync handle it
+    } else {
+      // Asynchronously push to SAP as Invoice without blocking UI
+      sapInvoiceDataSource.syncOrderAsInvoice(finalOrder);
+    }
     
     return id;
   }
@@ -56,10 +69,23 @@ class OrderRepositoryImpl implements OrderRepository {
   @override
   Future<void> saveFullOrder(Order order) async {
     final orderModel = OrderModel.fromEntity(order);
-    await _dataSource.saveFullOrder(orderModel);
     
-    // Asynchronously push to SAP as Invoice
-    sapInvoiceDataSource.syncOrderAsInvoice(orderModel);
+    // Capture CardCode at order time if not present
+    final finalOrder = orderModel.sapCardCode == null || orderModel.sapCardCode!.isEmpty
+        ? orderModel.copyWith(sapCardCode: await sapInvoiceDataSource.getSapAuthService().getActiveCardCode())
+        : orderModel;
+
+    await _dataSource.saveFullOrder(finalOrder);
+    
+    final creds = await sapInvoiceDataSource.getSapAuthService().loadCredentials();
+    final scheduledSyncTime = creds['scheduledSyncTime'];
+    
+    if (scheduledSyncTime != null && scheduledSyncTime.trim().isNotEmpty) {
+      // Skip immediate sync
+    } else {
+      // Asynchronously push to SAP as Invoice
+      sapInvoiceDataSource.syncOrderAsInvoice(finalOrder);
+    }
   }
 
   @override

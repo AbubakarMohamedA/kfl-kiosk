@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'package:sss/features/products/data/models/price_model.dart';
 import 'package:sss/features/products/domain/entities/product.dart';
 
 part 'product_model.g.dart';
@@ -13,6 +14,8 @@ class ProductModel {
   final String category;
   final String description;
   final String imageUrl;
+  final String? salesVatGroup;
+  final List<PriceModel> itemPrices;
   final String? tenantId;
   final String? branchId;
 
@@ -25,6 +28,8 @@ class ProductModel {
     required this.category,
     required this.description,
     required this.imageUrl,
+    this.salesVatGroup,
+    this.itemPrices = const [],
     this.tenantId,
     this.branchId,
   });
@@ -47,6 +52,8 @@ class ProductModel {
       category: category,
       description: description,
       imageUrl: imageUrl,
+      salesVatGroup: salesVatGroup,
+      itemPrices: itemPrices,
       tenantId: tenantId,
       branchId: branchId,
     );
@@ -63,6 +70,8 @@ class ProductModel {
       category: product.category,
       description: product.description,
       imageUrl: product.imageUrl,
+      salesVatGroup: product.salesVatGroup,
+      itemPrices: product.itemPrices,
       tenantId: product.tenantId,
       branchId: product.branchId,
     );
@@ -78,6 +87,8 @@ class ProductModel {
     String? category,
     String? description,
     String? imageUrl,
+    String? salesVatGroup,
+    List<PriceModel>? itemPrices,
     String? tenantId,
     String? branchId,
   }) {
@@ -90,6 +101,8 @@ class ProductModel {
       category: category ?? this.category,
       description: description ?? this.description,
       imageUrl: imageUrl ?? this.imageUrl,
+      salesVatGroup: salesVatGroup ?? this.salesVatGroup,
+      itemPrices: itemPrices ?? this.itemPrices,
       tenantId: tenantId ?? this.tenantId,
       branchId: branchId ?? this.branchId,
     );
@@ -97,7 +110,7 @@ class ProductModel {
 
   @override
   String toString() {
-    return 'ProductModel(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl, tenantId: $tenantId, branchId: $branchId)';
+    return 'ProductModel(id: $id, name: $name, brand: $brand, price: $price, size: $size, category: $category, description: $description, imageUrl: $imageUrl, salesVatGroup: $salesVatGroup, tenantId: $tenantId, branchId: $branchId)';
   }
 
   @override
@@ -113,6 +126,7 @@ class ProductModel {
         other.category == category &&
         other.description == description &&
         other.imageUrl == imageUrl &&
+        other.salesVatGroup == salesVatGroup &&
         other.tenantId == tenantId &&
         other.branchId == branchId;
   }
@@ -127,6 +141,7 @@ class ProductModel {
         category.hashCode ^
         description.hashCode ^
         imageUrl.hashCode ^
+        (salesVatGroup?.hashCode ?? 0) ^
         tenantId.hashCode ^
         branchId.hashCode;
   }

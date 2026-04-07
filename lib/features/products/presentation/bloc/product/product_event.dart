@@ -66,3 +66,6 @@ class UpdateProductImageLocalEvent extends ProductEvent {
   final String imageUrl;
   const UpdateProductImageLocalEvent(this.productId, this.imageUrl);
 }
+class ApplyCustomerPricing extends ProductEvent {
+  const ApplyCustomerPricing();
+}

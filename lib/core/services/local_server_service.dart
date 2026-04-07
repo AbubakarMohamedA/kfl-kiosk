@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -21,7 +22,8 @@ import 'package:sss/core/database/app_database.dart' as drift_db;
 
 import '../../features/orders/data/datasources/sap_invoice_datasource.dart';
 import '../../features/orders/data/datasources/local_order_datasource.dart'; // NEW
-import '../../di/injection.dart'; // NEW
+import '../../di/injection.dart';
+import 'sap_auth_service.dart'; // NEW
 
 // NEW: Terminal Info Class
 class TerminalInfo {
@@ -51,7 +53,9 @@ class LocalServerService {
   final OrdersDao _ordersDao;
   final AppConfigDao _appConfigDao;
   final SapInvoiceDataSource _sapInvoiceDataSource; // NEW
+  final SapAuthService _sapAuthService; // NEW: Access active customer
   HttpServer? _server;
+  Timer? _sapRetryTimer; // NEW
   final _networkInfo = NetworkInfo();
   
   // NEW: Connected Terminals Tracking
@@ -67,7 +71,8 @@ class LocalServerService {
     this._productRepository,
     this._ordersDao,
     this._appConfigDao,
-    this._sapInvoiceDataSource, // NEW
+    this._sapInvoiceDataSource, 
+    this._sapAuthService, // NEW
   );
 
   void setActiveTenantId(String tenantId, {String? branchId, String? warehouseId, String? tierId}) {
@@ -353,8 +358,15 @@ class LocalServerService {
        try {
          final payload = await request.readAsString();
          final json = jsonDecode(payload);
-         final orderModel = OrderModel.fromJson(json);
+         OrderModel orderModel = OrderModel.fromJson(json);
          
+         // NEW: Capture the active customer at the time of order
+         // This ensures retries go to the correct SAP BP even if the staff switches customers later.
+         final activeCardCode = await _sapAuthService.getActiveCardCode();
+         if (activeCardCode != null && (orderModel.sapCardCode == null || orderModel.sapCardCode!.isEmpty)) {
+           orderModel = orderModel.copyWith(sapCardCode: activeCardCode);
+         }
+
          await _ordersDao.upsertOrder(
            drift_db.OrdersCompanion(
              id: drift.Value(orderModel.id),
@@ -365,6 +377,8 @@ class LocalServerService {
              tenantId: drift.Value(orderModel.tenantId),
              branchId: drift.Value(orderModel.branchId),
              terminalId: drift.Value(orderModel.terminalId),
+             sapSyncStatus: drift.Value(orderModel.sapSyncStatus),
+             sapCardCode: drift.Value(orderModel.sapCardCode),
            ),
            orderModel.cartItems.map((i) => drift_db.OrderItemsCompanion(
              orderId: drift.Value(orderModel.id),
@@ -450,6 +464,16 @@ class LocalServerService {
       _server = await io.serve(handler, InternetAddress.anyIPv4, 8080);
       debugPrint('==> Local Server started on port 8080'); // Clearer log
       debugPrint('==> Listening on all interfaces (anyIPv4)');
+
+      // NEW: Start periodic SAP retry task (every 5 minutes)
+      _sapRetryTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+        debugPrint('Server: Running periodic SAP sync retry task...');
+        _sapInvoiceDataSource.retryFailedSyncs();
+      });
+      
+      // Perform initial retry on start
+      _sapInvoiceDataSource.retryFailedSyncs();
+
     } catch (e) {
       debugPrint('==> Failed to start server: $e');
     }
@@ -458,6 +482,8 @@ class LocalServerService {
   Future<void> stop() async {
     await _server?.close();
     _server = null;
+    _sapRetryTimer?.cancel(); // NEW
+    _sapRetryTimer = null;
     _connectedTerminals.clear();
   }
   

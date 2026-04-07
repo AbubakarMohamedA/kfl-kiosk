@@ -9,6 +9,8 @@ abstract class ProductDataSource {
   Future<void> addProduct(ProductModel product);
   Future<void> updateProduct(ProductModel product);
   Future<void> deleteProduct(String id);
+  Future<int?> getCustomerPriceListNum();
+  Future<Map<String, double>> getCustomerSpecialPrices();
   void clearCache();
 }
 
@@ -80,6 +82,12 @@ class ProductRemoteDataSource implements ProductDataSource {
       throw Exception('Failed to delete product');
     }
   }
+
+  @override
+  Future<int?> getCustomerPriceListNum() async => null;
+
+  @override
+  Future<Map<String, double>> getCustomerSpecialPrices() async => {};
 
   @override
   void clearCache() {

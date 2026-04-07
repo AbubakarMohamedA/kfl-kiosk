@@ -14,6 +14,12 @@ class Branch extends Equatable {
   final int totalOrders;
   final double revenue;
 
+  // SAP Credentials Overrides
+  final String? sapServerIp;
+  final String? sapCompanyDb;
+  final String? sapUsername;
+  final String? sapPassword;
+
   const Branch({
     required this.id,
     required this.tenantId,
@@ -26,6 +32,10 @@ class Branch extends Equatable {
     this.isActive = true,
     this.totalOrders = 0,
     this.revenue = 0.0,
+    this.sapServerIp,
+    this.sapCompanyDb,
+    this.sapUsername,
+    this.sapPassword,
   });
 
   Branch copyWith({
@@ -40,6 +50,10 @@ class Branch extends Equatable {
     bool? isActive,
     int? totalOrders,
     double? revenue,
+    String? sapServerIp,
+    String? sapCompanyDb,
+    String? sapUsername,
+    String? sapPassword,
   }) {
     return Branch(
       id: id ?? this.id,
@@ -53,6 +67,10 @@ class Branch extends Equatable {
       isActive: isActive ?? this.isActive,
       totalOrders: totalOrders ?? this.totalOrders,
       revenue: revenue ?? this.revenue,
+      sapServerIp: sapServerIp ?? this.sapServerIp,
+      sapCompanyDb: sapCompanyDb ?? this.sapCompanyDb,
+      sapUsername: sapUsername ?? this.sapUsername,
+      sapPassword: sapPassword ?? this.sapPassword,
     );
   }
 
@@ -69,5 +87,9 @@ class Branch extends Equatable {
         isActive,
         totalOrders,
         revenue,
+        sapServerIp,
+        sapCompanyDb,
+        sapUsername,
+        sapPassword,
       ];
 }

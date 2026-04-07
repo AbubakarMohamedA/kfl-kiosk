@@ -30,7 +30,7 @@ service cloud.firestore {
     }
 
     // System Configuration: Maintenance mode and global settings
-    match /system_config/{configId} {
+    match /system_config/{document=**} {
       allow read: if true;
       allow write: if true;
     }

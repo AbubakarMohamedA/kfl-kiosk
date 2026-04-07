@@ -40,7 +40,7 @@ class AppConfiguration {
     this.businessAddress,
     this.logoPath,
     this.defaultWarehouse,
-    this.currency = 'KSH',
+    this.currency = 'KES',
     this.enableNotifications = true,
   });
 

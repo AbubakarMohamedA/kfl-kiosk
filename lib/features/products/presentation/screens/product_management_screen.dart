@@ -1,3 +1,6 @@
+// ignore_for_file: use_build_context_synchronously
+
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -29,6 +32,8 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   bool _isUploading = false;
   bool _isEnterprise = false;
   bool _isLoadingConfig = true;
+  String? _activeCustomerCode;
+  String? _activeCustomerName;
 
   int _currentPage = 0;
   static const int _itemsPerPage = 20;
@@ -52,10 +57,13 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   Future<void> _loadConfig() async {
     final configRepo = getIt<ConfigurationRepository>();
     final config = await configRepo.getConfiguration();
+    final activeCustomer = await getIt<SapAuthService>().getActiveCustomer();
     if (mounted) {
       setState(() {
         _isEnterprise = config.tierId == 'enterprise';
         _isLoadingConfig = false;
+        _activeCustomerCode = activeCustomer['cardCode'];
+        _activeCustomerName = activeCustomer['cardName'];
       });
     }
   }
@@ -443,21 +451,21 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                               setStateDialog(() => _isUploading = true);
                               try {
                                 final repo = getIt<ImageRepository>();
-final uploadedUrl = await repo.uploadImage(_selectedImageFile!);
+                                final uploadedUrl = await repo.uploadImage(_selectedImageFile!);
 
-if (context.mounted) {
-  // ✅ Local only — never touches SAP, never kills the session
-  context.read<ProductBloc>().add(
-    UpdateProductImageLocalEvent(product.id, uploadedUrl),
-  );
-  Navigator.pop(context);
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Image updated successfully'),
-      backgroundColor: Colors.green,
-    ),
-  );
-}
+                                if (context.mounted) {
+                                  // ✅ Local only — never touches SAP, never kills the session
+                                  context.read<ProductBloc>().add(
+                                    UpdateProductImageLocalEvent(product.id, uploadedUrl),
+                                  );
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Image updated successfully'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context)
@@ -561,24 +569,6 @@ if (context.mounted) {
     final passwordController = TextEditingController(
       text: creds['password'] ?? '',
     );
-    final walkInCardCodeController = TextEditingController( // NEW
-      text: creds['walkInCardCode'] ?? 'LC00017',
-    );
-    final currencyCodeController = TextEditingController( // NEW
-      text: creds['currencyCode'] ?? 'KSh',
-    );
-    final warehouseController = TextEditingController( // NEW
-      text: creds['warehouseCode'] ?? '',
-    );
-    final bplIdController = TextEditingController( // NEW
-      text: creds['bplId'] ?? '',
-    );
-    final taxCodeController = TextEditingController( // NEW
-      text: creds['taxCode'] ?? 'O1',
-    );
-    final paymentGlAccountController = TextEditingController( // NEW
-      text: creds['paymentGlAccount'] ?? '',
-    );
 
     bool isLoggingIn = false;
     bool obscurePassword = true;
@@ -635,78 +625,6 @@ if (context.mounted) {
                         labelText: 'CompanyDB',
                         hintText: 'e.g. SBODemoKE',
                         prefixIcon: const Icon(Icons.business),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: paymentGlAccountController,
-                      decoration: InputDecoration(
-                        labelText: 'Payment GL Account (M-Pesa)',
-                        hintText: 'e.g. 160000, Cash Account',
-                        prefixIcon: const Icon(Icons.account_balance_wallet),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: taxCodeController,
-                      decoration: InputDecoration(
-                        labelText: 'Default Tax Code (VatGroup)',
-                        hintText: 'e.g. O1, VT01',
-                        prefixIcon: const Icon(Icons.receipt_long),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: warehouseController,
-                      decoration: InputDecoration(
-                        labelText: 'Warehouse Code',
-                        hintText: 'e.g. 01, WH01',
-                        prefixIcon: const Icon(Icons.warehouse),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: bplIdController,
-                      decoration: InputDecoration(
-                        labelText: 'Business Place ID (BPLId)',
-                        hintText: 'e.g. 1, 2 (Required if Multi-Branch enabled)',
-                        prefixIcon: const Icon(Icons.location_on),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: currencyCodeController,
-                      decoration: InputDecoration(
-                        labelText: 'Document Currency',
-                        hintText: 'e.g. KSH, USD, EUR',
-                        prefixIcon: const Icon(Icons.money),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: walkInCardCodeController,
-                      decoration: InputDecoration(
-                        labelText: 'Default Walk-In BP Code',
-                        hintText: 'e.g. C99999 or WalkIn',
-                        prefixIcon: const Icon(Icons.person_pin_rounded),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -820,12 +738,6 @@ if (context.mounted) {
                               companyDbController.text.trim();
                           final username = usernameController.text.trim();
                           final password = passwordController.text.trim();
-                          final walkInCardCode = walkInCardCodeController.text.trim();
-                          final currencyCode = currencyCodeController.text.trim();
-                          final warehouseCode = warehouseController.text.trim();
-                          final bplId = bplIdController.text.trim();
-                          final taxCode = taxCodeController.text.trim(); // NEW
-                          final paymentGlAccount = paymentGlAccountController.text.trim(); // NEW
 
                           if (serverIp.isEmpty ||
                               companyDb.isEmpty ||
@@ -847,32 +759,30 @@ if (context.mounted) {
                             companyDb: companyDb,
                             username: username,
                             password: password,
-                            walkInCardCode: walkInCardCode,
-                            currencyCode: currencyCode,
-                            warehouseCode: warehouseCode,
-                            bplId: bplId,
-                            taxCode: taxCode, // NEW
-                            paymentGlAccount: paymentGlAccount, // NEW
+                            walkInCardCode: creds['walkInCardCode'],
+                            currencyCode: creds['currencyCode'],
+                            warehouseCode: creds['warehouseCode'],
+                            bplId: creds['bplId'],
+                            // taxCode: creds['taxCode'],
+                            paymentGlAccount: creds['paymentGlAccount'],
                           );
 
                           final result = await sapAuth.login();
 
                           if (context.mounted) {
                             if (result.success) {
-  Navigator.pop(context);
+                              Navigator.pop(context);
 
-  // ✅ Works now since invalidateDataSource is on the interface
-  getIt<ProductRepository>().invalidateDataSource();
+                              // ✅ Works now since invalidateDataSource is on the interface
+                              getIt<ProductRepository>().invalidateDataSource();
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Connected to SAP B1 successfully!'),
-      backgroundColor: Colors.green,
-    ),
-  );
-
-  context.read<ProductBloc>().add(const LoadProducts());
-} else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Connected to SAP B1 successfully!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } else {
                               setStateDialog(() {
                                 isLoggingIn = false;
                                 errorMessage = result.message;
@@ -883,9 +793,433 @@ if (context.mounted) {
                   icon: const Icon(Icons.login),
                   label: Text(isLoggingIn
                       ? 'Connecting...'
-                      : 'Connect & Sync'),
+                      : 'Connect'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[700],
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ─── SAP Business Dialog ──────────────────────────────────────────────────
+
+  Future<void> _showSapBusinessDialog() async {
+    final sapAuth = getIt<SapAuthService>();
+    final creds = await sapAuth.loadCredentials();
+
+    final walkInCardCodeController = TextEditingController(
+      text: creds['walkInCardCode'] ?? 'LC00017',
+    );
+    // final currencyCodeController = TextEditingController(
+    //   text: creds['currencyCode'] ?? 'KES',
+    // );
+    final warehouseController = TextEditingController(
+      text: creds['warehouseCode'] ?? '01',
+    );
+    final bplIdController = TextEditingController(
+      text: creds['bplId'] ?? '',
+    );
+    final paymentGlAccountController = TextEditingController(
+      text: creds['paymentGlAccount'] ?? '11101001',
+    );
+    final overrideCardCodeController = TextEditingController(
+      text: creds['overrideCardCode'] ?? '',
+    );
+    final overrideStartDateController = TextEditingController(
+      text: creds['overrideStartDate'] ?? '',
+    );
+    final overrideEndDateController = TextEditingController(
+      text: creds['overrideEndDate'] ?? '',
+    );
+    final scheduledSyncTimeController = TextEditingController(
+      text: creds['scheduledSyncTime'] ?? '',
+    );
+
+    bool isSaving = false;
+    String? errorMessage;
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.store,
+                        color: Colors.orange[700], size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('SAP Business Config'),
+                ],
+              ),
+              content: SizedBox(
+                width: 800,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'General Settings',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange),
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: paymentGlAccountController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Payment GL Account (M-Pesa)',
+                                    prefixIcon: const Icon(
+                                        Icons.account_balance_wallet),
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: warehouseController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Warehouse Code',
+                                    prefixIcon: const Icon(Icons.warehouse),
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: bplIdController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Business Place ID (BPLId)',
+                                    prefixIcon: const Icon(Icons.location_on),
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                  ),
+                                ),
+                                // const SizedBox(height: 16),
+                                // TextField(
+                                //   controller: currencyCodeController,
+                                //   decoration: InputDecoration(
+                                //     labelText: 'Document Currency',
+                                //     prefixIcon: const Icon(Icons.money),
+                                //     border: OutlineInputBorder(
+                                //         borderRadius:
+                                //             BorderRadius.circular(10)),
+                                //   ),
+                                // ),
+                                const SizedBox(height: 16),
+                                _SearchableSapBpDropdown(
+                                  labelText: 'Default Walk-In BP',
+                                  controller: walkInCardCodeController,
+                                  prefixIcon: Icons.person_search_rounded,
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: scheduledSyncTimeController,
+                                  readOnly: true,
+                                  onTap: () async {
+                                    final time = await showTimePicker(
+                                      context: context,
+                                      initialTime: TimeOfDay.now(),
+                                    );
+                                    if (time != null) {
+                                      final formattedTime = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+                                      scheduledSyncTimeController.text = formattedTime;
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'Scheduled Sync Time (e.g. 17:00)',
+                                    prefixIcon: const Icon(Icons.access_time),
+                                    suffixIcon: scheduledSyncTimeController.text.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(Icons.clear),
+                                            onPressed: () {
+                                              setStateDialog(() {
+                                                scheduledSyncTimeController.clear();
+                                              });
+                                            },
+                                          )
+                                        : null,
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 32),
+                          const VerticalDivider(),
+                          const SizedBox(width: 32),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Customer Override Rule',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blueGrey),
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueGrey[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border:
+                                        Border.all(color: Colors.blueGrey[100]!),
+                                  ),
+                                  child: const Text(
+                                    'When active, the system will use this customer instead of the default during the specified dates.',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.blueGrey),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                _SearchableSapBpDropdown(
+                                  labelText: 'Override BP Code',
+                                  controller: overrideCardCodeController,
+                                  prefixIcon: Icons.person_add_alt_1,
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: overrideStartDateController,
+                                  readOnly: true,
+                                  onTap: () async {
+                                    final date = await showDatePicker(
+                                      context: context,
+                                      initialDate: DateTime.now(),
+                                      firstDate: DateTime(2020),
+                                      lastDate: DateTime(2030),
+                                    );
+                                    if (date != null) {
+                                      overrideStartDateController.text =
+                                          date.toIso8601String().split('T').first;
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'Start Date',
+                                    prefixIcon: const Icon(Icons.date_range),
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: overrideEndDateController,
+                                  readOnly: true,
+                                  onTap: () async {
+                                    final date = await showDatePicker(
+                                      context: context,
+                                      initialDate: DateTime.now(),
+                                      firstDate: DateTime(2020),
+                                      lastDate: DateTime(2030),
+                                    );
+                                    if (date != null) {
+                                      overrideEndDateController.text =
+                                          date.toIso8601String().split('T').first;
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'End Date',
+                                    prefixIcon: const Icon(Icons.date_range),
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                  ),
+                                ),
+                                if (overrideCardCodeController.text.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 16.0),
+                                    child: OutlinedButton.icon(
+                                      onPressed: () {
+                                        setStateDialog(() {
+                                          overrideCardCodeController.clear();
+                                          overrideStartDateController.clear();
+                                          overrideEndDateController.clear();
+                                        });
+                                      },
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      label: const Text('Clear Active Rule'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.red,
+                                        side:
+                                            const BorderSide(color: Colors.red),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red[200]!),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  color: Colors.red, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(errorMessage!,
+                                    style: const TextStyle(
+                                        color: Colors.red, fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (isSaving) ...[
+                        const SizedBox(height: 12),
+                        const LinearProgressIndicator(),
+                        const SizedBox(height: 4),
+                        const Text('Saving Configuration...',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final walkInCardCode =
+                              walkInCardCodeController.text.trim();
+                          // final currencyCode =
+                          //     currencyCodeController.text.trim();
+                          final warehouseCode =
+                              warehouseController.text.trim();
+                          final bplId = bplIdController.text.trim();
+                          final paymentGlAccount =
+                              paymentGlAccountController.text.trim();
+
+                          setStateDialog(() {
+                            isSaving = true;
+                            errorMessage = null;
+                          });
+
+                          await sapAuth.saveCredentials(
+                            serverIp: creds['serverIp'] ?? '',
+                            companyDb: creds['companyDb'] ?? '',
+                            username: creds['username'] ?? '',
+                            password: creds['password'] ?? '',
+                            walkInCardCode: walkInCardCode,
+                            // currencyCode: currencyCode,
+                            warehouseCode: warehouseCode,
+                            bplId: bplId,
+                            paymentGlAccount: paymentGlAccount,
+                            overrideCardCode:
+                                overrideCardCodeController.text.trim(),
+                            overrideStartDate:
+                                overrideStartDateController.text.trim(),
+                            overrideEndDate:
+                                overrideEndDateController.text.trim(),
+                            scheduledSyncTime:
+                                scheduledSyncTimeController.text.trim(),
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            final sessionId = await sapAuth.getSessionId();
+                            final hasSession =
+                                sessionId != null && sessionId.isNotEmpty;
+
+                            if (!hasSession) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'No active SAP session. Attempting to log in...'),
+                                    backgroundColor: Colors.blue,
+                                  ),
+                                );
+                              }
+                              final loginResult = await sapAuth.login();
+                              if (context.mounted) {
+                                if (loginResult.success) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Login successful! Fetching products...'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                  context
+                                      .read<ProductBloc>()
+                                      .add(const ApplyCustomerPricing());
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Login failed: ${loginResult.message}'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            } else {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'SAP Settings saved! Updating prices...'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                                context
+                                    .read<ProductBloc>()
+                                    .add(const ApplyCustomerPricing());
+                              }
+                            }
+                          }
+                        },
+                  icon: const Icon(Icons.save),
+                  label: Text(isSaving ? 'Saving...' : 'Save Settings'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[700],
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -925,11 +1259,81 @@ if (context.mounted) {
                 );
               },
             ),
+            // Active Customer button
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton.icon(
+                  icon: Icon(
+                    _activeCustomerCode != null ? Icons.person : Icons.person_search,
+                    color: _activeCustomerCode != null ? Colors.green[700] : Colors.black87,
+                  ),
+                  label: Text(
+                    _activeCustomerCode != null
+                        ? '${_activeCustomerCode!} • ${_activeCustomerName ?? ''}'
+                        : 'Active Customer',
+                    style: TextStyle(
+                      color: _activeCustomerCode != null ? Colors.green[700] : Colors.black87,
+                      fontWeight: _activeCustomerCode != null ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => _SapBpSearchDialog(
+                        currentCode: _activeCustomerCode,
+                        onSelected: (code, name) async {
+                          await getIt<SapAuthService>().saveActiveCustomer(code, name);
+                          if (mounted) {
+                            setState(() {
+                              _activeCustomerCode = code;
+                              _activeCustomerName = name;
+                            });
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
+                // Persistent clear button — only visible when a customer is set
+                if (_activeCustomerCode != null)
+                  Tooltip(
+                    message: 'Clear active customer',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () async {
+                        await getIt<SapAuthService>().clearActiveCustomer();
+                        if (mounted) {
+                          setState(() {
+                            _activeCustomerCode = null;
+                            _activeCustomerName = null;
+                          });
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                        child: Icon(Icons.close, size: 16, color: Colors.green[700]),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            /* SAP Auth is now inherited and configured in the Enterprise dashboard
             // SAP Config button
             TextButton.icon(
               icon: const Icon(Icons.settings_applications),
-              label: const Text('SAP Config'),
+              label: const Text('SAP Auth'),
               onPressed: _showSapConfigDialog,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.black87,
+              ),
+            ),
+            */
+            // SAP Business button
+            TextButton.icon(
+              icon: const Icon(Icons.store),
+              label: const Text('SAP Settings'),
+              onPressed: _showSapBusinessDialog,
               style: TextButton.styleFrom(
                 foregroundColor: Colors.black87,
               ),
@@ -1176,12 +1580,12 @@ if (context.mounted) {
                           ],
                         ),
                         );
-                      },
-                    );
-                  },
+                        },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              if (totalPages > 1)
+                if (totalPages > 1)
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
@@ -1234,6 +1638,367 @@ if (context.mounted) {
               child: const Icon(Icons.add),
             )
           : null,
+    );
+  }
+}
+class _SearchableSapBpDropdown extends StatefulWidget {
+  final String labelText;
+  final TextEditingController controller;
+  final IconData prefixIcon;
+
+  const _SearchableSapBpDropdown({
+    required this.labelText,
+    required this.controller,
+    required this.prefixIcon,
+  });
+
+  @override
+  State<_SearchableSapBpDropdown> createState() =>
+      __SearchableSapBpDropdownState();
+}
+
+class __SearchableSapBpDropdownState extends State<_SearchableSapBpDropdown> {
+  String? _selectedName;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  void _showSearchOverlay() {
+    showDialog(
+      context: context,
+      builder: (context) => _SapBpSearchDialog(
+        currentCode: widget.controller.text,
+        onSelected: (code, name) {
+          setState(() {
+            widget.controller.text = code;
+            _selectedName = name;
+          });
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: _showSearchOverlay,
+      borderRadius: BorderRadius.circular(10),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: widget.labelText,
+          prefixIcon: Icon(widget.prefixIcon),
+          suffixIcon: const Icon(Icons.arrow_drop_down),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        child: Text(
+          widget.controller.text.isEmpty
+              ? 'Select Customer (CardCode)'
+              : _selectedName != null
+                  ? '${widget.controller.text} - $_selectedName'
+                  : 'CardCode: ${widget.controller.text}',
+          style: TextStyle(
+            fontSize: 14,
+            color:
+                widget.controller.text.isEmpty ? Colors.grey : Colors.black87,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SapBpSearchDialog extends StatefulWidget {
+  final String? currentCode;
+  final Function(String, String) onSelected;
+
+  const _SapBpSearchDialog({this.currentCode, required this.onSelected});
+
+  @override
+  State<_SapBpSearchDialog> createState() => __SapBpSearchDialogState();
+}
+
+class __SapBpSearchDialogState extends State<_SapBpSearchDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  List<Map<String, String>> _allResults = [];
+  List<Map<String, String>> _displayResults = [];
+  String? _nextLink;
+  bool _isLoading = false;
+  bool _isMoreLoading = false;
+  Timer? _searchDebounce;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    _performSearch('');
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      if (_nextLink != null && !_isMoreLoading && !_isLoading) {
+        _loadMore();
+      }
+    }
+  }
+
+  Future<void> _performSearch(String query, {bool forceFetch = false}) async {
+    // 1. Cancel existing debounce
+    _searchDebounce?.cancel();
+
+    // 2. If query is empty and we have data (and no force refresh requested), we show local results
+    if (query.isEmpty && _allResults.isNotEmpty && !forceFetch) {
+      if (mounted) {
+        setState(() {
+          _displayResults = _allResults;
+          _nextLink = null; // Pagination usually reset when clearing search
+        });
+      }
+      return;
+    }
+
+    // 3. Debounce the API call for non-empty queries
+    if (query.isNotEmpty && !forceFetch) {
+      setState(() {
+        _isLoading = true;
+      });
+      _searchDebounce = Timer(const Duration(milliseconds: 500), () => _executeRemoteSearch(query, forceFetch: false));
+      return;
+    }
+
+    // 4. Immediate execution for empty query or forced refresh
+    await _executeRemoteSearch(query, forceFetch: forceFetch);
+  }
+
+  Future<void> _executeRemoteSearch(String query, {bool forceFetch = false}) async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _displayResults = [];
+      _errorMessage = null;
+      // Only clear cache if searching or force refreshing
+      if (query.isNotEmpty || _searchController.text.isEmpty) {
+         _nextLink = null;
+      }
+    });
+
+    try {
+      final sapAuth = getIt<SapAuthService>();
+      
+      // ✅ Background Relogin check — force it if a manual refresh/retry is requested
+      final sessionOk = await sapAuth.ensureSession(force: forceFetch);
+      if (!sessionOk) {
+        debugPrint('__SapBpSearchDialogState: Auto-login failed.');
+        if (mounted) {
+          setState(() {
+           _isLoading = false;
+           _errorMessage = 'Failed to connect to SAP B1. Check your settings.';
+        });
+        }
+        return;
+      }
+
+      final result = await sapAuth.searchBusinessPartners(query);
+      if (mounted) {
+        setState(() {
+          // If query is empty, we update the main cache
+          if (query.isEmpty) {
+            _allResults = result.value;
+          }
+          _displayResults = result.value;
+          _nextLink = result.nextLink;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('__SapBpSearchDialogState Error: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+
+  Future<void> _loadMore() async {
+    if (_nextLink == null) return;
+    setState(() => _isMoreLoading = true);
+    try {
+      final result = await getIt<SapAuthService>()
+          .searchBusinessPartners(_searchController.text, nextLink: _nextLink);
+      if (mounted) {
+        setState(() {
+          _allResults.addAll(result.value);
+          _displayResults = _searchController.text.isEmpty 
+              ? [..._allResults] 
+              : _displayResults..addAll(result.value);
+          _nextLink = result.nextLink;
+          _isMoreLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isMoreLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: 450,
+        height: 550,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.person_search, color: Colors.blue),
+                const SizedBox(width: 12),
+                const Text(
+                  'Select Customer (CardCode)',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 8),
+                if (!_isLoading)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 20, color: Colors.blue),
+                    tooltip: 'Refresh List',
+                    onPressed: () {
+                      _searchController.clear();
+                      _performSearch('', forceFetch: true);
+                    },
+                  ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Search CardCode or Name (up to 500)...',
+                prefixIcon: const Icon(Icons.search),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              onChanged: (val) => _performSearch(val),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  size: 48, color: Colors.redAccent),
+                              const SizedBox(height: 12),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.redAccent),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () => _performSearch(_searchController.text, forceFetch: true),
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry Search'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _displayResults.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.search_off,
+                                      size: 48, color: Colors.grey[300]),
+                                  const SizedBox(height: 12),
+                                  const Text('No customers found'),
+                                ],
+                              ),
+                            )
+                      : ListView.separated(
+                          controller: _scrollController,
+                          itemCount: _displayResults.length +
+                              (_nextLink != null && _searchController.text.isEmpty ? 1 : 0),
+                          separatorBuilder: (context, index) => const Divider(),
+                          itemBuilder: (context, index) {
+                            if (index == _displayResults.length) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16.0),
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                ),
+                              );
+                            }
+                            final bp = _displayResults[index];
+                            final code = bp['CardCode'] ?? '';
+                            final isSelected = code == widget.currentCode;
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                              title: Text(
+                                '${bp['CardCode']} - ${bp['CardName']}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: const Text(
+                                'Customer / Business Partner',
+                                style: TextStyle(
+                                    color: Colors.blueGrey, fontSize: 12),
+                              ),
+                              selected: isSelected,
+                              selectedTileColor: Colors.blue[50],
+                              trailing: isSelected
+                                  ? const Icon(Icons.check_circle,
+                                      color: Colors.blue)
+                                  : null,
+                              onTap: () {
+                                widget.onSelected(
+                                    bp['CardCode']!, bp['CardName']!);
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

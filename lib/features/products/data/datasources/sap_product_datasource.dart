@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sss/features/products/data/models/product_model.dart';
+import 'package:sss/features/products/data/models/price_model.dart';
 import 'package:sss/features/products/data/datasources/product_remote_datasource.dart';
 import 'package:sss/core/services/sap_auth_service.dart';
 
@@ -118,19 +119,7 @@ class SapProductDataSource implements ProductDataSource {
   }
 
   Future<Map<String, String>> _getHeaders() async {
-    final sessionId = await _sapAuthService.getSessionId() ?? '';
-    final routeId = await _sapAuthService.getRouteId();
-
-    String cookie = 'B1SESSION=$sessionId';
-    if (routeId != null && routeId.isNotEmpty) {
-      cookie += '; ROUTEID=$routeId';
-    }
-
-    debugPrint('SapProductDataSource → Cookie: $cookie');
-    return {
-      'Cookie': cookie,
-      'Content-Type': 'application/json',
-    };
+    return _sapAuthService.getHeaders();
   }
 
   // ─── Ensure Valid Session ─────────────────────────────────────────────────
@@ -199,20 +188,145 @@ class SapProductDataSource implements ProductDataSource {
     return _groupCache[code] ?? 'Group $code';
   }
 
+  // ─── Fetch Customer Price List ──────────────────────────────────────────────
+
+  @override
+  Future<int?> getCustomerPriceListNum() async {
+    final cardCode = await _sapAuthService.getActiveCardCode() ?? 'LC00050';
+    if (cardCode.isEmpty) return null;
+
+    final baseUrl = await _getBaseUrl();
+    final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl/BusinessPartners(\'$cardCode\')?\$select=PriceListNum');
+
+    debugPrint('SapProductDataSource → Fetching PriceListNum for $cardCode...');
+    try {
+      final response = await client.get(uri, headers: headers);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['PriceListNum'] as int?;
+      } else if (response.statusCode == 401) {
+        final newHeaders = await _reloginAndGetHeaders();
+        final retryResponse = await client.get(uri, headers: newHeaders);
+        if (retryResponse.statusCode == 200) {
+          final data = jsonDecode(retryResponse.body);
+          return data['PriceListNum'] as int?;
+        }
+      }
+    } catch (e) {
+      debugPrint('SapProductDataSource → Failed to fetch PriceListNum for $cardCode: $e');
+    }
+    return null;
+  }
+
+  // ─── Fetch Customer Special Prices ──────────────────────────────────────────
+
+  @override
+  Future<Map<String, double>> getCustomerSpecialPrices() async {
+    final cardCode = await _sapAuthService.getActiveCardCode() ?? '';
+    if (cardCode.isEmpty) return {};
+
+    final baseUrl = await _getBaseUrl();
+    final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl/SpecialPrices?\$filter=CardCode eq \'$cardCode\'&\$select=ItemCode,Price');
+
+    debugPrint('SapProductDataSource → Fetching SpecialPrices for $cardCode...');
+    final Map<String, double> specialPrices = {};
+
+    try {
+      final response = await client.get(uri, headers: headers);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List items = data['value'] ?? [];
+        for (final item in items) {
+           final itemCode = item['ItemCode'] as String?;
+           final price = item['Price'];
+           if (itemCode != null && price != null) {
+              specialPrices[itemCode] = (price as num).toDouble();
+           }
+        }
+        
+        // Handle pagination for SpecialPrices just in case
+        String? nextLink = data['odata.nextLink'] ?? data['@odata.nextLink'];
+        while (nextLink != null && nextLink.isNotEmpty) {
+           final nextUri = Uri.parse(nextLink.startsWith('http') ? nextLink : '$baseUrl/${nextLink.split('/b1s/v1/').last}');
+           final nextRes = await client.get(nextUri, headers: headers);
+           if (nextRes.statusCode == 200) {
+             final nextData = jsonDecode(nextRes.body);
+             final List nextItems = nextData['value'] ?? [];
+             for (final item in nextItems) {
+               final itemCode = item['ItemCode'] as String?;
+               final price = item['Price'];
+               if (itemCode != null && price != null) {
+                  specialPrices[itemCode] = (price as num).toDouble();
+               }
+             }
+             nextLink = nextData['odata.nextLink'] ?? nextData['@odata.nextLink'];
+           } else {
+             break;
+           }
+        }
+      }
+    } catch (e) {
+      debugPrint('SapProductDataSource → Failed to fetch SpecialPrices: $e');
+    }
+    
+    debugPrint('SapProductDataSource → Found ${specialPrices.length} SpecialPrices');
+    return specialPrices;
+  }
+
   // ─── Map SAP Item to ProductModel ─────────────────────────────────────────
 
-  ProductModel _mapToProductModel(Map<String, dynamic> item) {
+  ProductModel _mapToProductModel(Map<String, dynamic> item, {int? priceListNum, Map<String, double> specialPrices = const {}}) {
     final String id = item['ItemCode'] ?? '';
-    final String placeholder = 'assets/images/placeholder.png';
+    final String placeholder = 'assets/images/fallback.svg';
+    
+    // Determine the correct price based on the PriceList assigned to the customer
+    double itemPrice = (item['AvgStdPrice'] ?? 0.0).toDouble();
+
+    // 1. Check Special Prices first (highest priority)
+    if (specialPrices.containsKey(id) && specialPrices[id]! > 0) {
+      itemPrice = specialPrices[id]!;
+    } 
+    // 2. Fallback to PriceList assigned to customer
+    else if (priceListNum != null && item['ItemPrices'] != null) {
+      final List prices = item['ItemPrices'];
+      final targetPrice = prices.firstWhere(
+        (p) => p['PriceList'] == priceListNum,
+        orElse: () => null,
+      );
+      if (targetPrice != null && targetPrice['Price'] != null) {
+        final extractedPrice = (targetPrice['Price'] as num).toDouble();
+        if (extractedPrice > 0) {
+          itemPrice = extractedPrice;
+        }
+      }
+    }
+
+    // Map SAP ItemPrices to PriceModel list
+    final List<PriceModel> allItemPrices = [];
+    if (item['ItemPrices'] != null) {
+      final List prices = item['ItemPrices'];
+      for (final p in prices) {
+        allItemPrices.add(PriceModel(
+          priceList: p['PriceList'] as int,
+          price: (p['Price'] ?? 0.0).toDouble(),
+          currency: p['Currency'] as String?,
+        ));
+      }
+    }
+
     return ProductModel(
       id: id,
       name: item['ItemName'] ?? '',
       brand: item['Mainsupplier'] ?? '',
-      price: (item['AvgStdPrice'] ?? 0.0).toDouble(),
+      price: itemPrice,
       size: item['InventoryUOM'] ?? '',
       category: _mapGroupCode(item['ItemsGroupCode']),
       description: item['ItemName'] ?? '',
       imageUrl: _uploadedImages.containsKey(id) ? _uploadedImages[id]! : placeholder,
+      salesVatGroup: item['SalesVATGroup'] as String?,
+      itemPrices: allItemPrices,
       tenantId: 'enterprise',
       branchId: null,
     );
@@ -258,6 +372,13 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
     // ✅ Clear group cache so it reloads under current session
     _groupCache = {};
     await _loadItemGroups();
+    
+    // ✅ Step 1: Fetch the customer's PriceListNum
+    final priceListNum = await getCustomerPriceListNum();
+    debugPrint('SapProductDataSource → Initial PriceListNum: $priceListNum');
+
+    // ✅ Step 2: Fetch the customer's Special Prices (overrides PriceList)
+    final specialPrices = await getCustomerSpecialPrices();
 
     // ✅ SAP B1 returns empty on the very first Items query of a new session.
     // A lightweight $top=0 ping warms up the session context before the
@@ -271,7 +392,9 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
     
     // Start with the initial query (SAP defaults to 20 items per page)
     // Adding $orderby is REQUIRED for $skip to work correctly in SAP HANA/SQL Server.
-    String nextUrl = '$baseUrl/Items?\$select=ItemCode,ItemName,ItemsGroupCode,QuantityOnStock,MinInventory,MaxInventory,AvgStdPrice,Mainsupplier,InventoryUOM&\$orderby=ItemCode';
+    String nextUrl = '$baseUrl/Items?\$select=ItemCode,ItemName,ItemsGroupCode,QuantityOnStock,MinInventory,MaxInventory,AvgStdPrice,Mainsupplier,InventoryUOM,ItemPrices,SalesVATGroup&\$filter=SalesItem eq \'tYES\'&\$orderby=ItemCode';
+
+    int emptyRetries = 0;
 
     while (nextUrl.isNotEmpty) {
       var headers = await _getHeaders();
@@ -300,10 +423,17 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
         final data = jsonDecode(response.body);
         final List items = data['value'] ?? [];
 
+        if (items.isEmpty && allProducts.isEmpty && emptyRetries < 5) {
+          emptyRetries++;
+          debugPrint('SapProductDataSource → SAP returned empty on first try, delaying and retrying ($emptyRetries)...');
+          await Future.delayed(const Duration(seconds: 1));
+          continue; // retry the same nextUrl
+        }
+
         debugPrint('SapProductDataSource → Items in page: ${items.length}');
 
         for (final item in items) {
-          allProducts.add(_mapToProductModel(item));
+          allProducts.add(_mapToProductModel(item, priceListNum: priceListNum, specialPrices: specialPrices));
         }
 
         // ✅ CORRECT: Rely on SAP's odata.nextLink for pagination which preserves order and token
@@ -345,10 +475,13 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
     );
     debugPrint('═══════════════════════════════════════');
 
-    _cachedProducts = allProducts;
-    _lastFetchTime = DateTime.now();
-
-    await _savePersistence(); // ✅ FIX: awaited so errors surface properly
+    if (allProducts.isNotEmpty) {
+      _cachedProducts = allProducts;
+      _lastFetchTime = DateTime.now();
+      await _savePersistence(); // ✅ FIX: awaited so errors surface properly
+    } else {
+      debugPrint('SapProductDataSource → Fetched 0 products. Skipping cache.');
+    }
 
     _fetchCompleter!.complete(allProducts);
     return allProducts;
@@ -378,10 +511,13 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
 
     await _ensureSession();
     await _loadItemGroups();
+    
+    final priceListNum = await getCustomerPriceListNum();
+    final specialPrices = await getCustomerSpecialPrices();
 
     final baseUrl = await _getBaseUrl();
     var headers = await _getHeaders();
-    final uri = Uri.parse('$baseUrl/Items(\'$id\')');
+    final uri = Uri.parse('$baseUrl/Items(\'$id\')?\$select=ItemCode,ItemName,ItemsGroupCode,AvgStdPrice,Mainsupplier,InventoryUOM,ItemPrices,SalesVATGroup&\$filter=SalesItem eq \'tYES\'');
 
     var response = await client.get(uri, headers: headers);
 
@@ -393,7 +529,7 @@ Future<List<ProductModel>> fetchProducts({String? tenantId}) async {
     if (response.statusCode == 200) {
       final Map<String, dynamic> item = jsonDecode(response.body);
       debugPrint('SapProductDataSource.getProductById → found: ${item['ItemCode']}');
-      return _mapToProductModel(item);
+      return _mapToProductModel(item, priceListNum: priceListNum, specialPrices: specialPrices);
     } else if (response.statusCode == 404) {
       debugPrint('SapProductDataSource.getProductById → not found');
       return null;

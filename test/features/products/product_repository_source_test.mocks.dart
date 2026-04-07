@@ -107,6 +107,24 @@ class MockLocalProductDataSource extends _i1.Mock
           as _i6.Future<void>);
 
   @override
+  _i6.Future<int?> getCustomerPriceListNum() =>
+      (super.noSuchMethod(
+            Invocation.method(#getCustomerPriceListNum, []),
+            returnValue: _i6.Future<int?>.value(),
+          )
+          as _i6.Future<int?>);
+
+  @override
+  _i6.Future<Map<String, double>> getCustomerSpecialPrices() =>
+      (super.noSuchMethod(
+            Invocation.method(#getCustomerSpecialPrices, []),
+            returnValue: _i6.Future<Map<String, double>>.value(
+              <String, double>{},
+            ),
+          )
+          as _i6.Future<Map<String, double>>);
+
+  @override
   void clearCache() => super.noSuchMethod(
     Invocation.method(#clearCache, []),
     returnValueForMissingStub: null,
@@ -176,6 +194,24 @@ class MockProductRemoteDataSource extends _i1.Mock
           as _i6.Future<void>);
 
   @override
+  _i6.Future<int?> getCustomerPriceListNum() =>
+      (super.noSuchMethod(
+            Invocation.method(#getCustomerPriceListNum, []),
+            returnValue: _i6.Future<int?>.value(),
+          )
+          as _i6.Future<int?>);
+
+  @override
+  _i6.Future<Map<String, double>> getCustomerSpecialPrices() =>
+      (super.noSuchMethod(
+            Invocation.method(#getCustomerSpecialPrices, []),
+            returnValue: _i6.Future<Map<String, double>>.value(
+              <String, double>{},
+            ),
+          )
+          as _i6.Future<Map<String, double>>);
+
+  @override
   void clearCache() => super.noSuchMethod(
     Invocation.method(#clearCache, []),
     returnValueForMissingStub: null,
@@ -205,6 +241,24 @@ class MockSapProductDataSource extends _i1.Mock
         Invocation.method(#updateLocalImage, [productId, imageUrl]),
         returnValueForMissingStub: null,
       );
+
+  @override
+  _i6.Future<int?> getCustomerPriceListNum() =>
+      (super.noSuchMethod(
+            Invocation.method(#getCustomerPriceListNum, []),
+            returnValue: _i6.Future<int?>.value(),
+          )
+          as _i6.Future<int?>);
+
+  @override
+  _i6.Future<Map<String, double>> getCustomerSpecialPrices() =>
+      (super.noSuchMethod(
+            Invocation.method(#getCustomerSpecialPrices, []),
+            returnValue: _i6.Future<Map<String, double>>.value(
+              <String, double>{},
+            ),
+          )
+          as _i6.Future<Map<String, double>>);
 
   @override
   _i6.Future<List<_i7.ProductModel>> fetchProducts({String? tenantId}) =>

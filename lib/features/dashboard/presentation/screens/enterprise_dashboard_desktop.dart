@@ -351,7 +351,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                       _buildOverviewTab(isDarkMode),
                       _buildAnalyticsTab(isDarkMode),
                       _buildBranchesTab(isDarkMode),
-                      const Center(child: Text('Settings Placeholder')),
+                      _buildSettingsTab(isDarkMode),
                     ],
                   ),
                 ),
@@ -507,7 +507,7 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                           )
                        ]
                      ),
-                     child: EnterpriseFeed(isDarkMode: isDarkMode, selectedDate: _selectedDate),
+                     child: EnterpriseFeed(isDarkMode: isDarkMode, selectedDate: _selectedDate, branches: _branches),
                    ),
                  ),
               ],
@@ -885,6 +885,12 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
     final usernameController = TextEditingController(text: branch?.loginUsername);
     final passwordController = TextEditingController(text: branch?.loginPassword);
     
+    // SAP Override Controllers
+    final sapServerController = TextEditingController(text: branch?.sapServerIp);
+    final sapDbController = TextEditingController(text: branch?.sapCompanyDb);
+    final sapUserController = TextEditingController(text: branch?.sapUsername);
+    final sapPassController = TextEditingController(text: branch?.sapPassword);
+    
     // Auto-generate ID if not editing
     final branchId = isEditing ? branch.id : 'BR${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
 
@@ -940,6 +946,32 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                     obscureText: true,
                     validator: (v) => v?.isNotEmpty == true ? null : 'Required',
                   ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text('SAP Integration Overrides (Optional)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                  const Text('Leave blank to inherit from Enterprise Global Config', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: sapServerController,
+                    decoration: const InputDecoration(labelText: 'SAP Server IP / Domain Override', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: sapDbController,
+                    decoration: const InputDecoration(labelText: 'Company DB Override', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: sapUserController,
+                    decoration: const InputDecoration(labelText: 'SAP Username Override', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: sapPassController,
+                    decoration: const InputDecoration(labelText: 'SAP Password Override', border: OutlineInputBorder()),
+                    obscureText: true,
+                  ),
                 ],
               ),
             ),
@@ -960,6 +992,10 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                   managerName: managerController.text,
                   loginUsername: usernameController.text,
                   loginPassword: passwordController.text,
+                  sapServerIp: sapServerController.text.trim().isEmpty ? null : sapServerController.text.trim(),
+                  sapCompanyDb: sapDbController.text.trim().isEmpty ? null : sapDbController.text.trim(),
+                  sapUsername: sapUserController.text.trim().isEmpty ? null : sapUserController.text.trim(),
+                  sapPassword: sapPassController.text.trim().isEmpty ? null : sapPassController.text.trim(),
                 ) ?? Branch(
                   id: branchId,
                   tenantId: _currentConfig.tenantId ?? '',
@@ -969,6 +1005,10 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
                   managerName: managerController.text,
                   loginUsername: usernameController.text,
                   loginPassword: passwordController.text,
+                  sapServerIp: sapServerController.text.trim().isEmpty ? null : sapServerController.text.trim(),
+                  sapCompanyDb: sapDbController.text.trim().isEmpty ? null : sapDbController.text.trim(),
+                  sapUsername: sapUserController.text.trim().isEmpty ? null : sapUserController.text.trim(),
+                  sapPassword: sapPassController.text.trim().isEmpty ? null : sapPassController.text.trim(),
                 );
                 
                 if (isEditing) {
@@ -1084,6 +1124,117 @@ class _EnterpriseDashboardDesktopState extends State<EnterpriseDashboardDesktop>
             child: OutlinedButton(
               onPressed: () => _navigateToBranch(branch), 
               child: const Text('Access Branch Panel'),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsTab(bool isDarkMode) {
+    if (_currentTenant == null) {
+      return const Center(child: Text('Tenant data not available'));
+    }
+
+    final sapServerController = TextEditingController(text: _currentTenant!.sapServerIp);
+    final sapDbController = TextEditingController(text: _currentTenant!.sapCompanyDb);
+    final sapUserController = TextEditingController(text: _currentTenant!.sapUsername);
+    final sapPassController = TextEditingController(text: _currentTenant!.sapPassword);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Enterprise Settings',
+            style: TextStyle(
+              fontSize: 24, 
+              fontWeight: FontWeight.bold,
+              color: isDarkMode ? Colors.white : Colors.black87
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 10, offset: const Offset(0, 4))
+              ]
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Global SAP Business One Credentials', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDarkMode ? Colors.white : Colors.black87)),
+                const SizedBox(height: 8),
+                Text('Credentials set here will be automatically inherited by all branches under this enterprise unless overridden at the branch level.', style: TextStyle(color: Colors.grey[600])),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(child: TextFormField(
+                      controller: sapServerController,
+                      decoration: const InputDecoration(labelText: 'SAP Server IP or Domain', border: OutlineInputBorder(), prefixIcon: Icon(Icons.dns)),
+                    )),
+                    const SizedBox(width: 16),
+                    Expanded(child: TextFormField(
+                      controller: sapDbController,
+                      decoration: const InputDecoration(labelText: 'Company DB Name', border: OutlineInputBorder(), prefixIcon: Icon(Icons.storage)),
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: TextFormField(
+                      controller: sapUserController,
+                      decoration: const InputDecoration(labelText: 'SAP Integration Username', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
+                    )),
+                    const SizedBox(width: 16),
+                    Expanded(child: TextFormField(
+                      controller: sapPassController,
+                      decoration: const InputDecoration(labelText: 'SAP Password', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)),
+                      obscureText: true,
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final updated = _currentTenant!.copyWith(
+                        sapServerIp: sapServerController.text.trim().isEmpty ? null : sapServerController.text.trim(),
+                        sapCompanyDb: sapDbController.text.trim().isEmpty ? null : sapDbController.text.trim(),
+                        sapUsername: sapUserController.text.trim().isEmpty ? null : sapUserController.text.trim(),
+                        sapPassword: sapPassController.text.trim().isEmpty ? null : sapPassController.text.trim(),
+                      );
+                      
+                      try {
+                        await _tenantService.updateTenant(updated);
+                        setState(() {
+                          _currentTenant = updated;
+                        });
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Global SAP configuration saved successfully.')));
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving configuration: $e'), backgroundColor: Colors.red));
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.save),
+                    label: const Text('Save Configuration'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1a237e),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+                    ),
+                  ),
+                )
+              ],
             ),
           )
         ],

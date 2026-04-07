@@ -23,6 +23,10 @@ class BranchesDao extends DatabaseAccessor<AppDatabase> with _$BranchesDaoMixin 
       loginUsername: row.loginUsername,
       loginPassword: row.loginPassword,
       isActive: row.isActive,
+      sapServerIp: row.sapServerIp,
+      sapCompanyDb: row.sapCompanyDb,
+      sapUsername: row.sapUsername,
+      sapPassword: row.sapPassword,
       // Default metrics for now
       totalOrders: 0,
       revenue: 0.0,
@@ -41,6 +45,10 @@ class BranchesDao extends DatabaseAccessor<AppDatabase> with _$BranchesDaoMixin 
       loginUsername: Value(branch.loginUsername),
       loginPassword: Value(branch.loginPassword),
       isActive: Value(branch.isActive),
+      sapServerIp: Value(branch.sapServerIp),
+      sapCompanyDb: Value(branch.sapCompanyDb),
+      sapUsername: Value(branch.sapUsername),
+      sapPassword: Value(branch.sapPassword),
     ));
   }
 
@@ -66,6 +74,10 @@ class BranchesDao extends DatabaseAccessor<AppDatabase> with _$BranchesDaoMixin 
       loginUsername: row.loginUsername,
       loginPassword: row.loginPassword,
       isActive: row.isActive,
+      sapServerIp: row.sapServerIp,
+      sapCompanyDb: row.sapCompanyDb,
+      sapUsername: row.sapUsername,
+      sapPassword: row.sapPassword,
       totalOrders: 0, // Snapshot
       revenue: 0.0,
     );
