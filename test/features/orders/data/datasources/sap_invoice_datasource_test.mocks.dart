@@ -2,7 +2,7 @@
 // in sss/test/features/orders/data/datasources/sap_invoice_datasource_test.dart.
 // Do not manually edit this file.
 
-// ignore_for_file: no_leading_underscores_for_library_prefixes
+// ignore_for_file: invalid_use_of_internal_member, no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i7;
 import 'dart:convert' as _i9;
 import 'dart:typed_data' as _i10;

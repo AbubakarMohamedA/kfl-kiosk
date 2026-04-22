@@ -11,18 +11,14 @@ import 'package:sss/features/orders/presentation/bloc/order/order_event.dart';
 // import 'package:sss/features/warehouse/presentation/screens/inventory_screen.dart';
 // import 'package:sss/features/admin/presentation/screens/staff_management_screen.dart';
 import 'package:sss/features/settings/presentation/screens/settings_screen.dart';
-import 'package:sss/features/warehouse/domain/entities/warehouse.dart';
-import 'package:sss/features/warehouse/presentation/screens/warehouse_selector_screen.dart';
 import 'package:sss/features/auth/domain/services/tenant_service.dart';
 import 'package:sss/features/home/presentation/screens/home_screen_desktop.dart';
-import 'package:sss/features/warehouse/presentation/screens/staff_panel_warehouse.dart';
 import 'package:sss/features/admin/presentation/screens/super_admin_screen.dart';
 import 'package:sss/features/insights/presentation/screens/business_insights_screen.dart';
 import 'package:sss/features/settings/presentation/screens/maintenance_screen.dart';
 import 'package:sss/features/auth/presentation/screens/account_disabled_screen.dart';
 import 'package:sss/features/settings/presentation/screens/premium_upgrade_screen.dart';
 import 'package:sss/features/auth/presentation/screens/login_screen.dart';
-import 'package:sss/features/warehouse/presentation/screens/warehouse_management_screen.dart'; // ✅ NEW
 import 'package:sss/features/products/presentation/screens/product_management_screen.dart';
 import 'package:sss/features/settings/presentation/screens/mobile_config_screen.dart'; // ✅ NEW
 import 'package:sss/features/orders/presentation/screens/sap_invoices_screen.dart';
@@ -73,7 +69,6 @@ class _StaffPanelDesktopState extends State<StaffPanelDesktop>
   String _selectedFilter = 'all';
   bool _showHistory = false;
   ScreenType _currentScreen = ScreenType.dashboard;
-  Warehouse? _selectedWarehouse;
   bool _isDarkMode = false;
   DateTime _currentTime = DateTime.now();
   int _paidOrdersCount = 0;

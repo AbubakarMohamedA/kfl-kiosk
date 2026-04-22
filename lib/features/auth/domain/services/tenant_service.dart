@@ -1039,7 +1039,7 @@ class TenantService {
 
         // 3. Warehouse Staff Login
         if (role == AppRole.warehouse) {
-          final whResults = await _restService.runQuery('warehouses', [
+          var whResults = await _restService.runQuery('warehouses', [
              {
                'fieldFilter': {
                  'field': {'fieldPath': 'loginUsername'},
@@ -1056,8 +1056,29 @@ class TenantService {
              }
           ], allDescendants: true);
 
+          if (whResults.isEmpty) {
+            final encryptedPass = EncryptionUtil.encryptString(password);
+            whResults = await _restService.runQuery('warehouses', [
+               {
+                 'fieldFilter': {
+                   'field': {'fieldPath': 'loginUsername'},
+                   'op': 'EQUAL', 
+                   'value': {'stringValue': identifier}
+                 }
+               },
+               {
+                 'fieldFilter': {
+                   'field': {'fieldPath': 'loginPassword'},
+                   'op': 'EQUAL', 
+                   'value': {'stringValue': encryptedPass}
+                 }
+               }
+            ], allDescendants: true);
+          }
+
           if (whResults.isNotEmpty) {
-             final whData = whResults.first;
+             final whData = Map<String, dynamic>.from(whResults.first);
+             whData['loginPassword'] = password; // Return raw password  
              final path = whData['__path'] as String? ?? '';
              final tenantId = _getParentId(path, 'tenants');
              final branchId = _getParentId(path, 'branches');
@@ -1135,10 +1156,18 @@ class TenantService {
 
       // 3. Warehouse Staff Login
       if (role == AppRole.warehouse) {
-        final whSnapshot = await _firestore.collectionGroup('warehouses')
+        var whSnapshot = await _firestore.collectionGroup('warehouses')
             .where('loginUsername', isEqualTo: identifier)
             .where('loginPassword', isEqualTo: password)
             .get();
+
+        if (whSnapshot.docs.isEmpty) {
+           final encryptedPass = EncryptionUtil.encryptString(password);
+           whSnapshot = await _firestore.collectionGroup('warehouses')
+            .where('loginUsername', isEqualTo: identifier)
+            .where('loginPassword', isEqualTo: encryptedPass)
+            .get();
+        }
 
         if (whSnapshot.docs.isNotEmpty) {
           final whDoc = whSnapshot.docs.first;
@@ -1146,17 +1175,19 @@ class TenantService {
           if (bDocRef != null) {
             final tDocRef = bDocRef.parent.parent;
             if (tDocRef != null) {
-                final tDoc = await tDocRef.get();
-                final bDoc = await bDocRef.get();
-                return {
-                  'type': 'warehouse', 
-                  'data': whDoc.data(), 
-                  'id': whDoc.id, 
-                  'tenantId': tDoc.id, 
-                  'tenantData': tDoc.data(),
-                  'branchId': bDoc.id,
-                  'branchData': bDoc.data()
-                };
+                 final tDoc = await tDocRef.get();
+                 final bDoc = await bDocRef.get();
+                 final mappedData = Map<String, dynamic>.from(whDoc.data());
+                 mappedData['loginPassword'] = password; // Return raw
+                 return {
+                   'type': 'warehouse', 
+                   'data': mappedData, 
+                   'id': whDoc.id, 
+                   'tenantId': tDoc.id, 
+                   'tenantData': tDoc.data(),
+                   'branchId': bDoc.id,
+                   'branchData': bDoc.data()
+                 };
             }
           }
         }

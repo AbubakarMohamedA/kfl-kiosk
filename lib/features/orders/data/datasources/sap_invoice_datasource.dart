@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:synchronized/synchronized.dart';
 import 'package:sss/core/database/app_database.dart'; // for Order type
 import 'package:sss/core/database/daos/orders_dao.dart';
@@ -16,37 +15,12 @@ class SapInvoiceDataSource {
   final SapAuthService _sapAuthService;
   final OrdersDao _ordersDao;
   static final _lock = Lock();
-  Timer? _scheduledTimer;
 
   SapInvoiceDataSource(this._sapAuthService, this._ordersDao) {
     _startScheduledSyncWorker();
   }
 
   void _startScheduledSyncWorker() {
-    _scheduledTimer = Timer.periodic(const Duration(minutes: 1), (_) async {
-      try {
-        final creds = await _sapAuthService.loadCredentials();
-        final scheduledTime = creds['scheduledSyncTime'];
-        if (scheduledTime != null && scheduledTime.trim().isNotEmpty) {
-          final now = DateTime.now();
-          final currentTimeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-          
-          if (currentTimeStr == scheduledTime.trim()) {
-            final prefs = await SharedPreferences.getInstance();
-            final lastRun = prefs.getString('lastScheduledSyncDate');
-            final today = '${now.year}-${now.month}-${now.day}';
-            
-            if (lastRun != today) {
-              debugPrint('SapInvoiceDataSource → Triggering SCHEDULED Sync at \$currentTimeStr');
-              await prefs.setString('lastScheduledSyncDate', today);
-              await retryFailedSyncs();
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('SapInvoiceDataSource → Error in scheduled sync worker: \$e');
-      }
-    });
   }
 
   SapAuthService getSapAuthService() => _sapAuthService;
